@@ -1,6 +1,5 @@
 package com.example.aichat.feature.profile
 
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
@@ -12,7 +11,6 @@ import androidx.compose.material.icons.outlined.ArrowBack
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -42,7 +40,7 @@ import kotlinx.coroutines.launch
 
 @HiltViewModel
 class EditProfileViewModel @Inject constructor(
-    profileRepository: ProfileRepository
+    private val profileRepository: ProfileRepository
 ) : ViewModel() {
     val displayName: StateFlow<String> = profileRepository.profile
         .map { it?.displayName.orEmpty() }

@@ -1,0 +1,243 @@
+import type { Env } from "../../env";
+import { all, first, run } from "../client";
+
+export interface ConversationRecord {
+  id: string;
+  owner_user_id: string;
+  character_id: string;
+  updated_at: number;
+  started_at: number;
+  last_message_at: number | null;
+}
+
+export interface ConversationSummaryRecord {
+  id: string;
+  character_id: string;
+  character_name: string;
+  character_avatar_url: string | null;
+  updated_at: number;
+  started_at: number;
+  last_message_at: number | null;
+  last_preview: string;
+}
+
+export interface MessageRecord {
+  id: string;
+  conversation_id: string;
+  position: number;
+  role: "user" | "assistant";
+  content: string;
+  edited: number;
+  created_at: number;
+  updated_at: number;
+  selected_regeneration_id: string | null;
+}
+
+export interface AssistantRegenerationRecord {
+  id: string;
+  message_id: string;
+  content: string;
+  created_at: number;
+}
+
+export async function listConversationSummaries(
+  env: Env,
+  userId: string,
+  offset: number,
+  limit: number
+): Promise<ConversationSummaryRecord[]> {
+  return all<ConversationSummaryRecord>(
+    env.DB.prepare(
+      `
+      SELECT
+        conversations.id,
+        conversations.character_id,
+        characters.name AS character_name,
+        characters.avatar_url AS character_avatar_url,
+        conversations.updated_at,
+        conversations.started_at,
+        conversations.last_message_at,
+        COALESCE(selected_regenerations.content, latest_messages.content, '') AS last_preview
+      FROM conversations
+      INNER JOIN characters ON characters.id = conversations.character_id
+      LEFT JOIN messages AS latest_messages
+        ON latest_messages.conversation_id = conversations.id
+        AND latest_messages.position = (
+          SELECT MAX(messages.position)
+          FROM messages
+          WHERE messages.conversation_id = conversations.id
+        )
+      LEFT JOIN assistant_regenerations AS selected_regenerations
+        ON selected_regenerations.id = latest_messages.selected_regeneration_id
+      WHERE conversations.owner_user_id = ?
+      ORDER BY conversations.updated_at DESC
+      LIMIT ? OFFSET ?
+      `
+    ).bind(userId, limit, offset)
+  );
+}
+
+export async function getConversationById(env: Env, conversationId: string): Promise<ConversationRecord | null> {
+  return first<ConversationRecord>(
+    env.DB.prepare("SELECT * FROM conversations WHERE id = ? LIMIT 1").bind(conversationId)
+  );
+}
+
+export async function findConversationByOwnerAndCharacter(
+  env: Env,
+  ownerUserId: string,
+  characterId: string
+): Promise<ConversationRecord | null> {
+  return first<ConversationRecord>(
+    env.DB.prepare(
+      "SELECT * FROM conversations WHERE owner_user_id = ? AND character_id = ? LIMIT 1"
+    ).bind(ownerUserId, characterId)
+  );
+}
+
+export async function insertConversation(env: Env, input: {
+  id: string;
+  ownerUserId: string;
+  characterId: string;
+  now: number;
+}): Promise<void> {
+  await run(
+    env.DB.prepare(
+      `
+      INSERT INTO conversations (id, owner_user_id, character_id, updated_at, started_at, last_message_at)
+      VALUES (?, ?, ?, ?, ?, NULL)
+      `
+    ).bind(input.id, input.ownerUserId, input.characterId, input.now, input.now)
+  );
+}
+
+export async function listMessages(env: Env, conversationId: string): Promise<MessageRecord[]> {
+  return all<MessageRecord>(
+    env.DB.prepare(
+      "SELECT * FROM messages WHERE conversation_id = ? ORDER BY position ASC"
+    ).bind(conversationId)
+  );
+}
+
+export async function listRegenerationsForConversation(
+  env: Env,
+  conversationId: string
+): Promise<AssistantRegenerationRecord[]> {
+  return all<AssistantRegenerationRecord>(
+    env.DB.prepare(
+      `
+      SELECT assistant_regenerations.*
+      FROM assistant_regenerations
+      INNER JOIN messages ON messages.id = assistant_regenerations.message_id
+      WHERE messages.conversation_id = ?
+      ORDER BY assistant_regenerations.created_at ASC
+      `
+    ).bind(conversationId)
+  );
+}
+
+export async function getMessageById(env: Env, messageId: string): Promise<MessageRecord | null> {
+  return first<MessageRecord>(
+    env.DB.prepare("SELECT * FROM messages WHERE id = ? LIMIT 1").bind(messageId)
+  );
+}
+
+export async function insertMessage(env: Env, input: MessageRecord): Promise<void> {
+  await run(
+    env.DB.prepare(
+      `
+      INSERT INTO messages (
+        id, conversation_id, position, role, content, edited, created_at, updated_at, selected_regeneration_id
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `
+    ).bind(
+      input.id,
+      input.conversation_id,
+      input.position,
+      input.role,
+      input.content,
+      input.edited,
+      input.created_at,
+      input.updated_at,
+      input.selected_regeneration_id
+    )
+  );
+}
+
+export async function updateMessageContent(env: Env, input: {
+  messageId: string;
+  content: string;
+  edited: boolean;
+  updatedAt: number;
+}): Promise<void> {
+  await run(
+    env.DB.prepare(
+      `
+      UPDATE messages
+      SET content = ?, edited = ?, updated_at = ?
+      WHERE id = ?
+      `
+    ).bind(input.content, input.edited ? 1 : 0, input.updatedAt, input.messageId)
+  );
+}
+
+export async function updateMessageSelection(env: Env, input: {
+  messageId: string;
+  selectedRegenerationId: string | null;
+  updatedAt: number;
+  edited?: boolean;
+}): Promise<void> {
+  await run(
+    env.DB.prepare(
+      `
+      UPDATE messages
+      SET selected_regeneration_id = ?, updated_at = ?, edited = COALESCE(?, edited)
+      WHERE id = ?
+      `
+    ).bind(input.selectedRegenerationId, input.updatedAt, input.edited == null ? null : input.edited ? 1 : 0, input.messageId)
+  );
+}
+
+export async function deleteMessagesAfter(env: Env, conversationId: string, position: number): Promise<void> {
+  await run(
+    env.DB.prepare(
+      "DELETE FROM messages WHERE conversation_id = ? AND position > ?"
+    ).bind(conversationId, position)
+  );
+}
+
+export async function insertRegeneration(env: Env, input: AssistantRegenerationRecord): Promise<void> {
+  await run(
+    env.DB.prepare(
+      `
+      INSERT INTO assistant_regenerations (id, message_id, content, created_at)
+      VALUES (?, ?, ?, ?)
+      `
+    ).bind(input.id, input.message_id, input.content, input.created_at)
+  );
+}
+
+export async function updateRegenerationContent(env: Env, regenerationId: string, content: string): Promise<void> {
+  await run(
+    env.DB.prepare(
+      `
+      UPDATE assistant_regenerations
+      SET content = ?
+      WHERE id = ?
+      `
+    ).bind(content, regenerationId)
+  );
+}
+
+export async function updateConversationActivity(env: Env, conversationId: string, now: number): Promise<void> {
+  await run(
+    env.DB.prepare(
+      `
+      UPDATE conversations
+      SET updated_at = ?, last_message_at = ?
+      WHERE id = ?
+      `
+    ).bind(now, now, conversationId)
+  );
+}

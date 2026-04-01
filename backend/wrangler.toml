@@ -1,0 +1,19 @@
+name = "character-chat-worker"
+main = "src/index.ts"
+compatibility_date = "2026-04-01"
+
+[vars]
+GOOGLE_WEB_CLIENT_ID = ""
+OPENROUTER_MODEL = "openrouter/auto"
+FAL_MODEL = "fal-ai/flux/dev"
+R2_PUBLIC_BASE_URL = ""
+
+[[d1_databases]]
+binding = "DB"
+database_name = "character-chat"
+database_id = "REPLACE_WITH_D1_DATABASE_ID"
+
+[[r2_buckets]]
+binding = "ASSETS"
+bucket_name = "character-chat-assets"
+

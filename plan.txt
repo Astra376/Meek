@@ -1,0 +1,1066 @@
+# Architecture
+
+## 1. Product
+
+Build an Android-only AI character chat app with:
+
+* Google sign-in only
+* Home feed of public characters
+* Search
+* Create character
+* Chats list
+* Chat screen
+* Edit any message destructively
+* Rewind destructively
+* Regenerate the latest assistant reply only
+* Simple profile and settings
+* Character portrait generation
+* Dark mode and light mode
+
+The codebase should be modular, readable, efficient, and easy to change without unnecessary abstraction or module sprawl.
+
+---
+
+## 2. Architecture principles
+
+### Modularity without bloat
+
+Keep clear boundaries around product areas that actually change independently:
+
+* auth
+* home and search
+* character management
+* chat
+* images
+* persistence
+
+Do not split code into extra layers or modules unless that split clearly reduces coupling.
+
+### Package by feature
+
+Most code for a feature should live together.
+
+When changing chat, you should mostly be in the chat package.
+When changing home, you should mostly be in the home package.
+
+Do not spread one feature across a large number of generic shared layers.
+
+### One strong boundary around chat logic
+
+The most important logic in the app is the conversation model and chat actions.
+That logic should be isolated clearly so later feature changes do not accidentally break it.
+
+### Start with a runnable app
+
+The first implementation stage must produce a real Android app that installs on a phone and has a functioning chat screen using local/mock data.
+That gives a working app immediately and lets UI and interaction decisions happen inside a real device build instead of inside architecture theory.
+
+### Backend stays thin
+
+The backend exists to:
+
+* verify auth
+* persist app state
+* stream model responses
+* generate and store portraits
+* enforce visibility and ownership rules
+* keep provider keys off the client
+
+It should not become a heavy service framework.
+
+---
+
+## 3. Stack
+
+### Android
+
+Use:
+
+* Kotlin
+* Jetpack Compose
+* Navigation Compose
+* Hilt
+* Retrofit + OkHttp
+* Kotlinx Serialization
+* Room
+* Coil
+* Credential Manager
+* Coroutines + Flow
+
+### Backend
+
+Use:
+
+* Cloudflare Workers
+* D1
+* R2
+* OpenRouter
+* fal
+
+### Why this stack
+
+This gives:
+
+* one Android client
+* one backend deployment surface
+* one SQL database
+* one object store
+* one LLM gateway
+* one image provider
+* minimal infrastructure overhead
+
+There is no need for a separate Node server, separate Postgres deployment, and separate storage service.
+
+---
+
+## 4. System overview
+
+```text
+Android app
+  -> Google sign-in
+  -> REST requests to Cloudflare Worker
+  -> streaming chat response from Cloudflare Worker
+  -> local caching with Room
+
+Cloudflare Worker
+  -> auth/session endpoints
+  -> profile endpoints
+  -> character endpoints
+  -> home/search endpoints
+  -> chat/conversation endpoints
+  -> OpenRouter adapter
+  -> fal adapter
+  -> D1 for relational data
+  -> R2 for portrait storage
+```
+
+The Worker is the controlled middle layer between the app and external providers.
+
+---
+
+## 5. Codebase structure
+
+## Android project structure
+
+Use one Android app module first.
+Do not split into many Gradle modules yet.
+That is build-system overhead without enough payoff for this app at the start.
+
+```text
+android-app/
+  app/
+    src/main/java/com/example/app/
+      App.kt
+      MainActivity.kt
+      navigation/
+
+      core/
+        ui/
+        design/
+        network/
+        db/
+        auth/
+        model/
+        util/
+
+      feature/
+        signin/
+        home/
+        character/
+        chatlist/
+        chat/
+        profile/
+```
+
+### Android package roles
+
+#### `core/ui`
+
+Reusable UI helpers that are not tied to one feature:
+
+* loading states
+* error states
+* common scaffold helpers
+* shared list handling
+* dialogs and menus used across features
+
+#### `core/design`
+
+Design system primitives:
+
+* theme
+* typography
+* spacing
+* colors
+* reusable buttons, text fields, cards
+* icon wrappers
+
+#### `core/network`
+
+Network setup and API interfaces:
+
+* Retrofit setup
+* OkHttp setup
+* auth interceptor
+* streaming client
+* DTOs
+
+#### `core/db`
+
+Room database and cache:
+
+* entities
+* DAOs
+* database instance
+* cache mappers
+
+#### `core/auth`
+
+Android auth/session handling:
+
+* Credential Manager integration
+* token storage
+* auth bootstrap
+* session refresh support
+
+#### `core/model`
+
+Shared app models used across features.
+Keep this small. Only put genuinely shared models here.
+
+#### `core/util`
+
+Pure utilities with no business logic.
+
+#### `feature/signin`
+
+Google sign-in flow and auth gate.
+
+#### `feature/home`
+
+Home feed and search.
+
+#### `feature/character`
+
+Character creation, character editing, owned characters, liked characters.
+These belong together and do not need separate top-level modules.
+
+#### `feature/chatlist`
+
+Conversation list screen.
+
+#### `feature/chat`
+
+Chat screen, chat actions, regeneration logic, rewind logic, destructive edit logic, streaming state.
+This is the most important feature package and should keep its business rules local.
+
+#### `feature/profile`
+
+Profile screen, edit profile, settings.
+These do not need to be split into separate top-level packages.
+
+---
+
+## Backend project structure
+
+Use one Worker codebase with package-by-domain:
+
+```text
+backend/
+  src/
+    index.ts
+    env.ts
+
+    lib/
+      errors.ts
+      response.ts
+      auth.ts
+      ids.ts
+      validation.ts
+
+    db/
+      client.ts
+      schema.ts
+      migrations/
+      queries/
+
+    providers/
+      openrouter.ts
+      fal.ts
+      r2.ts
+
+    routes/
+      auth.ts
+      profile.ts
+      characters.ts
+      home.ts
+      conversations.ts
+      chat.ts
+      images.ts
+
+    services/
+      auth/
+      profile/
+      characters/
+      home/
+      conversations/
+      chat/
+      images/
+```
+
+### Backend rules
+
+* routes stay thin
+* services own business logic
+* DB query helpers stay in `db/queries`
+* provider wrappers stay in `providers`
+* only the chat service owns chat mutation rules
+
+Do not add extra layers like application/domain/infrastructure unless the codebase later proves it needs that.
+
+---
+
+## 6. Conversation model
+
+The conversation model is linear.
+
+No branch tree.
+No historical branch restoration.
+No selected-child pointers.
+
+### Rules
+
+#### Normal chat
+
+Messages are appended in order.
+
+#### Edit
+
+Any message can be edited when no streaming is active.
+Edit is destructive:
+
+* update the message content
+* mark it as edited
+* keep the conversation linear
+* do not create branches
+
+If the user edits an older message and later messages remain visible, that is acceptable.
+The visible transcript is the source of truth for future model context.
+
+#### Rewind
+
+Rewind is destructive:
+
+* choose a message
+* delete all later messages from the active transcript
+* that selected message becomes the latest message
+
+#### Regenerate
+
+Only the latest assistant reply can be regenerated.
+Regeneration creates variants for that assistant message only.
+The message keeps one selected variant.
+The selected variant is what is shown in chat and what is used for future model context.
+
+This is the only variant system required.
+
+---
+
+## 7. Data model
+
+## Users
+
+```text
+User
+- id
+- googleSubject
+- email
+- createdAt
+- lastLoginAt
+```
+
+## Profiles
+
+```text
+Profile
+- userId
+- displayName
+- avatarUrl
+- createdAt
+- updatedAt
+```
+
+## Characters
+
+```text
+Character
+- id
+- ownerUserId
+- name
+- tagline
+- description
+- systemPrompt
+- visibility        // public or private
+- avatarUrl
+- publicChatCount
+- likeCount
+- lastActiveAt
+- createdAt
+- updatedAt
+```
+
+## Likes
+
+```text
+CharacterLike
+- userId
+- characterId
+- createdAt
+```
+
+## Conversations
+
+```text
+Conversation
+- id
+- ownerUserId
+- characterId
+- updatedAt
+- startedAt
+- lastMessageAt
+```
+
+## Messages
+
+```text
+Message
+- id
+- conversationId
+- position
+- role              // user or assistant
+- content
+- edited            // boolean
+- createdAt
+- updatedAt
+- selectedRegenerationId   // nullable, assistant messages only
+```
+
+### Notes
+
+* `position` keeps the transcript ordered
+* conversation history is just messages ordered by position
+* destructive rewind deletes rows after the chosen position
+* destructive edit updates content in place
+
+## Assistant regenerations
+
+```text
+AssistantRegeneration
+- id
+- messageId
+- content
+- createdAt
+```
+
+### Variant behavior
+
+* the main assistant message row represents the visible slot in the transcript
+* regenerations are stored separately
+* the selected regeneration determines the visible assistant text and future context text
+
+This avoids a full branch tree while still preserving alternate latest replies.
+
+---
+
+## 8. Backend storage responsibilities
+
+### D1 stores
+
+* users
+* profiles
+* characters
+* likes
+* conversations
+* messages
+* assistant regenerations
+* sessions if using session records
+
+### R2 stores
+
+* generated character portraits
+* uploaded character portraits if you later allow uploads
+
+### OpenRouter handles
+
+* text generation
+* streaming response generation
+
+### fal handles
+
+* character portrait generation
+
+---
+
+## 9. Auth design
+
+### Sign-in flow
+
+1. User opens app.
+2. If no valid session, show sign-in screen.
+3. User signs in with Google through Credential Manager.
+4. Android sends Google ID token to Worker.
+5. Worker verifies token.
+6. Worker creates or updates user and profile.
+7. Worker issues app session token.
+8. App stores session securely.
+9. App enters main shell.
+
+### Session handling
+
+Use:
+
+* short-lived access token
+* refresh token or durable session token
+* encrypted local storage on Android
+
+Keep auth simple and backend-controlled.
+
+---
+
+## 10. API design
+
+Use simple explicit endpoints.
+Do not overload one giant endpoint.
+
+## Auth
+
+### `POST /v1/auth/google`
+
+Exchange Google ID token for app session.
+
+### `POST /v1/auth/refresh`
+
+Refresh session.
+
+### `POST /v1/auth/logout`
+
+End session.
+
+## Profile
+
+### `GET /v1/profile/me`
+
+Get current profile.
+
+### `PATCH /v1/profile/me`
+
+Update display name.
+
+## Characters
+
+### `POST /v1/characters`
+
+Create character.
+
+### `PATCH /v1/characters/:characterId`
+
+Edit owned character.
+
+### `GET /v1/characters/:characterId`
+
+Get character detail with visibility enforcement.
+
+### `GET /v1/characters/me`
+
+Get owned characters.
+
+### `GET /v1/characters/me/liked`
+
+Get liked public characters.
+
+### `POST /v1/characters/:characterId/like`
+
+Like public character.
+
+### `DELETE /v1/characters/:characterId/like`
+
+Unlike public character.
+
+## Home and search
+
+### `GET /v1/home/feed`
+
+Public character feed.
+
+### `GET /v1/home/search?q=...`
+
+Search public characters.
+
+## Conversations
+
+### `GET /v1/conversations`
+
+User chat list.
+
+### `POST /v1/conversations`
+
+Create a new conversation for a character.
+
+### `GET /v1/conversations/:conversationId`
+
+Get conversation transcript and latest assistant regen metadata.
+
+## Chat
+
+### `POST /v1/conversations/:conversationId/messages/stream`
+
+Send a user message and stream assistant reply.
+
+### `PATCH /v1/messages/:messageId`
+
+Destructively edit any message when no streaming is active.
+
+### `POST /v1/messages/:messageId/rewind`
+
+Destructively rewind the conversation to that message.
+
+### `POST /v1/messages/:messageId/regenerate/stream`
+
+Regenerate latest assistant message only.
+
+### `POST /v1/messages/:messageId/select-regeneration`
+
+Select a stored regeneration for the latest assistant message.
+
+## Images
+
+### `POST /v1/images/generate-character-portrait`
+
+Generate portrait through fal, store result in R2, return final asset URL.
+
+---
+
+## 11. Home feed and search
+
+## Home feed
+
+The home feed shows public characters only.
+
+Use a simple ranking strategy:
+
+* recent activity first
+* then public chat count
+* then creation recency
+
+This is enough for the product.
+Do not build recommendation infrastructure early.
+
+## Search
+
+Search public characters only.
+
+Search fields:
+
+* name
+* tagline
+* description
+
+Use a simple text-search strategy in D1 first.
+Do not add external search infrastructure unless later scale proves it necessary.
+
+## Pagination
+
+Use cursor-based pagination for:
+
+* home feed
+* search results
+* chats list
+* owned characters
+* liked characters
+
+Keep page sizes small and consistent.
+
+---
+
+## 12. Chat behavior
+
+## Sending a message
+
+1. User types message.
+2. App sends request to backend.
+3. Backend appends user message.
+4. Backend builds context from the current visible transcript.
+5. Backend opens streaming request to OpenRouter.
+6. Backend streams response to app.
+7. On completion, backend stores the assistant message.
+
+## Editing a message
+
+1. User long-presses message.
+2. User edits text.
+3. App sends update request.
+4. Backend updates the message content and edited flag.
+5. App updates visible transcript.
+
+Future model context uses the currently visible transcript.
+
+## Rewinding
+
+1. User long-presses a message.
+2. User taps rewind.
+3. App sends rewind request.
+4. Backend deletes all later messages.
+5. App reloads transcript.
+
+## Regenerating latest assistant reply
+
+1. User taps regenerate on the latest assistant reply.
+2. Backend requests a new assistant reply from OpenRouter based on the current visible transcript before that assistant slot.
+3. Backend stores a regeneration row.
+4. Backend marks that regeneration as selected for the message.
+5. App shows the selected regeneration.
+
+## Selecting a previous regeneration
+
+1. User taps left or right on the latest assistant reply.
+2. App sends selected regeneration ID.
+3. Backend updates selection.
+4. App updates visible text.
+
+Only the latest assistant message supports this.
+No older-message regeneration UI is needed.
+
+---
+
+## 13. Streaming design
+
+Use one streaming path from Worker to Android.
+
+### Android behavior
+
+The chat screen keeps:
+
+* persisted transcript messages
+* one active in-progress assistant draft
+
+The in-progress draft is separate from persisted messages until completion.
+
+### Worker behavior
+
+1. validate auth and conversation ownership
+2. append user message if needed
+3. build prompt from visible transcript
+4. call OpenRouter with streaming enabled
+5. forward chunks to Android
+6. buffer final text in memory
+7. persist final assistant message or regeneration row
+8. finish stream
+
+### Cancellation
+
+If the user cancels streaming:
+
+* close stream on Android
+* abort upstream request on Worker
+* do not persist incomplete assistant message as final
+
+### Concurrency rule
+
+While streaming is active for a conversation, disallow:
+
+* send new message
+* edit
+* rewind
+* regenerate
+* selecting a different regeneration
+
+That avoids inconsistent state.
+
+---
+
+## 14. Image generation design
+
+Portrait generation stays backend-only.
+The client never talks to fal directly.
+
+## Flow
+
+1. User fills character info.
+2. User taps generate portrait.
+3. App sends prompt to Worker.
+4. Worker requests image from fal.
+5. Worker stores final image in R2.
+6. Worker returns final portrait URL.
+7. App previews portrait and uses it when creating the character.
+
+## Rules
+
+* keep portrait generation optional
+* use one provider only
+* use one model only at first
+* compress or normalize images before storing if needed
+* do not build multi-provider failover logic
+
+---
+
+## 15. Local persistence on Android
+
+Use Room for:
+
+* cached profile
+* cached home items
+* cached chats list
+* cached conversations
+
+Room is not the source of truth.
+It is a cache for speed and resilience.
+
+### Server is source of truth for
+
+* auth validity
+* characters
+* likes
+* conversations
+* messages
+* regeneration selection
+
+### Local storage also holds
+
+* session tokens in secure storage
+* small recent state needed for fast startup
+
+---
+
+## 16. Error handling
+
+### Android
+
+Show concise product-level error states:
+
+* failed sign-in
+* failed feed load
+* failed search
+* failed portrait generation
+* failed stream
+* failed edit
+* failed rewind
+* failed regenerate
+
+Keep good cached data visible where possible.
+
+### Backend
+
+Use consistent structured error responses.
+Do not leak provider details directly to the client.
+
+### Stream failure
+
+If a stream fails:
+
+* clear the active draft state
+* show retry or regenerate option
+* do not pretend the reply completed
+
+---
+
+## 17. Security and rules
+
+### Backend-only secrets
+
+Keep these only on the Worker:
+
+* OpenRouter API key
+* fal API key
+* signing secrets
+* storage access details
+
+### Ownership enforcement
+
+Backend must enforce:
+
+* user can only edit their own profile
+* user can only edit their own characters
+* user can only access their own private characters
+* user can only access their own conversations
+* only public characters appear in feed and search
+
+### Abuse controls
+
+Apply simple limits to:
+
+* sign-in attempts
+* portrait generation
+* message length
+* message send rate
+* search request rate
+
+Do not overbuild moderation or internal admin systems here.
+
+---
+
+## 18. Performance rules
+
+### Android
+
+* use stable list keys in chat
+* keep streaming draft separate from persisted messages
+* debounce search
+* cancel stale search jobs
+* avoid full-screen recomposition on every stream chunk
+
+### Backend
+
+* keep routes thin
+* use targeted D1 indexes
+* avoid N+1 queries
+* keep DTOs compact
+* denormalize counts where useful, such as public chat count and like count
+
+### Images
+
+* keep portraits small
+* use lightweight sizes suitable for feed cards and profile display
+
+---
+
+## 19. Testing
+
+## Android tests
+
+Focus on:
+
+* sign-in flow logic
+* home/search UI state
+* chat send/edit/rewind/regenerate behavior
+* stream event handling
+* profile updates
+
+## Backend tests
+
+Focus on:
+
+* auth verification and session creation
+* visibility enforcement
+* conversation ownership rules
+* destructive edit behavior
+* destructive rewind behavior
+* latest-only regeneration rules
+* regeneration selection rules
+* feed/search pagination
+
+Test the rules that define the product.
+Do not spend effort on boilerplate tests for trivial wrappers.
+
+---
+
+## 20. Implementation plan
+
+## Phase 1: Runnable Android app and core chat interactions
+
+Goal: a real installable Android app that works on a phone immediately.
+
+Build:
+
+* app shell
+* navigation
+* theme
+* bottom navigation
+* chat screen
+* fake local conversation data
+* local send message behavior
+* local destructive edit
+* local destructive rewind
+* local latest-assistant regenerate behavior
+* placeholder home, create-character, chats, and profile screens
+
+At the end of this phase, there is already a functioning phone app with the core chat interactions working locally.
+
+## Phase 2: Full app UI structure
+
+Build the real screens and navigation flow:
+
+* sign-in screen
+* home feed UI
+* search UI
+* create character UI
+* chat list UI
+* profile UI
+* settings UI
+* owned characters UI
+* liked characters UI
+* light/dark theme polish
+
+Mock data is still acceptable where backend is not ready.
+
+## Phase 3: Backend foundation
+
+Build Worker backend with:
+
+* env and config
+* D1 schema
+* R2 setup
+* auth verification
+* session handling
+* route structure
+* shared error handling
+
+## Phase 4: Connect app to backend for auth and data
+
+Replace mock data for:
+
+* sign-in
+* profile
+* home feed
+* search
+* character create/edit
+* chats list
+* conversation load
+
+At the end of this phase, the app is fully backed by real persistence except live model streaming.
+
+## Phase 5: Streaming chat integration
+
+Add:
+
+* OpenRouter Worker adapter
+* send message API
+* stream handling on Android
+* persist assistant replies
+* destructive edit through backend
+* destructive rewind through backend
+* latest assistant regeneration through backend
+* regeneration selection
+
+At the end of this phase, the full chat system works end-to-end.
+
+## Phase 6: Portrait generation and hardening
+
+Add:
+
+* fal portrait generation
+* R2 portrait storage
+* portrait preview in create character
+* error handling cleanup
+* performance cleanup
+* key screens test coverage
+
+This phase finishes the core product.
+
+---
+
+## 21. Final structure summary
+
+The architecture should feel like this:
+
+* one Android app module using package-by-feature
+* one Worker backend using package-by-domain
+* one linear conversation model
+* one small regeneration system for the latest assistant reply only
+* one SQL database
+* one object store
+* one LLM gateway
+* one image provider
+* explicit feature boundaries
+* minimal unnecessary abstraction
+
+That gives a codebase that is clean, modular, efficient, and easy to extend without dragging the product into unnecessary complexity.

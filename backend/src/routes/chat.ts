@@ -1,0 +1,58 @@
+import {
+  editMessage,
+  regenerateLatestAssistantAndStream,
+  rewindConversation,
+  selectRegeneration,
+  sendMessageAndStream
+} from "../services/chat";
+import { noContent } from "../lib/response";
+import { parseJson, requireString } from "../lib/validation";
+import type { RouteDefinition } from "./types";
+
+export const chatRoutes: RouteDefinition[] = [
+  {
+    method: "POST",
+    path: "/v1/conversations/:conversationId/messages/stream",
+    auth: true,
+    handler: async (context) => {
+      const body = await parseJson<{ content?: string }>(context.request);
+      return sendMessageAndStream(context, context.params.conversationId, requireString(body.content, "content", 8_000));
+    }
+  },
+  {
+    method: "PATCH",
+    path: "/v1/messages/:messageId",
+    auth: true,
+    handler: async (context) => {
+      const body = await parseJson<{ content?: string }>(context.request);
+      await editMessage(context, context.params.messageId, requireString(body.content, "content", 8_000));
+      return noContent();
+    }
+  },
+  {
+    method: "POST",
+    path: "/v1/messages/:messageId/rewind",
+    auth: true,
+    handler: async (context) => {
+      await rewindConversation(context, context.params.messageId);
+      return noContent();
+    }
+  },
+  {
+    method: "POST",
+    path: "/v1/messages/:messageId/regenerate/stream",
+    auth: true,
+    handler: async (context) => regenerateLatestAssistantAndStream(context, context.params.messageId)
+  },
+  {
+    method: "POST",
+    path: "/v1/messages/:messageId/select-regeneration",
+    auth: true,
+    handler: async (context) => {
+      const body = await parseJson<{ regenerationId?: string }>(context.request);
+      await selectRegeneration(context, context.params.messageId, requireString(body.regenerationId, "regenerationId"));
+      return noContent();
+    }
+  }
+];
+

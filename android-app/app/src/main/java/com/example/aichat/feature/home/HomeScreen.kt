@@ -212,7 +212,7 @@ fun HomeRoute(
             if (state.errorMessage != null && state.feed.isEmpty()) {
                 item {
                     Text(
-                        text = state.errorMessage,
+                        text = state.errorMessage ?: "Failed to load the feed.",
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.error
                     )

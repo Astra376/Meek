@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -174,7 +175,7 @@ fun ChatRoute(
     LaunchedEffect(state.conversation?.messages?.size, state.draft?.content) {
         val totalItems = (state.conversation?.messages?.size ?: 0) + if (state.draft != null) 1 else 0
         if (totalItems > 0) {
-            listState.animateScrollToItem(totalItems - 1)
+            listState.scrollToItem(totalItems - 1)
         }
     }
 
@@ -255,7 +256,8 @@ fun ChatRoute(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(14.dp),
+                    .imePadding()
+                    .padding(horizontal = 14.dp, vertical = 14.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalAlignment = Alignment.Bottom
             ) {
@@ -265,7 +267,6 @@ fun ChatRoute(
                     modifier = Modifier.weight(1f),
                     minLines = 2,
                     maxLines = 4,
-                    enabled = !state.isStreaming,
                     label = { Text("Message") }
                 )
                 PrimaryButton(

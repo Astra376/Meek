@@ -1,12 +1,14 @@
 package com.example.aichat.feature.chatlist
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.MaterialTheme
@@ -21,9 +23,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.example.aichat.core.auth.AuthRepository
 import com.example.aichat.core.design.AppCard
-import com.example.aichat.core.design.CharacterPortrait
+import com.example.aichat.core.design.CircleAvatar
 import com.example.aichat.core.model.ConversationSummary
-import com.example.aichat.core.util.formatRelativeTime
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.SharingStarted
@@ -82,42 +83,26 @@ fun ChatListRoute(
         }
         items(conversations, key = { it.id }) { conversation ->
             AppCard(
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onOpenConversation(conversation.id) }
             ) {
-                Column(
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(18.dp)
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    horizontalArrangement = Arrangement.spacedBy(14.dp),
+                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
                 ) {
-                    CharacterPortrait(
+                    CircleAvatar(
                         name = conversation.characterName,
                         avatarUrl = conversation.characterAvatarUrl,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(140.dp)
+                        modifier = Modifier.size(62.dp)
                     )
                     Text(
                         text = conversation.characterName,
-                        modifier = Modifier.padding(top = 14.dp),
                         style = MaterialTheme.typography.titleLarge
                     )
-                    Text(
-                        text = conversation.lastPreview,
-                        modifier = Modifier.padding(top = 6.dp),
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = formatRelativeTime(conversation.updatedAt),
-                        modifier = Modifier.padding(top = 10.dp),
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                    androidx.compose.material3.TextButton(
-                        onClick = { onOpenConversation(conversation.id) },
-                        modifier = Modifier.padding(top = 8.dp)
-                    ) {
-                        Text("Open chat")
-                    }
                 }
             }
         }

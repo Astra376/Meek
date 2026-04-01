@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
@@ -84,6 +85,32 @@ fun SecondaryButton(
 }
 
 @Composable
+fun SelectionButton(
+    text: String,
+    selected: Boolean,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    if (selected) {
+        Button(
+            modifier = modifier.height(50.dp),
+            onClick = onClick,
+            shape = RoundedCornerShape(18.dp)
+        ) {
+            Text(text = text)
+        }
+    } else {
+        OutlinedButton(
+            modifier = modifier.height(50.dp),
+            onClick = onClick,
+            shape = RoundedCornerShape(18.dp)
+        ) {
+            Text(text = text)
+        }
+    }
+}
+
+@Composable
 fun CharacterPortrait(
     name: String,
     avatarUrl: String?,
@@ -107,7 +134,45 @@ fun CharacterPortrait(
                 modifier = modifier
                     .clip(shape)
                     .background(brush = Brush.linearGradient(palette))
-                    .border(1.dp, Color.White.copy(alpha = 0.16f), shape),
+                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.22f), shape),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = name.take(2).uppercase(),
+                    style = MaterialTheme.typography.titleLarge,
+                    color = Color.White,
+                    textAlign = TextAlign.Center
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun CircleAvatar(
+    name: String,
+    avatarUrl: String?,
+    modifier: Modifier = Modifier
+) {
+    val palette = avatarPalette(avatarUrl ?: name)
+    when {
+        avatarUrl?.startsWith("http") == true -> {
+            AsyncImage(
+                model = avatarUrl,
+                contentDescription = name,
+                contentScale = ContentScale.Crop,
+                modifier = modifier
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
+            )
+        }
+
+        else -> {
+            Box(
+                modifier = modifier
+                    .clip(CircleShape)
+                    .background(brush = Brush.linearGradient(palette))
+                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.45f), CircleShape),
                 contentAlignment = Alignment.Center
             ) {
                 Text(

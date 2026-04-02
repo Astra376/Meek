@@ -43,6 +43,32 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.example.aichat.core.util.avatarPalette
 
+private object DesignMetrics {
+    val cardCorner = 24.dp
+    val buttonCorner = 18.dp
+    val primaryButtonHeight = 54.dp
+    val secondaryButtonHeight = 50.dp
+    val iconGap = 8.dp
+    val fieldCorner = 26.dp
+    val fieldSingleLineHeight = 46.dp
+    val fieldMultiLineHeight = 54.dp
+    val fieldHorizontalPadding = 12.dp
+    val fieldSingleLineVerticalPadding = 7.dp
+    val fieldMultiLineVerticalPadding = 11.dp
+    val fieldIconGap = 10.dp
+    val iconCircleSize = 48.dp
+    val iconPillHeight = 48.dp
+    val iconPillHorizontalPadding = 16.dp
+    val squareIconButtonSize = 54.dp
+    val squareButtonCorner = 18.dp
+    val selectionDotSize = 20.dp
+    val selectionDotInnerSize = 8.dp
+    val portraitCorner = 22.dp
+    val chipHorizontalPadding = 12.dp
+    val chipVerticalPadding = 6.dp
+    val portraitBadgeGap = 12.dp
+}
+
 @Composable
 fun AppCard(
     modifier: Modifier = Modifier,
@@ -50,7 +76,7 @@ fun AppCard(
 ) {
     Card(
         modifier = modifier,
-        shape = RoundedCornerShape(24.dp),
+        shape = RoundedCornerShape(DesignMetrics.cardCorner),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
@@ -67,10 +93,10 @@ fun PrimaryButton(
     onClick: () -> Unit
 ) {
     Button(
-        modifier = modifier.height(54.dp),
+        modifier = modifier.height(DesignMetrics.primaryButtonHeight),
         enabled = enabled,
         onClick = onClick,
-        shape = RoundedCornerShape(18.dp),
+        shape = RoundedCornerShape(DesignMetrics.buttonCorner),
         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
     ) {
         Row(
@@ -79,7 +105,7 @@ fun PrimaryButton(
         ) {
             leadingIcon?.let {
                 it()
-                Spacer(modifier = Modifier.width(8.dp))
+                Spacer(modifier = Modifier.width(DesignMetrics.iconGap))
             }
             Text(text = text)
         }
@@ -95,10 +121,10 @@ fun SecondaryButton(
     onClick: () -> Unit
 ) {
     OutlinedButton(
-        modifier = modifier.height(50.dp),
+        modifier = modifier.height(DesignMetrics.secondaryButtonHeight),
         enabled = enabled,
         onClick = onClick,
-        shape = RoundedCornerShape(18.dp)
+        shape = RoundedCornerShape(DesignMetrics.buttonCorner)
     ) {
         Row(
             horizontalArrangement = Arrangement.Center,
@@ -106,7 +132,7 @@ fun SecondaryButton(
         ) {
             leadingIcon?.let {
                 it()
-                Spacer(modifier = Modifier.width(8.dp))
+                Spacer(modifier = Modifier.width(DesignMetrics.iconGap))
             }
             Text(text = text)
         }
@@ -123,9 +149,9 @@ fun SelectionButton(
 ) {
     if (selected) {
         Button(
-            modifier = modifier.height(50.dp),
+            modifier = modifier.height(DesignMetrics.secondaryButtonHeight),
             onClick = onClick,
-            shape = RoundedCornerShape(18.dp)
+            shape = RoundedCornerShape(DesignMetrics.buttonCorner)
         ) {
             Row(
                 horizontalArrangement = Arrangement.Center,
@@ -133,16 +159,16 @@ fun SelectionButton(
             ) {
                 leadingIcon?.let {
                     it()
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.width(DesignMetrics.iconGap))
                 }
                 Text(text = text)
             }
         }
     } else {
         OutlinedButton(
-            modifier = modifier.height(50.dp),
+            modifier = modifier.height(DesignMetrics.secondaryButtonHeight),
             onClick = onClick,
-            shape = RoundedCornerShape(18.dp)
+            shape = RoundedCornerShape(DesignMetrics.buttonCorner)
         ) {
             Row(
                 horizontalArrangement = Arrangement.Center,
@@ -150,7 +176,7 @@ fun SelectionButton(
             ) {
                 leadingIcon?.let {
                     it()
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.width(DesignMetrics.iconGap))
                 }
                 Text(text = text)
             }
@@ -168,7 +194,7 @@ fun AppTextField(
     singleLine: Boolean = false,
     minLines: Int = 1,
     maxLines: Int = Int.MAX_VALUE,
-    shape: RoundedCornerShape = RoundedCornerShape(26.dp),
+    shape: RoundedCornerShape = RoundedCornerShape(DesignMetrics.fieldCorner),
     leadingIcon: (@Composable () -> Unit)? = null
 ) {
     BasicTextField(
@@ -197,12 +223,22 @@ fun AppTextField(
                         MaterialTheme.colorScheme.outline.copy(alpha = 0.18f),
                         shape
                     )
-                    .defaultMinSize(minHeight = if (singleLine) 46.dp else 54.dp)
+                    .defaultMinSize(
+                        minHeight = if (singleLine) {
+                            DesignMetrics.fieldSingleLineHeight
+                        } else {
+                            DesignMetrics.fieldMultiLineHeight
+                        }
+                    )
                     .padding(
-                        horizontal = 12.dp,
-                        vertical = if (singleLine) 7.dp else 11.dp
+                        horizontal = DesignMetrics.fieldHorizontalPadding,
+                        vertical = if (singleLine) {
+                            DesignMetrics.fieldSingleLineVerticalPadding
+                        } else {
+                            DesignMetrics.fieldMultiLineVerticalPadding
+                        }
                     ),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                horizontalArrangement = Arrangement.spacedBy(DesignMetrics.fieldIconGap),
                 verticalAlignment = if (singleLine) Alignment.CenterVertically else Alignment.Top
             ) {
                 leadingIcon?.let {
@@ -249,7 +285,7 @@ fun IconCircleButton(
 ) {
     Box(
         modifier = modifier
-            .size(48.dp)
+            .size(DesignMetrics.iconCircleSize)
             .alpha(if (enabled) 1f else 0.45f)
             .clip(CircleShape)
             .background(
@@ -289,20 +325,20 @@ fun IconPillButton(
 ) {
     Row(
         modifier = modifier
-            .height(48.dp)
+            .height(DesignMetrics.iconPillHeight)
             .alpha(if (enabled) 1f else 0.45f)
             .clip(RoundedCornerShape(999.dp))
             .background(MaterialTheme.colorScheme.surfaceVariant)
             .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f), RoundedCornerShape(999.dp))
             .clickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = 16.dp),
+            .padding(horizontal = DesignMetrics.iconPillHorizontalPadding),
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically
     ) {
         CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.onSurface) {
             leadingIcon()
         }
-        Spacer(modifier = Modifier.width(8.dp))
+        Spacer(modifier = Modifier.width(DesignMetrics.iconGap))
         Text(text = text, style = MaterialTheme.typography.labelLarge)
     }
 }
@@ -316,11 +352,15 @@ fun SquareIconButton(
 ) {
     Box(
         modifier = modifier
-            .size(54.dp)
+            .size(DesignMetrics.squareIconButtonSize)
             .alpha(if (enabled) 1f else 0.45f)
-            .clip(RoundedCornerShape(18.dp))
+            .clip(RoundedCornerShape(DesignMetrics.squareButtonCorner))
             .background(MaterialTheme.colorScheme.surfaceVariant)
-            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f), RoundedCornerShape(18.dp))
+            .border(
+                1.dp,
+                MaterialTheme.colorScheme.outline.copy(alpha = 0.25f),
+                RoundedCornerShape(DesignMetrics.squareButtonCorner)
+            )
             .clickable(enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
@@ -337,7 +377,7 @@ fun SelectionDot(
 ) {
     Box(
         modifier = modifier
-            .size(20.dp)
+            .size(DesignMetrics.selectionDotSize)
             .clip(CircleShape)
             .border(2.dp, MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f), CircleShape),
         contentAlignment = Alignment.Center
@@ -345,7 +385,7 @@ fun SelectionDot(
         if (selected) {
             Box(
                 modifier = Modifier
-                    .size(8.dp)
+                    .size(DesignMetrics.selectionDotInnerSize)
                     .clip(CircleShape)
                     .background(MaterialTheme.colorScheme.onSurface)
             )
@@ -360,7 +400,7 @@ fun CharacterPortrait(
     modifier: Modifier = Modifier
 ) {
     val palette = avatarPalette(avatarUrl ?: name)
-    val shape = RoundedCornerShape(22.dp)
+    val shape = RoundedCornerShape(DesignMetrics.portraitCorner)
     when {
         avatarUrl?.startsWith("http") == true -> {
             AsyncImage(
@@ -441,7 +481,10 @@ fun PillChip(
     ) {
         Text(
             text = text,
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+            modifier = Modifier.padding(
+                horizontal = DesignMetrics.chipHorizontalPadding,
+                vertical = DesignMetrics.chipVerticalPadding
+            ),
             style = MaterialTheme.typography.labelLarge
         )
     }
@@ -480,7 +523,7 @@ fun PortraitBadge(
                 .size(52.dp)
                 .aspectRatio(1f)
         )
-        Spacer(modifier = Modifier.size(12.dp))
+        Spacer(modifier = Modifier.size(DesignMetrics.portraitBadgeGap))
         Text(
             text = name,
             style = MaterialTheme.typography.titleMedium

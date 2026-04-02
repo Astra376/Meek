@@ -17,7 +17,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
@@ -26,6 +25,7 @@ import com.example.aichat.BuildConfig
 import com.example.aichat.core.auth.AuthRepository
 import com.example.aichat.core.design.AppCard
 import com.example.aichat.core.design.PrimaryButton
+import com.example.aichat.core.ui.AppChrome
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -78,11 +78,11 @@ fun SignInRoute(viewModel: SignInViewModel = hiltViewModel()) {
         AppCard(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 24.dp)
+                .padding(horizontal = AppChrome.screenBottomPadding)
         ) {
             Column(
-                modifier = Modifier.padding(24.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                modifier = Modifier.padding(AppChrome.screenBottomPadding),
+                verticalArrangement = Arrangement.spacedBy(AppChrome.screenTopPadding)
             ) {
                 Text(
                     text = "Character Chat",
@@ -119,4 +119,3 @@ fun SignInRoute(viewModel: SignInViewModel = hiltViewModel()) {
         }
     }
 }
-

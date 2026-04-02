@@ -23,6 +23,18 @@ import com.example.aichat.core.design.AppCard
 import com.example.aichat.core.design.CharacterPortrait
 import com.example.aichat.core.model.CharacterSummary
 
+private object CharacterCardMetrics {
+    val cardAspectRatio = 0.64f
+    val cardSpacing = 3.dp
+    val contentHorizontalPadding = 12.dp
+    val contentVerticalPadding = 8.dp
+    val nameToTaglineSpacing = 1.dp
+    val chatMetaGap = 5.dp
+    val chatIconTopPadding = 1.dp
+    val chatIconSize = 13.dp
+    val authorInset = 2.dp
+}
+
 @Composable
 fun CharacterSummaryCard(
     character: CharacterSummary,
@@ -32,12 +44,12 @@ fun CharacterSummaryCard(
 ) {
     Column(
         modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(3.dp)
+        verticalArrangement = Arrangement.spacedBy(CharacterCardMetrics.cardSpacing)
     ) {
         AppCard(
             modifier = Modifier
                 .fillMaxWidth()
-                .aspectRatio(0.64f)
+                .aspectRatio(CharacterCardMetrics.cardAspectRatio)
                 .clickable(onClick = onClick)
         ) {
             Column(modifier = Modifier.fillMaxWidth()) {
@@ -52,10 +64,13 @@ fun CharacterSummaryCard(
                     modifier = Modifier
                         .fillMaxWidth()
                         .weight(0.40f)
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                        .padding(
+                            horizontal = CharacterCardMetrics.contentHorizontalPadding,
+                            vertical = CharacterCardMetrics.contentVerticalPadding
+                        ),
                     verticalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(CharacterCardMetrics.nameToTaglineSpacing)) {
                         Text(
                             text = character.name,
                             style = MaterialTheme.typography.titleLarge.copy(
@@ -78,14 +93,14 @@ fun CharacterSummaryCard(
                     }
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(5.dp)
+                        horizontalArrangement = Arrangement.spacedBy(CharacterCardMetrics.chatMetaGap)
                     ) {
                         Icon(
                             imageVector = Icons.Outlined.ChatBubbleOutline,
                             contentDescription = null,
                             modifier = Modifier
-                                .padding(top = 1.dp)
-                                .size(13.dp),
+                                .padding(top = CharacterCardMetrics.chatIconTopPadding)
+                                .size(CharacterCardMetrics.chatIconSize),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.58f)
                         )
                         Text(
@@ -103,7 +118,7 @@ fun CharacterSummaryCard(
         }
         Text(
             text = authorLabel,
-            modifier = Modifier.padding(start = 2.dp),
+            modifier = Modifier.padding(start = CharacterCardMetrics.authorInset),
             style = MaterialTheme.typography.bodyMedium.copy(
                 fontSize = 10.sp,
                 lineHeight = 12.sp

@@ -9,7 +9,9 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -45,6 +47,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.example.aichat.core.ui.AppChrome
 import com.example.aichat.core.ui.LoadingScreen
 import com.example.aichat.feature.character.CharacterStudioRoute
 import com.example.aichat.feature.chat.ChatRoute
@@ -132,6 +135,7 @@ private fun MainShell() {
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         containerColor = MaterialTheme.colorScheme.background,
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         bottomBar = {
             BottomIconBar(
                 modifier = Modifier.graphicsLayer { translationX = bottomBarOffset },
@@ -148,6 +152,7 @@ private fun MainShell() {
             )
         }
     ) { paddingValues ->
+        val routePaddingValues = if (showBottomBar) paddingValues else PaddingValues()
         NavHost(
             navController = navController,
             startDestination = MainDestination.Home.route,
@@ -176,7 +181,7 @@ private fun MainShell() {
         ) {
             composable(MainDestination.Home.route) {
                 HomeRoute(
-                    paddingValues = paddingValues,
+                    paddingValues = routePaddingValues,
                     onOpenSearch = { navController.navigate("search") },
                     onOpenConversation = { conversationId ->
                         navController.navigate("chat/$conversationId")
@@ -185,12 +190,12 @@ private fun MainShell() {
             }
             composable(MainDestination.Studio.route) {
                 CharacterStudioRoute(
-                    paddingValues = paddingValues
+                    paddingValues = routePaddingValues
                 )
             }
             composable(MainDestination.Chats.route) {
                 ChatListRoute(
-                    paddingValues = paddingValues,
+                    paddingValues = routePaddingValues,
                     onOpenConversation = { conversationId ->
                         navController.navigate("chat/$conversationId")
                     }
@@ -198,7 +203,7 @@ private fun MainShell() {
             }
             composable(MainDestination.Profile.route) {
                 ProfileRoute(
-                    paddingValues = paddingValues,
+                    paddingValues = routePaddingValues,
                     onOpenConversation = { conversationId ->
                         navController.navigate("chat/$conversationId")
                     },
@@ -234,7 +239,7 @@ private fun MainShell() {
                 }
             ) {
                 ChatRoute(
-                    paddingValues = paddingValues,
+                    paddingValues = routePaddingValues,
                     onBack = { navController.popBackStack() }
                 )
             }
@@ -266,7 +271,7 @@ private fun MainShell() {
                 }
             ) {
                 SearchRoute(
-                    paddingValues = paddingValues,
+                    paddingValues = routePaddingValues,
                     onBack = { navController.popBackStack() },
                     onOpenConversation = { conversationId ->
                         navController.navigate("chat/$conversationId")
@@ -301,7 +306,7 @@ private fun MainShell() {
                 }
             ) {
                 EditProfileRoute(
-                    paddingValues = paddingValues,
+                    paddingValues = routePaddingValues,
                     onBack = { navController.popBackStack() }
                 )
             }
@@ -333,7 +338,7 @@ private fun MainShell() {
                 }
             ) {
                 SettingsRoute(
-                    paddingValues = paddingValues,
+                    paddingValues = routePaddingValues,
                     onBack = { navController.popBackStack() }
                 )
             }
@@ -348,7 +353,7 @@ private fun BottomIconBar(
     onNavigate: (String) -> Unit
 ) {
     Surface(
-        modifier = modifier.navigationBarsPadding(),
+        modifier = modifier.fillMaxWidth(),
         color = MaterialTheme.colorScheme.surface,
         tonalElevation = 0.dp,
         shadowElevation = 0.dp
@@ -356,8 +361,12 @@ private fun BottomIconBar(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(56.dp)
-                .padding(horizontal = 18.dp, vertical = 4.dp),
+                .navigationBarsPadding()
+                .height(AppChrome.bottomBarHeight)
+                .padding(
+                    horizontal = AppChrome.bottomBarHorizontalPadding,
+                    vertical = AppChrome.bottomBarVerticalPadding
+                ),
             verticalAlignment = Alignment.CenterVertically
         ) {
             bottomDestinations.forEach { destination ->
@@ -366,12 +375,12 @@ private fun BottomIconBar(
                 Box(
                     modifier = Modifier
                         .weight(1f)
-                        .padding(horizontal = 2.dp),
+                        .padding(horizontal = AppChrome.bottomBarItemHorizontalPadding),
                     contentAlignment = Alignment.Center
                 ) {
                     Box(
                         modifier = Modifier
-                            .height(36.dp)
+                            .height(AppChrome.bottomBarTapHeight)
                             .clickable(
                                 interactionSource = interactionSource,
                                 indication = null
@@ -379,7 +388,7 @@ private fun BottomIconBar(
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            modifier = Modifier.size(28.dp),
+                            modifier = Modifier.size(AppChrome.bottomBarIconSize),
                             imageVector = if (selected) destination.filledIcon else destination.outlinedIcon,
                             contentDescription = null,
                             tint = if (selected) {

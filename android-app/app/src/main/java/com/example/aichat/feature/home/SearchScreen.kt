@@ -4,26 +4,21 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -43,9 +38,13 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.example.aichat.core.auth.AuthRepository
 import com.example.aichat.core.design.AppTextField
+import com.example.aichat.core.ui.AppBackButton
+import com.example.aichat.core.ui.AppChrome
 import com.example.aichat.core.design.SecondaryButton
 import com.example.aichat.core.model.CharacterSummary
 import com.example.aichat.core.ui.CharacterSummaryCard
+import com.example.aichat.core.ui.ScreenBackgroundBox
+import com.example.aichat.core.ui.screenContentPadding
 import com.example.aichat.core.util.authorLabel
 import com.example.aichat.feature.chatlist.ConversationRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -143,7 +142,6 @@ fun SearchRoute(
     val focusRequester = remember { FocusRequester() }
     val focusManager = LocalFocusManager.current
     val backgroundInteractionSource = remember { MutableInteractionSource() }
-    val backInteractionSource = remember { MutableInteractionSource() }
 
     LaunchedEffect(Unit) {
         viewModel.events.collect { snackbarHostState.showSnackbar(it) }
@@ -153,54 +151,36 @@ fun SearchRoute(
         focusRequester.requestFocus()
     }
 
-    Box(
+    ScreenBackgroundBox(
+        snackbarHostState = snackbarHostState,
         modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
             .imePadding()
             .clickable(
                 interactionSource = backgroundInteractionSource,
                 indication = null
             ) { focusManager.clearFocus() }
     ) {
-        SnackbarHost(hostState = snackbarHostState)
         LazyVerticalGrid(
             columns = GridCells.Fixed(2),
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(
-                start = 20.dp,
-                top = paddingValues.calculateTopPadding() + 16.dp,
-                end = 20.dp,
-                bottom = 24.dp
-            ),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+            contentPadding = screenContentPadding(paddingValues),
+            verticalArrangement = Arrangement.spacedBy(AppChrome.sectionSpacing),
+            horizontalArrangement = Arrangement.spacedBy(AppChrome.gridSpacing)
         ) {
             item(span = { GridItemSpan(maxLineSpan) }) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    horizontalArrangement = Arrangement.spacedBy(AppChrome.compactControlGap)
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(32.dp)
-                            .clickable(
-                                interactionSource = backInteractionSource,
-                                indication = null,
-                                onClick = onBack
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(Icons.Outlined.ArrowBack, contentDescription = "Back")
-                    }
+                    AppBackButton(onClick = onBack)
                     AppTextField(
                         value = state.query,
                         onValueChange = viewModel::onQueryChange,
                         placeholder = "Search",
                         modifier = Modifier
                             .weight(1f)
-                            .height(50.dp)
+                            .height(46.dp)
                             .focusRequester(focusRequester),
                         singleLine = true,
                         shape = RoundedCornerShape(999.dp),

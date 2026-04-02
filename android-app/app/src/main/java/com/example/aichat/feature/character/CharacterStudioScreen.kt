@@ -4,11 +4,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -19,7 +18,6 @@ import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -39,6 +37,9 @@ import com.example.aichat.core.design.CharacterPortrait
 import com.example.aichat.core.design.PrimaryButton
 import com.example.aichat.core.design.SelectionButton
 import com.example.aichat.core.design.SquareIconButton
+import com.example.aichat.core.ui.AppChrome
+import com.example.aichat.core.ui.ScreenBackgroundBox
+import com.example.aichat.core.ui.screenContentPadding
 import com.example.aichat.core.model.CharacterDraft
 import com.example.aichat.core.model.CharacterVisibility
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -121,25 +122,19 @@ fun CharacterStudioRoute(
         viewModel.events.collect { snackbarHostState.showSnackbar(it) }
     }
 
-    Column(modifier = Modifier.fillMaxSize()) {
-        SnackbarHost(hostState = snackbarHostState)
+    ScreenBackgroundBox(snackbarHostState = snackbarHostState) {
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
                 .imePadding(),
-            contentPadding = PaddingValues(
-                start = 20.dp,
-                top = paddingValues.calculateTopPadding() + 16.dp,
-                end = 20.dp,
-                bottom = paddingValues.calculateBottomPadding() + 24.dp
-            ),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+            contentPadding = screenContentPadding(paddingValues),
+            verticalArrangement = Arrangement.spacedBy(AppChrome.sectionSpacing)
         ) {
             item {
                 Text("Create", style = MaterialTheme.typography.headlineMedium)
             }
             item {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(AppChrome.gridSpacing)) {
                     CharacterPortrait(
                         name = state.draft.name.ifBlank { "New Character" },
                         avatarUrl = state.draft.avatarUrl,
@@ -147,7 +142,7 @@ fun CharacterStudioRoute(
                             .size(184.dp)
                             .align(Alignment.CenterHorizontally)
                     )
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(AppChrome.compactControlGap)) {
                         PrimaryButton(
                             text = if (state.isGeneratingPortrait) "Generating..." else "Generate",
                             modifier = Modifier.weight(1f),
@@ -197,7 +192,7 @@ fun CharacterStudioRoute(
                         maxLines = 8,
                         shape = RoundedCornerShape(24.dp)
                     )
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(AppChrome.compactControlGap)) {
                         SelectionButton(
                             text = "Public",
                             selected = state.draft.visibility == CharacterVisibility.PUBLIC,

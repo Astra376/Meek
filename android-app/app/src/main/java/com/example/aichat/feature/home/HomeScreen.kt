@@ -3,13 +3,10 @@ package com.example.aichat.feature.home
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
@@ -19,7 +16,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -27,9 +23,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -37,7 +31,11 @@ import androidx.lifecycle.viewModelScope
 import com.example.aichat.core.auth.AuthRepository
 import com.example.aichat.core.design.SecondaryButton
 import com.example.aichat.core.model.CharacterSummary
+import com.example.aichat.core.ui.AppChrome
 import com.example.aichat.core.ui.CharacterSummaryCard
+import com.example.aichat.core.ui.ScreenBackgroundBox
+import com.example.aichat.core.ui.SimplePageHeader
+import com.example.aichat.core.ui.screenContentPadding
 import com.example.aichat.core.util.authorLabel
 import com.example.aichat.feature.chatlist.ConversationRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -126,37 +124,23 @@ fun HomeRoute(
         viewModel.events.collect { snackbarHostState.showSnackbar(it) }
     }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+    ScreenBackgroundBox(
+        snackbarHostState = snackbarHostState
     ) {
-        SnackbarHost(hostState = snackbarHostState)
         LazyVerticalGrid(
             columns = GridCells.Fixed(2),
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(
-                start = 20.dp,
-                top = paddingValues.calculateTopPadding() + 16.dp,
-                end = 20.dp,
-                bottom = paddingValues.calculateBottomPadding() + 24.dp
-            ),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+            contentPadding = screenContentPadding(paddingValues),
+            verticalArrangement = Arrangement.spacedBy(AppChrome.sectionSpacing),
+            horizontalArrangement = Arrangement.spacedBy(AppChrome.gridSpacing)
         ) {
             item(span = { GridItemSpan(maxLineSpan) }) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("Discover", style = MaterialTheme.typography.headlineMedium)
+                SimplePageHeader(title = "Discover") {
                     Icon(
                         imageVector = Icons.Outlined.Search,
                         contentDescription = "Search",
                         modifier = Modifier
-                            .size(26.dp)
+                            .size(AppChrome.bottomBarIconSize)
                             .clickable(
                                 interactionSource = searchInteractionSource,
                                 indication = null,

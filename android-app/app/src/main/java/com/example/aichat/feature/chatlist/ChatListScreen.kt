@@ -27,6 +27,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.example.aichat.core.auth.AuthRepository
 import com.example.aichat.core.design.CharacterPortrait
+import com.example.aichat.core.ui.AppChrome
+import com.example.aichat.core.ui.screenContentPadding
 import com.example.aichat.core.model.ConversationSummary
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -58,24 +60,19 @@ fun ChatListRoute(
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(
-            start = 20.dp,
-            top = paddingValues.calculateTopPadding() + 16.dp,
-            end = 20.dp,
-            bottom = paddingValues.calculateBottomPadding() + 24.dp
-        ),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        contentPadding = screenContentPadding(paddingValues),
+        verticalArrangement = Arrangement.spacedBy(AppChrome.sectionSpacing)
     ) {
         item {
             Text("Chats", style = MaterialTheme.typography.headlineMedium)
         }
         if (conversations.isEmpty()) {
             item {
-                Column(modifier = Modifier.padding(top = 4.dp)) {
+                Column(modifier = Modifier.padding(top = AppChrome.bottomBarVerticalPadding)) {
                     Text("No Conversations Yet", style = MaterialTheme.typography.titleLarge)
                     Text(
                         text = "Start a conversation from Home or Create and it will appear here.",
-                        modifier = Modifier.padding(top = 8.dp),
+                        modifier = Modifier.padding(top = AppChrome.compactHeaderVerticalPadding),
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -88,7 +85,7 @@ fun ChatListRoute(
                     .fillMaxWidth()
                     .height(68.dp)
                     .clickable { onOpenConversation(conversation.id) },
-                horizontalArrangement = Arrangement.spacedBy(20.dp),
+                horizontalArrangement = Arrangement.spacedBy(AppChrome.listRowGap),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 CharacterPortrait(

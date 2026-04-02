@@ -13,7 +13,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
 import com.example.aichat.core.design.PrimaryButton
 
 @Composable
@@ -40,7 +39,7 @@ fun ErrorScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = 24.dp)
+            .padding(horizontal = AppChrome.screenBottomPadding)
             .padding(paddingValues),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
@@ -52,7 +51,10 @@ fun ErrorScreen(
         )
         Text(
             text = body,
-            modifier = Modifier.padding(top = 8.dp, bottom = 20.dp),
+            modifier = Modifier.padding(
+                top = AppChrome.compactHeaderVerticalPadding,
+                bottom = AppChrome.listRowGap
+            ),
             style = MaterialTheme.typography.bodyLarge,
             textAlign = TextAlign.Center,
             color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -64,4 +66,3 @@ fun ErrorScreen(
         )
     }
 }
-

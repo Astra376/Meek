@@ -1,6 +1,5 @@
 package com.example.aichat.feature.profile
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -11,9 +10,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.ArrowBack
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -33,6 +29,10 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.example.aichat.core.design.AppTextField
 import com.example.aichat.core.design.PrimaryButton
+import com.example.aichat.core.ui.AppBackButton
+import com.example.aichat.core.ui.AppChrome
+import com.example.aichat.core.ui.ScreenBackgroundBox
+import com.example.aichat.core.ui.pageContentFrame
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.SharingStarted
@@ -76,44 +76,42 @@ fun EditProfileRoute(
         focusRequester.requestFocus()
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-            .padding(top = paddingValues.calculateTopPadding())
-            .imePadding()
-            .padding(horizontal = 20.dp, vertical = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalAlignment = Alignment.CenterVertically
+    ScreenBackgroundBox {
+        Column(
+            modifier = Modifier.pageContentFrame(
+                paddingValues = paddingValues,
+                imeAware = true
+            ),
+            verticalArrangement = Arrangement.spacedBy(AppChrome.sectionSpacing)
         ) {
-            IconButton(onClick = onBack) {
-                Icon(Icons.Outlined.ArrowBack, contentDescription = "Back")
-            }
-            Text("Edit Profile", style = MaterialTheme.typography.headlineMedium)
-        }
-
-        AppTextField(
-            value = editedName,
-            onValueChange = { editedName = it },
-            placeholder = "Username",
-            modifier = Modifier
-                .fillMaxWidth()
-                .focusRequester(focusRequester),
-            singleLine = true
-        )
-
-        Spacer(modifier = Modifier.weight(1f))
-
-        if (hasChanged) {
-            PrimaryButton(
-                text = "Save Changes",
-                modifier = Modifier.fillMaxWidth()
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(AppChrome.compactControlGap),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                viewModel.save(editedName, onSaved = onBack)
+                AppBackButton(onClick = onBack)
+                Text("Edit Profile", style = MaterialTheme.typography.headlineMedium)
+            }
+
+            AppTextField(
+                value = editedName,
+                onValueChange = { editedName = it },
+                placeholder = "Username",
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .focusRequester(focusRequester),
+                singleLine = true
+            )
+
+            Spacer(modifier = Modifier.weight(1f))
+
+            if (hasChanged) {
+                PrimaryButton(
+                    text = "Save Changes",
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    viewModel.save(editedName, onSaved = onBack)
+                }
             }
         }
     }

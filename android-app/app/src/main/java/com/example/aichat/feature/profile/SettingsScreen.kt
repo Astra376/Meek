@@ -13,13 +13,11 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.BrightnessAuto
 import androidx.compose.material.icons.outlined.DarkMode
 import androidx.compose.material.icons.outlined.LightMode
 import androidx.compose.material.icons.outlined.Logout
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -36,6 +34,10 @@ import com.example.aichat.core.auth.AuthRepository
 import com.example.aichat.core.design.SecondaryButton
 import com.example.aichat.core.design.SelectionDot
 import com.example.aichat.core.model.ThemeMode
+import com.example.aichat.core.ui.AppBackButton
+import com.example.aichat.core.ui.AppChrome
+import com.example.aichat.core.ui.ScreenBackgroundBox
+import com.example.aichat.core.ui.pageContentFrame
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.SharingStarted
@@ -75,54 +77,52 @@ fun SettingsRoute(
 ) {
     val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-            .padding(top = paddingValues.calculateTopPadding())
-            .imePadding()
-            .padding(horizontal = 20.dp, vertical = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalAlignment = Alignment.CenterVertically
+    ScreenBackgroundBox {
+        Column(
+            modifier = Modifier.pageContentFrame(
+                paddingValues = paddingValues,
+                imeAware = true
+            ),
+            verticalArrangement = Arrangement.spacedBy(AppChrome.sectionSpacing)
         ) {
-            IconButton(onClick = onBack) {
-                Icon(Icons.Outlined.ArrowBack, contentDescription = "Back")
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(AppChrome.compactControlGap),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                AppBackButton(onClick = onBack)
+                Text("Settings", style = MaterialTheme.typography.headlineMedium)
             }
-            Text("Settings", style = MaterialTheme.typography.headlineMedium)
-        }
 
-        Text("App Theme", style = MaterialTheme.typography.titleLarge)
-        ThemeOptionRow(
-            text = "System",
-            selected = themeMode == ThemeMode.SYSTEM,
-            icon = { Icon(Icons.Outlined.BrightnessAuto, contentDescription = null) },
-            onClick = { viewModel.setTheme(ThemeMode.SYSTEM) }
-        )
-        ThemeOptionRow(
-            text = "Dark",
-            selected = themeMode == ThemeMode.DARK,
-            icon = { Icon(Icons.Outlined.DarkMode, contentDescription = null) },
-            onClick = { viewModel.setTheme(ThemeMode.DARK) }
-        )
-        ThemeOptionRow(
-            text = "Light",
-            selected = themeMode == ThemeMode.LIGHT,
-            icon = { Icon(Icons.Outlined.LightMode, contentDescription = null) },
-            onClick = { viewModel.setTheme(ThemeMode.LIGHT) }
-        )
-        Spacer(modifier = Modifier.weight(1f))
-        SecondaryButton(
-            text = "Log Out",
-            modifier = Modifier.fillMaxWidth(),
-            leadingIcon = {
-                Icon(Icons.Outlined.Logout, contentDescription = null)
-            },
-            onClick = viewModel::signOut
-        )
+            Text("App Theme", style = MaterialTheme.typography.titleLarge)
+            ThemeOptionRow(
+                text = "System",
+                selected = themeMode == ThemeMode.SYSTEM,
+                icon = { Icon(Icons.Outlined.BrightnessAuto, contentDescription = null) },
+                onClick = { viewModel.setTheme(ThemeMode.SYSTEM) }
+            )
+            ThemeOptionRow(
+                text = "Dark",
+                selected = themeMode == ThemeMode.DARK,
+                icon = { Icon(Icons.Outlined.DarkMode, contentDescription = null) },
+                onClick = { viewModel.setTheme(ThemeMode.DARK) }
+            )
+            ThemeOptionRow(
+                text = "Light",
+                selected = themeMode == ThemeMode.LIGHT,
+                icon = { Icon(Icons.Outlined.LightMode, contentDescription = null) },
+                onClick = { viewModel.setTheme(ThemeMode.LIGHT) }
+            )
+            Spacer(modifier = Modifier.weight(1f))
+            SecondaryButton(
+                text = "Log Out",
+                modifier = Modifier.fillMaxWidth(),
+                leadingIcon = {
+                    Icon(Icons.Outlined.Logout, contentDescription = null)
+                },
+                onClick = viewModel::signOut
+            )
+        }
     }
 }
 
@@ -139,8 +139,11 @@ private fun ThemeOptionRow(
             .clip(RoundedCornerShape(24.dp))
             .background(MaterialTheme.colorScheme.surfaceVariant)
             .clickable(onClick = onClick)
-            .padding(horizontal = 18.dp, vertical = 16.dp),
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
+            .padding(
+                horizontal = AppChrome.bottomBarHorizontalPadding,
+                vertical = AppChrome.screenTopPadding
+            ),
+        horizontalArrangement = Arrangement.spacedBy(AppChrome.sectionSpacing),
         verticalAlignment = Alignment.CenterVertically
     ) {
         icon()

@@ -42,7 +42,10 @@ import com.example.aichat.core.design.CircleAvatar
 import com.example.aichat.core.design.IconCircleButton
 import com.example.aichat.core.design.IconPillButton
 import com.example.aichat.core.model.CharacterSummary
+import com.example.aichat.core.ui.AppChrome
 import com.example.aichat.core.ui.CharacterSummaryCard
+import com.example.aichat.core.ui.ScreenBackgroundBox
+import com.example.aichat.core.ui.screenContentPadding
 import com.example.aichat.core.util.authorLabel
 import com.example.aichat.feature.character.CharacterRepository
 import com.example.aichat.feature.chatlist.ConversationRepository
@@ -112,23 +115,13 @@ fun ProfileRoute(
     val scope = rememberCoroutineScope()
     var section by remember { mutableStateOf(ProfileSection.OWNED) }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-    ) {
-        SnackbarHost(hostState = snackbarHostState)
+    ScreenBackgroundBox(snackbarHostState = snackbarHostState) {
         LazyVerticalGrid(
             columns = GridCells.Fixed(2),
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(
-                start = 20.dp,
-                top = paddingValues.calculateTopPadding() + 16.dp,
-                end = 20.dp,
-                bottom = paddingValues.calculateBottomPadding() + 24.dp
-            ),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+            contentPadding = screenContentPadding(paddingValues),
+            verticalArrangement = Arrangement.spacedBy(AppChrome.sectionSpacing),
+            horizontalArrangement = Arrangement.spacedBy(AppChrome.gridSpacing)
         ) {
             item(span = { GridItemSpan(maxLineSpan) }) {
                 Text("Profile", style = MaterialTheme.typography.headlineMedium)
@@ -136,7 +129,7 @@ fun ProfileRoute(
             item(span = { GridItemSpan(maxLineSpan) }) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    horizontalArrangement = Arrangement.spacedBy(AppChrome.screenTopPadding)
                 ) {
                     CircleAvatar(
                         name = state.displayName.ifBlank { "User" },
@@ -147,13 +140,13 @@ fun ProfileRoute(
                     )
                     Column(
                         modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                        verticalArrangement = Arrangement.spacedBy(AppChrome.gridSpacing)
                     ) {
                         Text(
                             text = state.displayName.ifBlank { "User" },
                             style = MaterialTheme.typography.headlineSmall
                         )
-                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(AppChrome.compactControlGap)) {
                             IconPillButton(
                                 text = "Edit Profile",
                                 onClick = onOpenEditProfile,
@@ -171,7 +164,7 @@ fun ProfileRoute(
             item(span = { GridItemSpan(maxLineSpan) }) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    horizontalArrangement = Arrangement.spacedBy(AppChrome.gridSpacing)
                 ) {
                     IconCircleButton(
                         selected = section == ProfileSection.OWNED,

@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -23,7 +24,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.KeyboardArrowLeft
 import androidx.compose.material.icons.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.Send
@@ -58,6 +58,8 @@ import androidx.lifecycle.viewModelScope
 import com.example.aichat.core.design.AppTextField
 import com.example.aichat.core.design.CharacterPortrait
 import com.example.aichat.core.design.IconCircleButton
+import com.example.aichat.core.ui.AppBackButton
+import com.example.aichat.core.ui.AppChrome
 import com.example.aichat.core.model.ChatMessage
 import com.example.aichat.core.model.ConversationDetail
 import com.example.aichat.core.model.MessageRole
@@ -187,6 +189,7 @@ fun ChatRoute(
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             ChatHeader(
                 characterName = state.conversation?.character?.name ?: "Chat",
@@ -207,12 +210,12 @@ fun ChatRoute(
                 modifier = Modifier.weight(1f),
                 state = listState,
                 contentPadding = PaddingValues(
-                    start = 20.dp,
-                    top = innerPadding.calculateTopPadding() + 8.dp,
-                    end = 20.dp,
-                    bottom = 12.dp
+                    start = AppChrome.screenHorizontalPadding,
+                    top = innerPadding.calculateTopPadding() + AppChrome.compactHeaderVerticalPadding,
+                    end = AppChrome.screenHorizontalPadding,
+                    bottom = AppChrome.gridSpacing
                 ),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                verticalArrangement = Arrangement.spacedBy(AppChrome.compactControlGap)
             ) {
                 state.conversation?.messages?.let { messages ->
                     val latestAssistantId = messages.lastOrNull { it.role == MessageRole.ASSISTANT }?.id
@@ -247,8 +250,11 @@ fun ChatRoute(
                 modifier = Modifier
                     .fillMaxWidth()
                     .imePadding()
-                    .padding(horizontal = 20.dp, vertical = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    .padding(
+                        horizontal = AppChrome.screenHorizontalPadding,
+                        vertical = AppChrome.screenTopPadding
+                    ),
+                horizontalArrangement = Arrangement.spacedBy(AppChrome.compactControlGap),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 AppTextField(
@@ -344,22 +350,20 @@ private fun ChatHeader(
     ) {
         Column {
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .statusBarsPadding()
-                    .padding(horizontal = 20.dp, vertical = 8.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .statusBarsPadding()
+                        .padding(
+                            horizontal = AppChrome.screenHorizontalPadding,
+                            vertical = AppChrome.compactHeaderVerticalPadding
+                        ),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(
-                    modifier = Modifier.size(40.dp),
-                    onClick = onBack
-                ) {
-                    Icon(Icons.Outlined.ArrowBack, contentDescription = "Back")
-                }
-                Spacer(modifier = Modifier.size(12.dp))
+                AppBackButton(onClick = onBack)
+                Spacer(modifier = Modifier.size(AppChrome.compactControlGap))
                 Row(
                     modifier = Modifier.weight(1f),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(AppChrome.gridSpacing),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     CharacterPortrait(

@@ -7,12 +7,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
@@ -27,6 +25,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.example.aichat.core.auth.AuthRepository
+import com.example.aichat.core.design.AppIcon
 import com.example.aichat.core.design.AppIcons
 import com.example.aichat.core.design.SecondaryButton
 import com.example.aichat.core.model.CharacterSummary
@@ -135,16 +134,16 @@ fun HomeRoute(
         ) {
             item(span = { GridItemSpan(maxLineSpan) }) {
                 SimplePageHeader(title = "Discover") {
-                    Icon(
-                        imageVector = AppIcons.search,
+                    AppIcon(
+                        icon = AppIcons.search,
                         contentDescription = "Search",
                         modifier = Modifier
-                            .size(AppChrome.headerActionIconSize)
                             .clickable(
                                 interactionSource = searchInteractionSource,
                                 indication = null,
                                 onClick = onOpenSearch
                             ),
+                        size = AppChrome.headerActionIconSize,
                         tint = MaterialTheme.colorScheme.onSurface
                     )
                 }

@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
@@ -26,6 +25,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.example.aichat.core.auth.AuthRepository
+import com.example.aichat.core.design.AppIcon
 import com.example.aichat.core.design.AppIcons
 import com.example.aichat.core.design.AppTextField
 import com.example.aichat.core.design.CharacterPortrait
@@ -143,14 +143,14 @@ fun CharacterStudioRoute(
                             modifier = Modifier.weight(1f),
                             enabled = !state.isGeneratingPortrait,
                             leadingIcon = {
-                                Icon(AppIcons.sparkle, contentDescription = null)
+                                AppIcon(AppIcons.sparkle, contentDescription = null)
                             },
                             onClick = viewModel::generatePortrait
                         )
                         SquareIconButton(
                             onClick = { viewModel.updateDraft { CharacterDraft() } }
                         ) {
-                            Icon(AppIcons.clear, contentDescription = "Clear")
+                            AppIcon(AppIcons.clear, contentDescription = "Clear")
                         }
                     }
                     AppTextField(
@@ -193,7 +193,7 @@ fun CharacterStudioRoute(
                             selected = state.draft.visibility == CharacterVisibility.PUBLIC,
                             modifier = Modifier.weight(1f),
                             leadingIcon = {
-                                Icon(AppIcons.public, contentDescription = null)
+                                AppIcon(AppIcons.public, contentDescription = null)
                             },
                             onClick = { viewModel.updateDraft { it.copy(visibility = CharacterVisibility.PUBLIC) } }
                         )
@@ -202,7 +202,7 @@ fun CharacterStudioRoute(
                             selected = state.draft.visibility == CharacterVisibility.PRIVATE,
                             modifier = Modifier.weight(1f),
                             leadingIcon = {
-                                Icon(AppIcons.lock, contentDescription = null)
+                                AppIcon(AppIcons.lock, contentDescription = null)
                             },
                             onClick = { viewModel.updateDraft { it.copy(visibility = CharacterVisibility.PRIVATE) } }
                         )
@@ -212,7 +212,7 @@ fun CharacterStudioRoute(
                         enabled = !state.isSaving,
                         modifier = Modifier.fillMaxWidth(),
                         leadingIcon = {
-                            Icon(AppIcons.create, contentDescription = null)
+                            AppIcon(AppIcons.create, contentDescription = null)
                         },
                         onClick = viewModel::saveCharacter
                     )

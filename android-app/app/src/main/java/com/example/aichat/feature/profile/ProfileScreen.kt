@@ -16,7 +16,6 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -39,6 +38,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.example.aichat.core.auth.AuthRepository
+import com.example.aichat.core.design.AppIcon
 import com.example.aichat.core.design.AppIcons
 import com.example.aichat.core.design.CircleAvatar
 import com.example.aichat.core.design.IconCircleButton
@@ -153,11 +153,11 @@ fun ProfileRoute(
                                 text = "Edit Profile",
                                 onClick = onOpenEditProfile,
                                 leadingIcon = {
-                                    Icon(AppIcons.edit, contentDescription = null)
+                                    AppIcon(AppIcons.edit, contentDescription = null)
                                 }
                             )
                             IconCircleButton(onClick = onOpenSettings) {
-                                Icon(AppIcons.settings, contentDescription = "Settings")
+                                AppIcon(AppIcons.settings, contentDescription = "Settings")
                             }
                         }
                     }
@@ -186,7 +186,14 @@ fun ProfileRoute(
                         unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
                         text = null,
                         icon = {
-                            Icon(AppIcons.owned, contentDescription = "Your Characters")
+                            AppIcon(
+                                icon = if (section == ProfileSection.OWNED) {
+                                    AppIcons.ownedFilled
+                                } else {
+                                    AppIcons.owned
+                                },
+                                contentDescription = "Your Characters"
+                            )
                         }
                     )
                     Tab(
@@ -196,7 +203,14 @@ fun ProfileRoute(
                         unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
                         text = null,
                         icon = {
-                            Icon(AppIcons.liked, contentDescription = "Liked Characters")
+                            AppIcon(
+                                icon = if (section == ProfileSection.LIKED) {
+                                    AppIcons.likedFilled
+                                } else {
+                                    AppIcons.liked
+                                },
+                                contentDescription = "Liked Characters"
+                            )
                         }
                     )
                 }

@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -28,6 +27,7 @@ import androidx.compose.ui.composed
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.example.aichat.core.design.AppIcon
 import com.example.aichat.core.design.AppIcons
 
 object AppChrome {
@@ -111,10 +111,10 @@ fun AppBackButton(
             ),
         contentAlignment = Alignment.Center
     ) {
-        Icon(
-            imageVector = AppIcons.back,
+        AppIcon(
+            icon = AppIcons.back,
             contentDescription = "Back",
-            modifier = Modifier.size(AppChrome.headerActionIconSize)
+            size = AppChrome.headerActionIconSize
         )
     }
 }

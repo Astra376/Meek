@@ -4,7 +4,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -20,6 +19,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.example.aichat.core.auth.AuthRepository
+import com.example.aichat.core.design.AppIcon
 import com.example.aichat.core.design.AppIcons
 import com.example.aichat.core.design.SecondaryButton
 import com.example.aichat.core.design.SelectionDot
@@ -89,19 +89,19 @@ fun SettingsRoute(
             ThemeOptionRow(
                 text = "System",
                 selected = themeMode == ThemeMode.SYSTEM,
-                icon = { Icon(AppIcons.themeSystem, contentDescription = null) },
+                icon = { AppIcon(AppIcons.themeSystem, contentDescription = null) },
                 onClick = { viewModel.setTheme(ThemeMode.SYSTEM) }
             )
             ThemeOptionRow(
                 text = "Dark",
                 selected = themeMode == ThemeMode.DARK,
-                icon = { Icon(AppIcons.themeDark, contentDescription = null) },
+                icon = { AppIcon(AppIcons.themeDark, contentDescription = null) },
                 onClick = { viewModel.setTheme(ThemeMode.DARK) }
             )
             ThemeOptionRow(
                 text = "Light",
                 selected = themeMode == ThemeMode.LIGHT,
-                icon = { Icon(AppIcons.themeLight, contentDescription = null) },
+                icon = { AppIcon(AppIcons.themeLight, contentDescription = null) },
                 onClick = { viewModel.setTheme(ThemeMode.LIGHT) }
             )
             Spacer(modifier = Modifier.weight(1f))
@@ -109,7 +109,7 @@ fun SettingsRoute(
                 text = "Log Out",
                 modifier = Modifier.fillMaxWidth(),
                 leadingIcon = {
-                    Icon(AppIcons.logout, contentDescription = null)
+                    AppIcon(AppIcons.logout, contentDescription = null)
                 },
                 onClick = viewModel::signOut
             )

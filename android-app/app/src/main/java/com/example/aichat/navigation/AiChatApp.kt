@@ -17,8 +17,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -28,7 +26,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
@@ -38,6 +35,8 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.example.aichat.core.design.AppIcon
+import com.example.aichat.core.design.AppIconGlyph
 import com.example.aichat.core.design.AppIcons
 import com.example.aichat.core.ui.AppChrome
 import com.example.aichat.core.ui.LoadingScreen
@@ -53,29 +52,34 @@ import com.example.aichat.feature.signin.SignInRoute
 
 private sealed class MainDestination(
     val route: String,
-    val outlinedIcon: ImageVector,
-    val filledIcon: ImageVector
+    val contentDescription: String,
+    val outlinedIcon: AppIconGlyph,
+    val filledIcon: AppIconGlyph
 ) {
     data object Home : MainDestination(
         route = "home",
+        contentDescription = "Home",
         outlinedIcon = AppIcons.homeOutline,
         filledIcon = AppIcons.home
     )
 
     data object Studio : MainDestination(
         route = "studio",
+        contentDescription = "Create",
         outlinedIcon = AppIcons.createOutline,
         filledIcon = AppIcons.create
     )
 
     data object Chats : MainDestination(
         route = "chats",
+        contentDescription = "Chats",
         outlinedIcon = AppIcons.chatsOutline,
         filledIcon = AppIcons.chats
     )
 
     data object Profile : MainDestination(
         route = "profile",
+        contentDescription = "Profile",
         outlinedIcon = AppIcons.profileOutline,
         filledIcon = AppIcons.profile
     )
@@ -379,10 +383,10 @@ private fun BottomIconBar(
                             ) { onNavigate(destination.route) },
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(
-                            modifier = Modifier.size(AppChrome.bottomBarIconSize),
-                            imageVector = if (selected) destination.filledIcon else destination.outlinedIcon,
-                            contentDescription = null,
+                        AppIcon(
+                            icon = if (selected) destination.filledIcon else destination.outlinedIcon,
+                            contentDescription = destination.contentDescription,
+                            size = AppChrome.bottomBarIconSize,
                             tint = MaterialTheme.colorScheme.onSurface
                         )
                     }

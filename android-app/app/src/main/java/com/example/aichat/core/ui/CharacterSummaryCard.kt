@@ -8,8 +8,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.size
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -18,6 +16,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.aichat.core.design.AppCard
+import com.example.aichat.core.design.AppIcon
 import com.example.aichat.core.design.AppIcons
 import com.example.aichat.core.design.CharacterPortrait
 import com.example.aichat.core.model.CharacterSummary
@@ -94,12 +93,11 @@ fun CharacterSummaryCard(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(CharacterCardMetrics.chatMetaGap)
                     ) {
-                        Icon(
-                            imageVector = AppIcons.chats,
+                        AppIcon(
+                            icon = AppIcons.chats,
                             contentDescription = null,
-                            modifier = Modifier
-                                .padding(top = CharacterCardMetrics.chatIconTopPadding)
-                                .size(CharacterCardMetrics.chatIconSize),
+                            modifier = Modifier.padding(top = CharacterCardMetrics.chatIconTopPadding),
+                            size = CharacterCardMetrics.chatIconSize,
                             tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.58f)
                         )
                         Text(

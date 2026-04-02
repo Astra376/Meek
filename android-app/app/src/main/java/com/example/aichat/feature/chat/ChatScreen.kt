@@ -23,11 +23,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.KeyboardArrowLeft
-import androidx.compose.material.icons.outlined.KeyboardArrowRight
-import androidx.compose.material.icons.outlined.Send
-import androidx.compose.material.icons.outlined.StopCircle
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -55,6 +50,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
+import com.example.aichat.core.design.AppIcons
 import com.example.aichat.core.design.AppTextField
 import com.example.aichat.core.design.CharacterPortrait
 import com.example.aichat.core.design.IconCircleButton
@@ -273,7 +269,7 @@ fun ChatRoute(
                     enabled = !state.isStreaming && state.composerText.isNotBlank(),
                     onClick = viewModel::send
                 ) {
-                    Icon(Icons.Outlined.Send, contentDescription = "Send")
+                    Icon(AppIcons.send, contentDescription = "Send")
                 }
             }
         }
@@ -380,7 +376,7 @@ private fun ChatHeader(
                 }
                 if (isStreaming) {
                     IconCircleButton(onClick = onStop) {
-                        Icon(Icons.Outlined.StopCircle, contentDescription = "Stop")
+                        Icon(AppIcons.stop, contentDescription = "Stop")
                     }
                 }
             }
@@ -451,7 +447,7 @@ private fun MessageBubble(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(onClick = onSelectPreviousVariant, enabled = currentIndex > 0) {
-                    Icon(Icons.Outlined.KeyboardArrowLeft, contentDescription = "Previous variant")
+                    Icon(AppIcons.previous, contentDescription = "Previous variant")
                 }
                 Text(
                     text = "Variant ${currentIndex + 1}/${message.regenerations.size}",
@@ -459,7 +455,7 @@ private fun MessageBubble(
                     fontWeight = FontWeight.Medium
                 )
                 IconButton(onClick = onSelectNextVariant, enabled = currentIndex < message.regenerations.lastIndex) {
-                    Icon(Icons.Outlined.KeyboardArrowRight, contentDescription = "Next variant")
+                    Icon(AppIcons.next, contentDescription = "Next variant")
                 }
             }
         }

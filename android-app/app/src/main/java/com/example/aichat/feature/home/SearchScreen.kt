@@ -15,8 +15,6 @@ import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHostState
@@ -37,6 +35,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.example.aichat.core.auth.AuthRepository
+import com.example.aichat.core.design.AppIcons
 import com.example.aichat.core.design.AppTextField
 import com.example.aichat.core.ui.AppBackButton
 import com.example.aichat.core.ui.AppChrome
@@ -185,7 +184,7 @@ fun SearchRoute(
                         singleLine = true,
                         shape = RoundedCornerShape(999.dp),
                         leadingIcon = {
-                            Icon(Icons.Outlined.Search, contentDescription = null)
+                            Icon(AppIcons.search, contentDescription = null)
                         }
                     )
                 }

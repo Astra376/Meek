@@ -15,11 +15,6 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Edit
-import androidx.compose.material.icons.outlined.FavoriteBorder
-import androidx.compose.material.icons.outlined.GridView
-import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHost
@@ -39,6 +34,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.example.aichat.core.auth.AuthRepository
+import com.example.aichat.core.design.AppIcons
 import com.example.aichat.core.design.CircleAvatar
 import com.example.aichat.core.design.IconCircleButton
 import com.example.aichat.core.design.IconPillButton
@@ -152,11 +148,11 @@ fun ProfileRoute(
                                 text = "Edit Profile",
                                 onClick = onOpenEditProfile,
                                 leadingIcon = {
-                                    Icon(Icons.Outlined.Edit, contentDescription = null)
+                                    Icon(AppIcons.edit, contentDescription = null)
                                 }
                             )
                             IconCircleButton(onClick = onOpenSettings) {
-                                Icon(Icons.Outlined.Settings, contentDescription = "Settings")
+                                Icon(AppIcons.settings, contentDescription = "Settings")
                             }
                         }
                     }
@@ -171,13 +167,13 @@ fun ProfileRoute(
                         selected = section == ProfileSection.OWNED,
                         onClick = { section = ProfileSection.OWNED }
                     ) {
-                        Icon(Icons.Outlined.GridView, contentDescription = "Your Characters")
+                        Icon(AppIcons.owned, contentDescription = "Your Characters")
                     }
                     IconCircleButton(
                         selected = section == ProfileSection.LIKED,
                         onClick = { section = ProfileSection.LIKED }
                     ) {
-                        Icon(Icons.Outlined.FavoriteBorder, contentDescription = "Liked Characters")
+                        Icon(AppIcons.liked, contentDescription = "Liked Characters")
                     }
                     Spacer(modifier = Modifier.weight(1f))
                 }

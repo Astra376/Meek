@@ -18,15 +18,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AddCircle
-import androidx.compose.material.icons.filled.ChatBubble
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.outlined.AddCircle
-import androidx.compose.material.icons.outlined.ChatBubbleOutline
-import androidx.compose.material.icons.outlined.Home
-import androidx.compose.material.icons.outlined.PersonOutline
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -47,6 +38,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.example.aichat.core.design.AppIcons
 import com.example.aichat.core.ui.AppChrome
 import com.example.aichat.core.ui.LoadingScreen
 import com.example.aichat.feature.character.CharacterStudioRoute
@@ -66,26 +58,26 @@ private sealed class MainDestination(
 ) {
     data object Home : MainDestination(
         route = "home",
-        outlinedIcon = Icons.Outlined.Home,
-        filledIcon = Icons.Filled.Home
+        outlinedIcon = AppIcons.home,
+        filledIcon = AppIcons.home
     )
 
     data object Studio : MainDestination(
         route = "studio",
-        outlinedIcon = Icons.Outlined.AddCircle,
-        filledIcon = Icons.Filled.AddCircle
+        outlinedIcon = AppIcons.create,
+        filledIcon = AppIcons.create
     )
 
     data object Chats : MainDestination(
         route = "chats",
-        outlinedIcon = Icons.Outlined.ChatBubbleOutline,
-        filledIcon = Icons.Filled.ChatBubble
+        outlinedIcon = AppIcons.chats,
+        filledIcon = AppIcons.chats
     )
 
     data object Profile : MainDestination(
         route = "profile",
-        outlinedIcon = Icons.Outlined.PersonOutline,
-        filledIcon = Icons.Filled.Person
+        outlinedIcon = AppIcons.profile,
+        filledIcon = AppIcons.profile
     )
 }
 

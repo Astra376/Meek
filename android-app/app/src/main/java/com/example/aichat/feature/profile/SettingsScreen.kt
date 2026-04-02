@@ -12,11 +12,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.BrightnessAuto
-import androidx.compose.material.icons.outlined.DarkMode
-import androidx.compose.material.icons.outlined.LightMode
-import androidx.compose.material.icons.outlined.Logout
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -33,6 +28,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.example.aichat.core.auth.AuthRepository
+import com.example.aichat.core.design.AppIcons
 import com.example.aichat.core.design.SecondaryButton
 import com.example.aichat.core.design.SelectionDot
 import com.example.aichat.core.model.ThemeMode
@@ -100,19 +96,19 @@ fun SettingsRoute(
             ThemeOptionRow(
                 text = "System",
                 selected = themeMode == ThemeMode.SYSTEM,
-                icon = { Icon(Icons.Outlined.BrightnessAuto, contentDescription = null) },
+                icon = { Icon(AppIcons.themeSystem, contentDescription = null) },
                 onClick = { viewModel.setTheme(ThemeMode.SYSTEM) }
             )
             ThemeOptionRow(
                 text = "Dark",
                 selected = themeMode == ThemeMode.DARK,
-                icon = { Icon(Icons.Outlined.DarkMode, contentDescription = null) },
+                icon = { Icon(AppIcons.themeDark, contentDescription = null) },
                 onClick = { viewModel.setTheme(ThemeMode.DARK) }
             )
             ThemeOptionRow(
                 text = "Light",
                 selected = themeMode == ThemeMode.LIGHT,
-                icon = { Icon(Icons.Outlined.LightMode, contentDescription = null) },
+                icon = { Icon(AppIcons.themeLight, contentDescription = null) },
                 onClick = { viewModel.setTheme(ThemeMode.LIGHT) }
             )
             Spacer(modifier = Modifier.weight(1f))
@@ -120,7 +116,7 @@ fun SettingsRoute(
                 text = "Log Out",
                 modifier = Modifier.fillMaxWidth(),
                 leadingIcon = {
-                    Icon(Icons.Outlined.Logout, contentDescription = null)
+                    Icon(AppIcons.logout, contentDescription = null)
                 },
                 onClick = viewModel::signOut
             )

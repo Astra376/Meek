@@ -12,8 +12,6 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHostState
@@ -29,6 +27,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.example.aichat.core.auth.AuthRepository
+import com.example.aichat.core.design.AppIcons
 import com.example.aichat.core.design.SecondaryButton
 import com.example.aichat.core.model.CharacterSummary
 import com.example.aichat.core.ui.AppChrome
@@ -137,10 +136,10 @@ fun HomeRoute(
             item(span = { GridItemSpan(maxLineSpan) }) {
                 SimplePageHeader(title = "Discover") {
                     Icon(
-                        imageVector = Icons.Outlined.Search,
+                        imageVector = AppIcons.search,
                         contentDescription = "Search",
                         modifier = Modifier
-                            .size(AppChrome.bottomBarIconSize)
+                            .size(AppChrome.headerActionIconSize)
                             .clickable(
                                 interactionSource = searchInteractionSource,
                                 indication = null,

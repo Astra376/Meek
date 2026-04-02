@@ -17,19 +17,18 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.ArrowBack
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.composed
 import androidx.compose.runtime.remember
+import androidx.compose.ui.composed
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.example.aichat.core.design.AppIcons
 
 object AppChrome {
     val screenHorizontalPadding = 20.dp
@@ -40,12 +39,13 @@ object AppChrome {
     val compactControlSize = 32.dp
     val compactControlGap = 10.dp
     val compactHeaderVerticalPadding = 8.dp
-    val bottomBarHeight = 56.dp
-    val bottomBarTapHeight = 36.dp
+    val headerActionIconSize = 24.dp
+    val bottomBarHeight = 52.dp
+    val bottomBarTapHeight = 40.dp
     val bottomBarHorizontalPadding = 18.dp
-    val bottomBarVerticalPadding = 4.dp
+    val bottomBarVerticalPadding = 1.dp
     val bottomBarItemHorizontalPadding = 2.dp
-    val bottomBarIconSize = 28.dp
+    val bottomBarIconSize = 32.dp
     val listRowGap = 20.dp
 }
 
@@ -111,7 +111,11 @@ fun AppBackButton(
             ),
         contentAlignment = Alignment.Center
     ) {
-        Icon(Icons.Outlined.ArrowBack, contentDescription = "Back")
+        Icon(
+            imageVector = AppIcons.back,
+            contentDescription = "Back",
+            modifier = Modifier.size(AppChrome.headerActionIconSize)
+        )
     }
 }
 

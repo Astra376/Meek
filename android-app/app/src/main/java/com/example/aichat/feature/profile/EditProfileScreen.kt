@@ -7,22 +7,15 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -69,12 +62,7 @@ fun EditProfileRoute(
 ) {
     val currentName by viewModel.displayName.collectAsStateWithLifecycle()
     var editedName by remember(currentName) { mutableStateOf(currentName) }
-    val focusRequester = remember { FocusRequester() }
     val hasChanged = editedName.trim() != currentName.trim() && editedName.isNotBlank()
-
-    LaunchedEffect(Unit) {
-        focusRequester.requestFocus()
-    }
 
     ScreenBackgroundBox {
         Column(
@@ -93,13 +81,13 @@ fun EditProfileRoute(
                 Text("Edit Profile", style = MaterialTheme.typography.headlineMedium)
             }
 
+            Text("Username", style = MaterialTheme.typography.titleLarge)
+
             AppTextField(
                 value = editedName,
                 onValueChange = { editedName = it },
                 placeholder = "Username",
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .focusRequester(focusRequester),
+                modifier = Modifier.fillMaxWidth(),
                 singleLine = true
             )
 

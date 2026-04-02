@@ -58,25 +58,25 @@ private sealed class MainDestination(
 ) {
     data object Home : MainDestination(
         route = "home",
-        outlinedIcon = AppIcons.home,
+        outlinedIcon = AppIcons.homeOutline,
         filledIcon = AppIcons.home
     )
 
     data object Studio : MainDestination(
         route = "studio",
-        outlinedIcon = AppIcons.create,
+        outlinedIcon = AppIcons.createOutline,
         filledIcon = AppIcons.create
     )
 
     data object Chats : MainDestination(
         route = "chats",
-        outlinedIcon = AppIcons.chats,
+        outlinedIcon = AppIcons.chatsOutline,
         filledIcon = AppIcons.chats
     )
 
     data object Profile : MainDestination(
         route = "profile",
-        outlinedIcon = AppIcons.profile,
+        outlinedIcon = AppIcons.profileOutline,
         filledIcon = AppIcons.profile
     )
 }
@@ -383,11 +383,7 @@ private fun BottomIconBar(
                             modifier = Modifier.size(AppChrome.bottomBarIconSize),
                             imageVector = if (selected) destination.filledIcon else destination.outlinedIcon,
                             contentDescription = null,
-                            tint = if (selected) {
-                                MaterialTheme.colorScheme.onSurface
-                            } else {
-                                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.82f)
-                            }
+                            tint = MaterialTheme.colorScheme.onSurface
                         )
                     }
                 }

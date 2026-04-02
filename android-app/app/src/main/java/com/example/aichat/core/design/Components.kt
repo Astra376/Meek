@@ -25,18 +25,19 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.composed
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -59,6 +60,8 @@ private object DesignMetrics {
     val iconCircleSize = 48.dp
     val iconPillHeight = 48.dp
     val iconPillHorizontalPadding = 16.dp
+    val outlineStrokeWidth = 1.dp
+    val outlineStrokeAlpha = 0.25f
     val squareIconButtonSize = 54.dp
     val squareButtonCorner = 18.dp
     val selectionDotSize = 20.dp
@@ -67,6 +70,69 @@ private object DesignMetrics {
     val chipHorizontalPadding = 12.dp
     val chipVerticalPadding = 6.dp
     val portraitBadgeGap = 12.dp
+}
+
+fun Modifier.appOutlineSurface(
+    shape: Shape,
+    enabled: Boolean = true,
+    selected: Boolean = false
+): Modifier = composed {
+    this
+        .alpha(if (enabled) 1f else 0.45f)
+        .clip(shape)
+        .background(if (selected) MaterialTheme.colorScheme.onSurface else Color.Transparent)
+        .border(
+            width = DesignMetrics.outlineStrokeWidth,
+            color = if (selected) {
+                MaterialTheme.colorScheme.onSurface
+            } else {
+                MaterialTheme.colorScheme.outline.copy(alpha = DesignMetrics.outlineStrokeAlpha)
+            },
+            shape = shape
+        )
+}
+
+@Composable
+private fun OutlineTextButton(
+    text: String,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    shape: RoundedCornerShape = RoundedCornerShape(DesignMetrics.buttonCorner),
+    height: androidx.compose.ui.unit.Dp = DesignMetrics.secondaryButtonHeight,
+    contentPadding: androidx.compose.foundation.layout.PaddingValues = androidx.compose.foundation.layout.PaddingValues(
+        horizontal = DesignMetrics.iconPillHorizontalPadding
+    ),
+    selected: Boolean = false,
+    leadingIcon: (@Composable () -> Unit)? = null,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = modifier
+            .height(height)
+            .appOutlineSurface(
+                shape = shape,
+                enabled = enabled,
+                selected = selected
+            )
+            .clickable(enabled = enabled, onClick = onClick)
+            .padding(contentPadding),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        CompositionLocalProvider(
+            LocalContentColor provides if (selected) {
+                MaterialTheme.colorScheme.surface
+            } else {
+                MaterialTheme.colorScheme.onSurface
+            }
+        ) {
+            leadingIcon?.let {
+                it()
+                Spacer(modifier = Modifier.width(DesignMetrics.iconGap))
+            }
+            Text(text = text, style = MaterialTheme.typography.labelLarge)
+        }
+    }
 }
 
 @Composable
@@ -120,23 +186,13 @@ fun SecondaryButton(
     leadingIcon: (@Composable () -> Unit)? = null,
     onClick: () -> Unit
 ) {
-    OutlinedButton(
-        modifier = modifier.height(DesignMetrics.secondaryButtonHeight),
+    OutlineTextButton(
+        text = text,
         enabled = enabled,
-        onClick = onClick,
-        shape = RoundedCornerShape(DesignMetrics.buttonCorner)
-    ) {
-        Row(
-            horizontalArrangement = Arrangement.Center,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            leadingIcon?.let {
-                it()
-                Spacer(modifier = Modifier.width(DesignMetrics.iconGap))
-            }
-            Text(text = text)
-        }
-    }
+        modifier = modifier,
+        leadingIcon = leadingIcon,
+        onClick = onClick
+    )
 }
 
 @Composable
@@ -148,39 +204,20 @@ fun SelectionButton(
     onClick: () -> Unit
 ) {
     if (selected) {
-        Button(
-            modifier = modifier.height(DesignMetrics.secondaryButtonHeight),
-            onClick = onClick,
-            shape = RoundedCornerShape(DesignMetrics.buttonCorner)
-        ) {
-            Row(
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                leadingIcon?.let {
-                    it()
-                    Spacer(modifier = Modifier.width(DesignMetrics.iconGap))
-                }
-                Text(text = text)
-            }
-        }
+        OutlineTextButton(
+            text = text,
+            modifier = modifier,
+            selected = true,
+            leadingIcon = leadingIcon,
+            onClick = onClick
+        )
     } else {
-        OutlinedButton(
-            modifier = modifier.height(DesignMetrics.secondaryButtonHeight),
-            onClick = onClick,
-            shape = RoundedCornerShape(DesignMetrics.buttonCorner)
-        ) {
-            Row(
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                leadingIcon?.let {
-                    it()
-                    Spacer(modifier = Modifier.width(DesignMetrics.iconGap))
-                }
-                Text(text = text)
-            }
-        }
+        OutlineTextButton(
+            text = text,
+            modifier = modifier,
+            leadingIcon = leadingIcon,
+            onClick = onClick
+        )
     }
 }
 
@@ -286,19 +323,10 @@ fun IconCircleButton(
     Box(
         modifier = modifier
             .size(DesignMetrics.iconCircleSize)
-            .alpha(if (enabled) 1f else 0.45f)
-            .clip(CircleShape)
-            .background(
-                if (selected) MaterialTheme.colorScheme.onSurface else Color.Transparent
-            )
-            .border(
-                width = 1.dp,
-                color = if (selected) {
-                    MaterialTheme.colorScheme.onSurface
-                } else {
-                    MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)
-                },
-                shape = CircleShape
+            .appOutlineSurface(
+                shape = CircleShape,
+                enabled = enabled,
+                selected = selected
             )
             .clickable(enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center
@@ -323,24 +351,18 @@ fun IconPillButton(
     onClick: () -> Unit,
     leadingIcon: @Composable () -> Unit
 ) {
-    Row(
-        modifier = modifier
-            .height(DesignMetrics.iconPillHeight)
-            .alpha(if (enabled) 1f else 0.45f)
-            .clip(RoundedCornerShape(999.dp))
-            .background(Color.Transparent)
-            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f), RoundedCornerShape(999.dp))
-            .clickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = DesignMetrics.iconPillHorizontalPadding),
-        horizontalArrangement = Arrangement.Center,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.onSurface) {
-            leadingIcon()
-        }
-        Spacer(modifier = Modifier.width(DesignMetrics.iconGap))
-        Text(text = text, style = MaterialTheme.typography.labelLarge)
-    }
+    OutlineTextButton(
+        text = text,
+        modifier = modifier,
+        enabled = enabled,
+        shape = RoundedCornerShape(999.dp),
+        height = DesignMetrics.iconPillHeight,
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(
+            horizontal = DesignMetrics.iconPillHorizontalPadding
+        ),
+        leadingIcon = leadingIcon,
+        onClick = onClick
+    )
 }
 
 @Composable
@@ -353,13 +375,9 @@ fun SquareIconButton(
     Box(
         modifier = modifier
             .size(DesignMetrics.squareIconButtonSize)
-            .alpha(if (enabled) 1f else 0.45f)
-            .clip(RoundedCornerShape(DesignMetrics.squareButtonCorner))
-            .background(Color.Transparent)
-            .border(
-                1.dp,
-                MaterialTheme.colorScheme.outline.copy(alpha = 0.25f),
-                RoundedCornerShape(DesignMetrics.squareButtonCorner)
+            .appOutlineSurface(
+                shape = RoundedCornerShape(DesignMetrics.squareButtonCorner),
+                enabled = enabled
             )
             .clickable(enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center

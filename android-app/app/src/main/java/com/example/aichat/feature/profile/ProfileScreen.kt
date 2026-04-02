@@ -19,6 +19,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -27,8 +29,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -159,23 +163,41 @@ fun ProfileRoute(
                 }
             }
             item(span = { GridItemSpan(maxLineSpan) }) {
-                Row(
+                TabRow(
+                    selectedTabIndex = section.ordinal,
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(AppChrome.gridSpacing)
+                    containerColor = Color.Transparent,
+                    contentColor = MaterialTheme.colorScheme.onSurface,
+                    divider = {},
+                    indicator = { tabPositions ->
+                        Box(
+                            modifier = Modifier
+                                .tabIndicatorOffset(tabPositions[section.ordinal])
+                                .height(2.dp)
+                                .background(MaterialTheme.colorScheme.onSurface)
+                        )
+                    }
                 ) {
-                    IconCircleButton(
+                    Tab(
                         selected = section == ProfileSection.OWNED,
-                        onClick = { section = ProfileSection.OWNED }
-                    ) {
-                        Icon(AppIcons.owned, contentDescription = "Your Characters")
-                    }
-                    IconCircleButton(
+                        onClick = { section = ProfileSection.OWNED },
+                        selectedContentColor = MaterialTheme.colorScheme.onSurface,
+                        unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        text = null,
+                        icon = {
+                            Icon(AppIcons.owned, contentDescription = "Your Characters")
+                        }
+                    )
+                    Tab(
                         selected = section == ProfileSection.LIKED,
-                        onClick = { section = ProfileSection.LIKED }
-                    ) {
-                        Icon(AppIcons.liked, contentDescription = "Liked Characters")
-                    }
-                    Spacer(modifier = Modifier.weight(1f))
+                        onClick = { section = ProfileSection.LIKED },
+                        selectedContentColor = MaterialTheme.colorScheme.onSurface,
+                        unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        text = null,
+                        icon = {
+                            Icon(AppIcons.liked, contentDescription = "Liked Characters")
+                        }
+                    )
                 }
             }
             val characters = if (section == ProfileSection.OWNED) state.owned else state.liked

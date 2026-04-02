@@ -2,6 +2,10 @@ package com.example.aichat.core.design
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.outlined.AddCircle
+import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.PersonOutline
+import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material.icons.rounded.AddCircle
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.BrightnessAuto
@@ -27,9 +31,13 @@ import androidx.compose.ui.graphics.vector.ImageVector
 
 object AppIcons {
     val back: ImageVector = Icons.AutoMirrored.Rounded.ArrowBack
+    val homeOutline: ImageVector = Icons.Outlined.Home
     val home: ImageVector = Icons.Rounded.Home
+    val createOutline: ImageVector = Icons.Outlined.AddCircle
     val create: ImageVector = Icons.Rounded.AddCircle
+    val chatsOutline: ImageVector = Icons.Outlined.ChatBubbleOutline
     val chats: ImageVector = Icons.Rounded.ChatBubble
+    val profileOutline: ImageVector = Icons.Outlined.PersonOutline
     val profile: ImageVector = Icons.Rounded.Person
     val search: ImageVector = Icons.Rounded.Search
     val sparkle: ImageVector = Icons.Rounded.AutoAwesome

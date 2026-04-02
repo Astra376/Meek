@@ -2,15 +2,7 @@ package com.example.aichat.feature.profile
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -31,6 +23,7 @@ import com.example.aichat.core.auth.AuthRepository
 import com.example.aichat.core.design.AppIcons
 import com.example.aichat.core.design.SecondaryButton
 import com.example.aichat.core.design.SelectionDot
+import com.example.aichat.core.design.appOutlineSurface
 import com.example.aichat.core.model.ThemeMode
 import com.example.aichat.core.ui.AppBackButton
 import com.example.aichat.core.ui.AppChrome
@@ -134,13 +127,7 @@ private fun ThemeOptionRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(24.dp))
-            .background(Color.Transparent)
-            .border(
-                width = 1.dp,
-                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.25f),
-                shape = RoundedCornerShape(24.dp)
-            )
+            .appOutlineSurface(shape = RoundedCornerShape(24.dp))
             .clickable(onClick = onClick)
             .padding(
                 horizontal = AppChrome.bottomBarHorizontalPadding,

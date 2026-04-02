@@ -8,12 +8,12 @@ import androidx.compose.ui.text.googlefonts.Font
 import androidx.compose.ui.text.googlefonts.GoogleFont
 import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.unit.sp
-import androidx.core.R as CoreR
+import com.example.aichat.R
 
 private val fontProvider = GoogleFont.Provider(
     providerAuthority = "com.google.android.gms.fonts",
     providerPackage = "com.google.android.gms",
-    certificates = CoreR.array.com_google_android_gms_fonts_certs
+    certificates = R.array.com_google_android_gms_fonts_certs
 )
 
 private val appGoogleFont = GoogleFont("Nunito")

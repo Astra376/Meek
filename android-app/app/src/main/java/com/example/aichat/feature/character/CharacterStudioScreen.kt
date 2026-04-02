@@ -10,8 +10,15 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.AddCircle
+import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.Public
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
@@ -26,10 +33,11 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.example.aichat.core.auth.AuthRepository
+import com.example.aichat.core.design.AppTextField
 import com.example.aichat.core.design.CharacterPortrait
 import com.example.aichat.core.design.PrimaryButton
-import com.example.aichat.core.design.SecondaryButton
 import com.example.aichat.core.design.SelectionButton
+import com.example.aichat.core.design.SquareIconButton
 import com.example.aichat.core.model.CharacterDraft
 import com.example.aichat.core.model.CharacterVisibility
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -120,19 +128,19 @@ fun CharacterStudioRoute(
                 .imePadding(),
             contentPadding = PaddingValues(
                 start = 20.dp,
-                top = paddingValues.calculateTopPadding() + 12.dp,
+                top = paddingValues.calculateTopPadding() + 16.dp,
                 end = 20.dp,
                 bottom = paddingValues.calculateBottomPadding() + 24.dp
             ),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             item {
-                Text("Create character", style = MaterialTheme.typography.headlineMedium)
+                Text("Create Character", style = MaterialTheme.typography.headlineMedium)
             }
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     CharacterPortrait(
-                        name = state.draft.name.ifBlank { "New character" },
+                        name = state.draft.name.ifBlank { "New Character" },
                         avatarUrl = state.draft.avatarUrl,
                         modifier = Modifier
                             .fillMaxWidth()
@@ -140,61 +148,81 @@ fun CharacterStudioRoute(
                     )
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         PrimaryButton(
-                            text = if (state.isGeneratingPortrait) "Generating..." else "Generate portrait",
+                            text = if (state.isGeneratingPortrait) "Generating..." else "Generate",
                             modifier = Modifier.weight(1f),
                             enabled = !state.isGeneratingPortrait,
+                            leadingIcon = {
+                                Icon(Icons.Outlined.AutoAwesome, contentDescription = null)
+                            },
                             onClick = viewModel::generatePortrait
                         )
-                        SecondaryButton(
-                            text = "Clear",
-                            modifier = Modifier.weight(1f),
+                        SquareIconButton(
                             onClick = { viewModel.updateDraft { CharacterDraft() } }
-                        )
+                        ) {
+                            Icon(Icons.Outlined.Close, contentDescription = "Clear")
+                        }
                     }
-                    OutlinedTextField(
+                    AppTextField(
                         value = state.draft.name,
                         onValueChange = { value -> viewModel.updateDraft { it.copy(name = value) } },
                         modifier = Modifier.fillMaxWidth(),
-                        label = { Text("Name") }
+                        placeholder = "Name",
+                        singleLine = true,
+                        shape = RoundedCornerShape(24.dp)
                     )
-                    OutlinedTextField(
+                    AppTextField(
                         value = state.draft.tagline,
                         onValueChange = { value -> viewModel.updateDraft { it.copy(tagline = value) } },
                         modifier = Modifier.fillMaxWidth(),
-                        label = { Text("Tagline") }
+                        placeholder = "Tagline",
+                        singleLine = true,
+                        shape = RoundedCornerShape(24.dp)
                     )
-                    OutlinedTextField(
+                    AppTextField(
                         value = state.draft.description,
                         onValueChange = { value -> viewModel.updateDraft { it.copy(description = value) } },
                         modifier = Modifier.fillMaxWidth(),
+                        placeholder = "Description",
                         minLines = 3,
-                        label = { Text("Description") }
+                        maxLines = 6,
+                        shape = RoundedCornerShape(24.dp)
                     )
-                    OutlinedTextField(
+                    AppTextField(
                         value = state.draft.systemPrompt,
                         onValueChange = { value -> viewModel.updateDraft { it.copy(systemPrompt = value) } },
                         modifier = Modifier.fillMaxWidth(),
+                        placeholder = "System Prompt",
                         minLines = 4,
-                        label = { Text("System prompt") }
+                        maxLines = 8,
+                        shape = RoundedCornerShape(24.dp)
                     )
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         SelectionButton(
                             text = "Public",
                             selected = state.draft.visibility == CharacterVisibility.PUBLIC,
                             modifier = Modifier.weight(1f),
+                            leadingIcon = {
+                                Icon(Icons.Outlined.Public, contentDescription = null)
+                            },
                             onClick = { viewModel.updateDraft { it.copy(visibility = CharacterVisibility.PUBLIC) } }
                         )
                         SelectionButton(
                             text = "Private",
                             selected = state.draft.visibility == CharacterVisibility.PRIVATE,
                             modifier = Modifier.weight(1f),
+                            leadingIcon = {
+                                Icon(Icons.Outlined.Lock, contentDescription = null)
+                            },
                             onClick = { viewModel.updateDraft { it.copy(visibility = CharacterVisibility.PRIVATE) } }
                         )
                     }
                     PrimaryButton(
-                        text = if (state.isSaving) "Saving..." else "Create character",
+                        text = if (state.isSaving) "Creating..." else "Create",
                         enabled = !state.isSaving,
                         modifier = Modifier.fillMaxWidth(),
+                        leadingIcon = {
+                            Icon(Icons.Outlined.AddCircle, contentDescription = null)
+                        },
                         onClick = viewModel::saveCharacter
                     )
                 }

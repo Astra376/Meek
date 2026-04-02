@@ -1,8 +1,5 @@
 package com.example.aichat.feature.profile
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -10,14 +7,13 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.GridView
 import androidx.compose.material.icons.outlined.Settings
@@ -32,10 +28,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
@@ -43,7 +36,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.example.aichat.core.auth.AuthRepository
 import com.example.aichat.core.design.CircleAvatar
-import com.example.aichat.core.design.PrimaryButton
+import com.example.aichat.core.design.IconCircleButton
+import com.example.aichat.core.design.IconPillButton
 import com.example.aichat.core.model.CharacterSummary
 import com.example.aichat.core.ui.CharacterSummaryCard
 import com.example.aichat.core.util.authorLabel
@@ -119,10 +113,10 @@ fun ProfileRoute(
         columns = GridCells.Fixed(2),
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(
-            start = 16.dp,
-            top = paddingValues.calculateTopPadding() + 12.dp,
-            end = 16.dp,
-            bottom = paddingValues.calculateBottomPadding() + 20.dp
+            start = 20.dp,
+            top = paddingValues.calculateTopPadding() + 16.dp,
+            end = 20.dp,
+            bottom = paddingValues.calculateBottomPadding() + 24.dp
         ),
         verticalArrangement = Arrangement.spacedBy(14.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -146,19 +140,15 @@ fun ProfileRoute(
                     text = state.displayName.ifBlank { "User" },
                     style = MaterialTheme.typography.headlineSmall
                 )
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    PrimaryButton(
-                        text = "Edit profile",
-                        modifier = Modifier.weight(1f),
-                        onClick = onOpenEditProfile
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    IconPillButton(
+                        text = "Edit Profile",
+                        onClick = onOpenEditProfile,
+                        leadingIcon = {
+                            Icon(Icons.Outlined.Edit, contentDescription = null)
+                        }
                     )
-                    ProfileSectionToggle(
-                        selected = false,
-                        onClick = onOpenSettings
-                    ) {
+                    IconCircleButton(onClick = onOpenSettings) {
                         Icon(Icons.Outlined.Settings, contentDescription = "Settings")
                     }
                 }
@@ -167,35 +157,31 @@ fun ProfileRoute(
         item(span = { GridItemSpan(maxLineSpan) }) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                ProfileSectionToggle(
+                IconCircleButton(
                     selected = section == ProfileSection.OWNED,
-                    onClick = { section = ProfileSection.OWNED },
-                    modifier = Modifier.weight(1f)
+                    onClick = { section = ProfileSection.OWNED }
                 ) {
-                    Icon(Icons.Outlined.GridView, contentDescription = "Your characters")
+                    Icon(Icons.Outlined.GridView, contentDescription = "Your Characters")
                 }
-                ProfileSectionToggle(
+                IconCircleButton(
                     selected = section == ProfileSection.LIKED,
-                    onClick = { section = ProfileSection.LIKED },
-                    modifier = Modifier.weight(1f)
+                    onClick = { section = ProfileSection.LIKED }
                 ) {
-                    Icon(Icons.Outlined.FavoriteBorder, contentDescription = "Liked characters")
+                    Icon(Icons.Outlined.FavoriteBorder, contentDescription = "Liked Characters")
                 }
             }
-        }
-        item(span = { GridItemSpan(maxLineSpan) }) {
-            Text(
-                text = if (section == ProfileSection.OWNED) "Your characters" else "Liked characters",
-                style = MaterialTheme.typography.titleMedium
-            )
         }
         val characters = if (section == ProfileSection.OWNED) state.owned else state.liked
         if (characters.isEmpty()) {
             item(span = { GridItemSpan(maxLineSpan) }) {
                 Text(
-                    text = if (section == ProfileSection.OWNED) "No characters yet." else "No liked characters yet.",
+                    text = if (section == ProfileSection.OWNED) {
+                        "No Characters Yet."
+                    } else {
+                        "No Liked Characters Yet."
+                    },
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -213,38 +199,6 @@ fun ProfileRoute(
                         .onFailure { snackbarHostState.showSnackbar(it.message ?: "Couldn't open chat.") }
                 }
             }
-        }
-    }
-}
-
-@Composable
-private fun ProfileSectionToggle(
-    selected: Boolean,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit,
-    icon: @Composable () -> Unit
-) {
-    Row(
-        modifier = modifier
-            .clip(CircleShape)
-            .background(
-                if (selected) MaterialTheme.colorScheme.onSurface else Color.Transparent
-            )
-            .border(
-                width = 1.dp,
-                color = if (selected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline.copy(alpha = 0.45f),
-                shape = CircleShape
-            )
-            .clickable(onClick = onClick)
-            .padding(horizontal = 18.dp, vertical = 12.dp),
-        horizontalArrangement = Arrangement.Center,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        androidx.compose.runtime.CompositionLocalProvider(
-            androidx.compose.material3.LocalContentColor provides
-                if (selected) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.onSurface
-        ) {
-            icon()
         }
     }
 }

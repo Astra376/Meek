@@ -1,39 +1,42 @@
 package com.example.aichat.feature.chat
 
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.ArrowUpward
 import androidx.compose.material.icons.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.KeyboardArrowLeft
 import androidx.compose.material.icons.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.StopCircle
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -43,6 +46,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -50,7 +54,9 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
-import com.example.aichat.core.design.PrimaryButton
+import com.example.aichat.core.design.AppTextField
+import com.example.aichat.core.design.CharacterPortrait
+import com.example.aichat.core.design.IconCircleButton
 import com.example.aichat.core.model.ChatMessage
 import com.example.aichat.core.model.ConversationDetail
 import com.example.aichat.core.model.MessageRole
@@ -154,7 +160,6 @@ class ChatViewModel @Inject constructor(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatRoute(
     paddingValues: PaddingValues,
@@ -180,30 +185,14 @@ fun ChatRoute(
     }
 
     Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
         topBar = {
-            TopAppBar(
-                title = {
-                    Column {
-                        Text(text = state.conversation?.character?.name ?: "Chat")
-                        Text(
-                            text = state.conversation?.character?.tagline.orEmpty(),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.Outlined.ArrowBack, contentDescription = "Back")
-                    }
-                },
-                actions = {
-                    if (state.isStreaming) {
-                        IconButton(onClick = viewModel::cancelStreaming) {
-                            Icon(Icons.Outlined.StopCircle, contentDescription = "Stop")
-                        }
-                    }
-                }
+            ChatHeader(
+                characterName = state.conversation?.character?.name ?: "Chat",
+                avatarUrl = state.conversation?.character?.avatarUrl,
+                isStreaming = state.isStreaming,
+                onBack = onBack,
+                onStop = viewModel::cancelStreaming
             )
         },
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
@@ -217,9 +206,9 @@ fun ChatRoute(
                 modifier = Modifier.weight(1f),
                 state = listState,
                 contentPadding = PaddingValues(
-                    start = 14.dp,
+                    start = 20.dp,
                     top = innerPadding.calculateTopPadding() + 8.dp,
-                    end = 14.dp,
+                    end = 20.dp,
                     bottom = 12.dp
                 ),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -257,25 +246,28 @@ fun ChatRoute(
                 modifier = Modifier
                     .fillMaxWidth()
                     .imePadding()
-                    .padding(horizontal = 14.dp, vertical = 14.dp),
+                    .padding(horizontal = 20.dp, vertical = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalAlignment = Alignment.Bottom
             ) {
-                OutlinedTextField(
+                IconCircleButton(
+                    selected = state.composerText.isNotBlank() && !state.isStreaming,
+                    enabled = !state.isStreaming && state.composerText.isNotBlank(),
+                    onClick = viewModel::send
+                ) {
+                    Icon(Icons.Outlined.ArrowUpward, contentDescription = "Send")
+                }
+                AppTextField(
                     value = state.composerText,
                     onValueChange = viewModel::onComposerChanged,
-                    modifier = Modifier.weight(1f),
-                    minLines = 2,
-                    maxLines = 4,
-                    label = { Text("Message") }
+                    placeholder = "Message...",
+                    modifier = Modifier
+                        .weight(1f)
+                        .heightIn(min = 54.dp, max = 160.dp),
+                    minLines = 1,
+                    maxLines = 6,
+                    shape = RoundedCornerShape(999.dp)
                 )
-                PrimaryButton(
-                    text = if (state.isStreaming) "Wait" else "Send",
-                    enabled = !state.isStreaming && state.composerText.isNotBlank(),
-                    modifier = Modifier.weight(0.34f)
-                ) {
-                    viewModel.send()
-                }
             }
         }
     }
@@ -304,13 +296,16 @@ fun ChatRoute(
     editTarget?.let { message ->
         AlertDialog(
             onDismissRequest = { editTarget = null },
-            title = { Text("Edit message") },
+            title = { Text("Edit Message") },
             text = {
-                OutlinedTextField(
+                AppTextField(
                     value = editText,
                     onValueChange = { editText = it },
+                    placeholder = "Message",
                     modifier = Modifier.fillMaxWidth(),
-                    minLines = 3
+                    minLines = 3,
+                    maxLines = 6,
+                    shape = RoundedCornerShape(24.dp)
                 )
             },
             confirmButton = {
@@ -329,6 +324,71 @@ fun ChatRoute(
                 }
             }
         )
+    }
+}
+
+@Composable
+private fun ChatHeader(
+    characterName: String,
+    avatarUrl: String?,
+    isStreaming: Boolean,
+    onBack: () -> Unit,
+    onStop: () -> Unit
+) {
+    val background = MaterialTheme.colorScheme.background
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(background)
+    ) {
+        Column {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(
+                    modifier = Modifier.size(40.dp),
+                    onClick = onBack
+                ) {
+                    Icon(Icons.Outlined.ArrowBack, contentDescription = "Back")
+                }
+                Spacer(modifier = Modifier.size(12.dp))
+                Row(
+                    modifier = Modifier.weight(1f),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    CharacterPortrait(
+                        name = characterName,
+                        avatarUrl = avatarUrl,
+                        modifier = Modifier
+                            .size(40.dp)
+                            .aspectRatio(1f)
+                    )
+                    Text(
+                        text = characterName,
+                        style = MaterialTheme.typography.titleLarge
+                    )
+                }
+                if (isStreaming) {
+                    IconCircleButton(onClick = onStop) {
+                        Icon(Icons.Outlined.StopCircle, contentDescription = "Stop")
+                    }
+                }
+            }
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(18.dp)
+                    .background(
+                        brush = Brush.verticalGradient(
+                            listOf(background, background.copy(alpha = 0f))
+                        )
+                    )
+            )
+        }
     }
 }
 
@@ -366,10 +426,14 @@ private fun MessageBubble(
                 Text(
                     text = buildString {
                         append(formatRelativeTime(message.updatedAt))
-                        if (message.edited) append(" - edited")
+                        if (message.edited) append(" (Edited)")
                     },
                     style = MaterialTheme.typography.bodyMedium,
-                    color = if (isUser) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurfaceVariant
+                    color = if (isUser) {
+                        MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f)
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    }
                 )
             }
         }
@@ -424,7 +488,7 @@ private fun MessageActionsDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Message actions") },
+        title = { Text("Message Actions") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Long-press actions are destructive where noted.")

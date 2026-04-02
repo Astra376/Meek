@@ -5,15 +5,19 @@ import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AddCircle
+import androidx.compose.material.icons.filled.ChatBubble
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.outlined.AddCircle
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material.icons.outlined.Home
@@ -26,8 +30,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -48,26 +51,31 @@ import com.example.aichat.feature.signin.SignInRoute
 
 private sealed class MainDestination(
     val route: String,
-    val icon: @Composable () -> Unit
+    val outlinedIcon: ImageVector,
+    val filledIcon: ImageVector
 ) {
     data object Home : MainDestination(
         route = "home",
-        icon = { Icon(Icons.Outlined.Home, contentDescription = null) }
+        outlinedIcon = Icons.Outlined.Home,
+        filledIcon = Icons.Filled.Home
     )
 
     data object Studio : MainDestination(
         route = "studio",
-        icon = { Icon(Icons.Outlined.AddCircle, contentDescription = null) }
+        outlinedIcon = Icons.Outlined.AddCircle,
+        filledIcon = Icons.Filled.AddCircle
     )
 
     data object Chats : MainDestination(
         route = "chats",
-        icon = { Icon(Icons.Outlined.ChatBubbleOutline, contentDescription = null) }
+        outlinedIcon = Icons.Outlined.ChatBubbleOutline,
+        filledIcon = Icons.Filled.ChatBubble
     )
 
     data object Profile : MainDestination(
         route = "profile",
-        icon = { Icon(Icons.Outlined.PersonOutline, contentDescription = null) }
+        outlinedIcon = Icons.Outlined.PersonOutline,
+        filledIcon = Icons.Filled.Person
     )
 }
 
@@ -76,6 +84,13 @@ private val bottomDestinations = listOf(
     MainDestination.Studio,
     MainDestination.Chats,
     MainDestination.Profile
+)
+
+private val subpageRoutes = setOf(
+    "chat/{conversationId}",
+    "search",
+    "edit-profile",
+    "settings"
 )
 
 @Composable
@@ -94,13 +109,7 @@ private fun MainShell() {
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = backStackEntry?.destination
-    val hiddenBottomBarRoutes = setOf(
-        "chat/{conversationId}",
-        "search",
-        "edit-profile",
-        "settings"
-    )
-    val showBottomBar = currentDestination?.route !in hiddenBottomBarRoutes
+    val showBottomBar = currentDestination?.route !in subpageRoutes
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
@@ -126,8 +135,26 @@ private fun MainShell() {
             navController = navController,
             startDestination = MainDestination.Home.route,
             enterTransition = { EnterTransition.None },
-            exitTransition = { ExitTransition.None },
-            popEnterTransition = { EnterTransition.None },
+            exitTransition = {
+                if (targetState.destination.route in subpageRoutes) {
+                    slideOutHorizontally(
+                        targetOffsetX = { -it },
+                        animationSpec = tween(durationMillis = 220)
+                    )
+                } else {
+                    ExitTransition.None
+                }
+            },
+            popEnterTransition = {
+                if (initialState.destination.route in subpageRoutes) {
+                    slideInHorizontally(
+                        initialOffsetX = { -it },
+                        animationSpec = tween(durationMillis = 220)
+                    )
+                } else {
+                    EnterTransition.None
+                }
+            },
             popExitTransition = { ExitTransition.None }
         ) {
             composable(MainDestination.Home.route) {
@@ -162,7 +189,33 @@ private fun MainShell() {
                     onOpenSettings = { navController.navigate("settings") }
                 )
             }
-            composable("chat/{conversationId}") {
+            composable(
+                route = "chat/{conversationId}",
+                enterTransition = {
+                    slideInHorizontally(
+                        initialOffsetX = { it },
+                        animationSpec = tween(durationMillis = 220)
+                    )
+                },
+                exitTransition = {
+                    slideOutHorizontally(
+                        targetOffsetX = { -it },
+                        animationSpec = tween(durationMillis = 220)
+                    )
+                },
+                popEnterTransition = {
+                    slideInHorizontally(
+                        initialOffsetX = { -it },
+                        animationSpec = tween(durationMillis = 220)
+                    )
+                },
+                popExitTransition = {
+                    slideOutHorizontally(
+                        targetOffsetX = { it },
+                        animationSpec = tween(durationMillis = 220)
+                    )
+                }
+            ) {
                 ChatRoute(
                     paddingValues = paddingValues,
                     onBack = { navController.popBackStack() }
@@ -176,8 +229,18 @@ private fun MainShell() {
                         animationSpec = tween(durationMillis = 220)
                     )
                 },
-                exitTransition = { ExitTransition.None },
-                popEnterTransition = { EnterTransition.None },
+                exitTransition = {
+                    slideOutHorizontally(
+                        targetOffsetX = { -it },
+                        animationSpec = tween(durationMillis = 220)
+                    )
+                },
+                popEnterTransition = {
+                    slideInHorizontally(
+                        initialOffsetX = { -it },
+                        animationSpec = tween(durationMillis = 220)
+                    )
+                },
                 popExitTransition = {
                     slideOutHorizontally(
                         targetOffsetX = { it },
@@ -201,8 +264,18 @@ private fun MainShell() {
                         animationSpec = tween(durationMillis = 220)
                     )
                 },
-                exitTransition = { ExitTransition.None },
-                popEnterTransition = { EnterTransition.None },
+                exitTransition = {
+                    slideOutHorizontally(
+                        targetOffsetX = { -it },
+                        animationSpec = tween(durationMillis = 220)
+                    )
+                },
+                popEnterTransition = {
+                    slideInHorizontally(
+                        initialOffsetX = { -it },
+                        animationSpec = tween(durationMillis = 220)
+                    )
+                },
                 popExitTransition = {
                     slideOutHorizontally(
                         targetOffsetX = { it },
@@ -223,8 +296,18 @@ private fun MainShell() {
                         animationSpec = tween(durationMillis = 220)
                     )
                 },
-                exitTransition = { ExitTransition.None },
-                popEnterTransition = { EnterTransition.None },
+                exitTransition = {
+                    slideOutHorizontally(
+                        targetOffsetX = { -it },
+                        animationSpec = tween(durationMillis = 220)
+                    )
+                },
+                popEnterTransition = {
+                    slideInHorizontally(
+                        initialOffsetX = { -it },
+                        animationSpec = tween(durationMillis = 220)
+                    )
+                },
                 popExitTransition = {
                     slideOutHorizontally(
                         targetOffsetX = { it },
@@ -247,6 +330,7 @@ private fun BottomIconBar(
     onNavigate: (String) -> Unit
 ) {
     Surface(
+        modifier = Modifier.navigationBarsPadding(),
         color = MaterialTheme.colorScheme.surface,
         tonalElevation = 0.dp,
         shadowElevation = 0.dp
@@ -254,35 +338,34 @@ private fun BottomIconBar(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(52.dp)
-                .navigationBarsPadding()
-                .padding(horizontal = 14.dp),
+                .height(66.dp)
+                .padding(horizontal = 16.dp, vertical = 9.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             bottomDestinations.forEach { destination ->
                 val selected = currentRoute == destination.route
-                androidx.compose.foundation.layout.Box(
+                Box(
                     modifier = Modifier
                         .weight(1f)
                         .padding(horizontal = 2.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    androidx.compose.foundation.layout.Box(
+                    Box(
                         modifier = Modifier
-                            .clip(CircleShape)
-                            .background(
-                                if (selected) {
-                                    MaterialTheme.colorScheme.surfaceVariant
-                                } else {
-                                    Color.Transparent
-                                }
-                            )
+                            .height(42.dp)
+                            .padding(horizontal = 8.dp)
+                            .clickable { onNavigate(destination.route) },
+                        contentAlignment = Alignment.Center
                     ) {
-                        androidx.compose.material3.IconButton(
-                            onClick = { onNavigate(destination.route) }
-                        ) {
-                            destination.icon()
-                        }
+                        Icon(
+                            imageVector = if (selected) destination.filledIcon else destination.outlinedIcon,
+                            contentDescription = null,
+                            tint = if (selected) {
+                                MaterialTheme.colorScheme.onSurface
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.82f)
+                            }
+                        )
                     }
                 }
             }

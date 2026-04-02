@@ -1,5 +1,6 @@
 package com.example.aichat.feature.home
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -13,7 +14,6 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -31,6 +31,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.example.aichat.core.auth.AuthRepository
+import com.example.aichat.core.design.IconCircleButton
 import com.example.aichat.core.design.SecondaryButton
 import com.example.aichat.core.model.CharacterSummary
 import com.example.aichat.core.ui.CharacterSummaryCard
@@ -123,12 +124,14 @@ fun HomeRoute(
 
     LazyVerticalGrid(
         columns = GridCells.Fixed(2),
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background),
         contentPadding = PaddingValues(
-            start = 16.dp,
-            top = paddingValues.calculateTopPadding() + 12.dp,
-            end = 16.dp,
-            bottom = paddingValues.calculateBottomPadding() + 20.dp
+            start = 20.dp,
+            top = paddingValues.calculateTopPadding() + 16.dp,
+            end = 20.dp,
+            bottom = paddingValues.calculateBottomPadding() + 24.dp
         ),
         verticalArrangement = Arrangement.spacedBy(14.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -145,7 +148,7 @@ fun HomeRoute(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text("Discover", style = MaterialTheme.typography.headlineMedium)
-                IconButton(onClick = onOpenSearch) {
+                IconCircleButton(onClick = onOpenSearch) {
                     Icon(Icons.Outlined.Search, contentDescription = "Search")
                 }
             }
@@ -175,7 +178,7 @@ fun HomeRoute(
         if (state.feedCursor != null) {
             item(span = { GridItemSpan(maxLineSpan) }) {
                 SecondaryButton(
-                    text = if (state.isFeedLoading) "Loading..." else "Load more",
+                    text = if (state.isFeedLoading) "Loading..." else "Load More",
                     modifier = Modifier.fillMaxWidth(),
                     enabled = !state.isFeedLoading,
                     onClick = viewModel::loadMore

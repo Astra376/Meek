@@ -1,6 +1,8 @@
 package com.example.aichat.feature.home
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -11,12 +13,13 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ArrowBack
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
@@ -35,6 +38,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.example.aichat.core.auth.AuthRepository
+import com.example.aichat.core.design.AppTextField
 import com.example.aichat.core.design.SecondaryButton
 import com.example.aichat.core.model.CharacterSummary
 import com.example.aichat.core.ui.CharacterSummaryCard
@@ -142,83 +146,82 @@ fun SearchRoute(
         focusRequester.requestFocus()
     }
 
-    LazyVerticalGrid(
-        columns = GridCells.Fixed(2),
+    Box(
         modifier = Modifier
             .fillMaxSize()
-            .imePadding(),
-        contentPadding = PaddingValues(
-            start = 16.dp,
-            top = paddingValues.calculateTopPadding() + 12.dp,
-            end = 16.dp,
-            bottom = 20.dp
-        ),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+            .background(MaterialTheme.colorScheme.background)
+            .imePadding()
     ) {
-        item(span = { GridItemSpan(maxLineSpan) }) {
-            SnackbarHost(hostState = snackbarHostState)
-        }
-        item(span = { GridItemSpan(maxLineSpan) }) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                IconButton(onClick = onBack) {
-                    Icon(Icons.Outlined.ArrowBack, contentDescription = "Back")
-                }
-                OutlinedTextField(
-                    value = state.query,
-                    onValueChange = viewModel::onQueryChange,
-                    modifier = Modifier
-                        .weight(1f)
-                        .focusRequester(focusRequester),
-                    label = { Text("Search") },
-                    singleLine = true
-                )
-            }
-        }
-        if (state.query.isBlank()) {
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(2),
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(
+                start = 20.dp,
+                top = paddingValues.calculateTopPadding() + 16.dp,
+                end = 20.dp,
+                bottom = 24.dp
+            ),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
             item(span = { GridItemSpan(maxLineSpan) }) {
-                Text(
-                    text = "Search by name, tagline, or description.",
-                    modifier = Modifier.padding(top = 4.dp),
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                SnackbarHost(hostState = snackbarHostState)
             }
-        } else if (!state.isLoading && state.results.isEmpty()) {
             item(span = { GridItemSpan(maxLineSpan) }) {
-                Text(
-                    text = "No characters found.",
-                    modifier = Modifier.padding(top = 4.dp),
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-        items(state.results, key = { it.id }) { character ->
-            CharacterSummaryCard(
-                character = character,
-                authorLabel = authorLabel(character.ownerUserId, state.currentUserId),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                scope.launch {
-                    viewModel.ensureConversation(character.id)
-                        .onSuccess(onOpenConversation)
-                        .onFailure { snackbarHostState.showSnackbar(it.message ?: "Couldn't open chat.") }
-                }
-            }
-        }
-        if (state.nextCursor != null) {
-            item(span = { GridItemSpan(maxLineSpan) }) {
-                SecondaryButton(
-                    text = if (state.isLoading) "Loading..." else "Load more",
+                Row(
                     modifier = Modifier.fillMaxWidth(),
-                    enabled = !state.isLoading,
-                    onClick = viewModel::loadMore
-                )
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.Outlined.ArrowBack, contentDescription = "Back")
+                    }
+                    AppTextField(
+                        value = state.query,
+                        onValueChange = viewModel::onQueryChange,
+                        placeholder = "Search",
+                        modifier = Modifier
+                            .weight(1f)
+                            .focusRequester(focusRequester),
+                        singleLine = true,
+                        shape = RoundedCornerShape(999.dp),
+                        leadingIcon = {
+                            Icon(Icons.Outlined.Search, contentDescription = null)
+                        }
+                    )
+                }
+            }
+            if (state.query.isNotBlank() && !state.isLoading && state.results.isEmpty()) {
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    Text(
+                        text = "No Characters Found.",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+            items(state.results, key = { it.id }) { character ->
+                CharacterSummaryCard(
+                    character = character,
+                    authorLabel = authorLabel(character.ownerUserId, state.currentUserId),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    scope.launch {
+                        viewModel.ensureConversation(character.id)
+                            .onSuccess(onOpenConversation)
+                            .onFailure { snackbarHostState.showSnackbar(it.message ?: "Couldn't open chat.") }
+                    }
+                }
+            }
+            if (state.nextCursor != null) {
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    SecondaryButton(
+                        text = if (state.isLoading) "Loading..." else "Load More",
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = !state.isLoading,
+                        onClick = viewModel::loadMore
+                    )
+                }
             }
         }
     }

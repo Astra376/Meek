@@ -42,6 +42,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -56,6 +57,7 @@ import com.example.aichat.core.design.CharacterPortrait
 import com.example.aichat.core.design.IconCircleButton
 import com.example.aichat.core.ui.AppBackButton
 import com.example.aichat.core.ui.AppChrome
+import com.example.aichat.core.ui.clearFocusOnTap
 import com.example.aichat.core.model.ChatMessage
 import com.example.aichat.core.model.ConversationDetail
 import com.example.aichat.core.model.MessageRole
@@ -168,6 +170,7 @@ fun ChatRoute(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val listState = rememberLazyListState()
+    val focusManager = LocalFocusManager.current
     var actionMessage by remember { mutableStateOf<ChatMessage?>(null) }
     var editTarget by remember { mutableStateOf<ChatMessage?>(null) }
     var editText by rememberSaveable { mutableStateOf("") }
@@ -184,6 +187,7 @@ fun ChatRoute(
     }
 
     Scaffold(
+        modifier = Modifier.clearFocusOnTap(),
         containerColor = MaterialTheme.colorScheme.background,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
@@ -200,6 +204,7 @@ fun ChatRoute(
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .clearFocusOnTap()
                 .padding(top = paddingValues.calculateTopPadding())
         ) {
             LazyColumn(
@@ -219,6 +224,7 @@ fun ChatRoute(
                         MessageBubble(
                             message = message,
                             isLatestAssistant = message.id == latestAssistantId,
+                            onTap = { focusManager.clearFocus(force = true) },
                             onLongPress = { actionMessage = message },
                             onSelectPreviousVariant = {
                                 val index = message.regenerations.indexOfFirst { it.id == message.selectedRegenerationId }.coerceAtLeast(0)
@@ -399,6 +405,7 @@ private fun ChatHeader(
 private fun MessageBubble(
     message: ChatMessage,
     isLatestAssistant: Boolean,
+    onTap: () -> Unit,
     onLongPress: () -> Unit,
     onSelectPreviousVariant: () -> Unit,
     onSelectNextVariant: () -> Unit
@@ -412,7 +419,7 @@ private fun MessageBubble(
             modifier = Modifier
                 .fillMaxWidth(0.88f)
                 .combinedClickable(
-                    onClick = {},
+                    onClick = onTap,
                     onLongClick = onLongPress
                 ),
             shape = RoundedCornerShape(24.dp),

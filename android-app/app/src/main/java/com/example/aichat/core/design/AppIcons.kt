@@ -60,19 +60,20 @@ fun AppIcon(
 }
 
 object AppIcons {
-    val back = AppIconGlyph("\uE9D5")
+    val back = AppIconGlyph("\uE98B")
 
     val homeOutline = AppIconGlyph("\uEF43")
     val home = AppIconGlyph("\uEF42")
 
     val createOutline = AppIconGlyph("\uE90D")
     val create = AppIconGlyph("\uE90C")
+    val createAction = AppIconGlyph("\uE90D")
 
-    val chatsOutline = AppIconGlyph("\uEABB")
-    val chats = AppIconGlyph("\uEABA")
+    val chatsOutline = AppIconGlyph("\uEB75")
+    val chats = AppIconGlyph("\uEB74")
 
-    val profileOutline = AppIconGlyph("\uF51F")
-    val profile = AppIconGlyph("\uF51E")
+    val profileOutline = AppIconGlyph("\uF523")
+    val profile = AppIconGlyph("\uF522")
 
     val search = AppIconGlyph("\uF303")
     val sparkle = AppIconGlyph("\uF3B7")
@@ -88,7 +89,7 @@ object AppIcons {
     val themeDark = AppIconGlyph("\uF0E1")
     val themeLight = AppIconGlyph("\uF40B")
 
-    val logout = AppIconGlyph("\uED6B")
+    val logout = AppIconGlyph("\uED6D")
     val edit = AppIconGlyph("\uED33")
     val settings = AppIconGlyph("\uF32D")
 

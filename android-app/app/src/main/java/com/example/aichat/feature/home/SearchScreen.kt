@@ -1,8 +1,6 @@
 package com.example.aichat.feature.home
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -27,7 +25,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
@@ -139,8 +136,6 @@ fun SearchRoute(
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val focusRequester = remember { FocusRequester() }
-    val focusManager = LocalFocusManager.current
-    val backgroundInteractionSource = remember { MutableInteractionSource() }
 
     LaunchedEffect(Unit) {
         viewModel.events.collect { snackbarHostState.showSnackbar(it) }
@@ -152,12 +147,8 @@ fun SearchRoute(
 
     ScreenBackgroundBox(
         snackbarHostState = snackbarHostState,
-        modifier = Modifier
-            .imePadding()
-            .clickable(
-                interactionSource = backgroundInteractionSource,
-                indication = null
-            ) { focusManager.clearFocus() }
+        clearFocusOnTap = true,
+        modifier = Modifier.imePadding()
     ) {
         LazyVerticalGrid(
             columns = GridCells.Fixed(2),

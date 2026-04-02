@@ -16,7 +16,7 @@ private val fontProvider = GoogleFont.Provider(
     certificates = R.array.com_google_android_gms_fonts_certs
 )
 
-private val appGoogleFont = GoogleFont("Nunito")
+private val appGoogleFont = GoogleFont("Figtree")
 
 private val AppFontFamily = androidx.compose.ui.text.font.FontFamily(
     Font(googleFont = appGoogleFont, fontProvider = fontProvider, weight = FontWeight.Normal),
@@ -52,6 +52,12 @@ val AppTypography = Typography(
         lineHeight = 28.sp,
         fontWeight = FontWeight.SemiBold,
         letterSpacing = (-0.15).sp
+    ),
+    headlineSmall = BaseTextStyle.copy(
+        fontSize = 22.sp,
+        lineHeight = 26.sp,
+        fontWeight = FontWeight.SemiBold,
+        letterSpacing = (-0.1).sp
     ),
     titleLarge = BaseTextStyle.copy(
         fontSize = 20.sp,

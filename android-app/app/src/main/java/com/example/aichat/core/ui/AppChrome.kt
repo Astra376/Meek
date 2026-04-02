@@ -26,6 +26,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.composed
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.unit.dp
 import com.example.aichat.core.design.AppIcon
 import com.example.aichat.core.design.AppIcons
@@ -77,15 +78,31 @@ fun Modifier.pageContentFrame(
     )
 }
 
+fun Modifier.clearFocusOnTap(enabled: Boolean = true): Modifier = composed {
+    if (!enabled) return@composed this
+
+    val focusManager = LocalFocusManager.current
+    val interactionSource = remember { MutableInteractionSource() }
+
+    this.clickable(
+        interactionSource = interactionSource,
+        indication = null
+    ) {
+        focusManager.clearFocus(force = true)
+    }
+}
+
 @Composable
 fun ScreenBackgroundBox(
     snackbarHostState: SnackbarHostState? = null,
+    clearFocusOnTap: Boolean = false,
     modifier: Modifier = Modifier,
     content: @Composable BoxScope.() -> Unit
 ) {
     Box(
         modifier = modifier
             .fillMaxSize()
+            .clearFocusOnTap(enabled = clearFocusOnTap)
             .background(MaterialTheme.colorScheme.background)
     ) {
         snackbarHostState?.let {

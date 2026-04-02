@@ -117,7 +117,10 @@ fun CharacterStudioRoute(
         viewModel.events.collect { snackbarHostState.showSnackbar(it) }
     }
 
-    ScreenBackgroundBox(snackbarHostState = snackbarHostState) {
+    ScreenBackgroundBox(
+        snackbarHostState = snackbarHostState,
+        clearFocusOnTap = true
+    ) {
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
@@ -212,7 +215,7 @@ fun CharacterStudioRoute(
                         enabled = !state.isSaving,
                         modifier = Modifier.fillMaxWidth(),
                         leadingIcon = {
-                            AppIcon(AppIcons.create, contentDescription = null)
+                            AppIcon(AppIcons.createAction, contentDescription = null)
                         },
                         onClick = viewModel::saveCharacter
                     )

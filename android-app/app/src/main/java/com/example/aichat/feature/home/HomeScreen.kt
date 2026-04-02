@@ -1,12 +1,16 @@
 package com.example.aichat.feature.home
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -31,7 +35,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.example.aichat.core.auth.AuthRepository
-import com.example.aichat.core.design.IconCircleButton
 import com.example.aichat.core.design.SecondaryButton
 import com.example.aichat.core.model.CharacterSummary
 import com.example.aichat.core.ui.CharacterSummaryCard
@@ -117,72 +120,84 @@ fun HomeRoute(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    val searchInteractionSource = remember { MutableInteractionSource() }
 
     LaunchedEffect(Unit) {
         viewModel.events.collect { snackbarHostState.showSnackbar(it) }
     }
 
-    LazyVerticalGrid(
-        columns = GridCells.Fixed(2),
+    Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background),
-        contentPadding = PaddingValues(
-            start = 20.dp,
-            top = paddingValues.calculateTopPadding() + 16.dp,
-            end = 20.dp,
-            bottom = paddingValues.calculateBottomPadding() + 24.dp
-        ),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+            .background(MaterialTheme.colorScheme.background)
     ) {
-        item(span = { GridItemSpan(maxLineSpan) }) {
-            SnackbarHost(hostState = snackbarHostState)
-        }
-        item(span = { GridItemSpan(maxLineSpan) }) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 6.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("Discover", style = MaterialTheme.typography.headlineMedium)
-                IconCircleButton(onClick = onOpenSearch) {
-                    Icon(Icons.Outlined.Search, contentDescription = "Search")
+        SnackbarHost(hostState = snackbarHostState)
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(2),
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(
+                start = 20.dp,
+                top = paddingValues.calculateTopPadding() + 16.dp,
+                end = 20.dp,
+                bottom = paddingValues.calculateBottomPadding() + 24.dp
+            ),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 6.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Discover", style = MaterialTheme.typography.headlineMedium)
+                    Icon(
+                        imageVector = Icons.Outlined.Search,
+                        contentDescription = "Search",
+                        modifier = Modifier
+                            .size(26.dp)
+                            .clickable(
+                                interactionSource = searchInteractionSource,
+                                indication = null,
+                                onClick = onOpenSearch
+                            ),
+                        tint = MaterialTheme.colorScheme.onSurface
+                    )
                 }
             }
-        }
-        if (state.errorMessage != null && state.feed.isEmpty()) {
-            item(span = { GridItemSpan(maxLineSpan) }) {
-                Text(
-                    text = state.errorMessage ?: "Failed to load the feed.",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.error
-                )
-            }
-        }
-        items(state.feed, key = { it.id }) { character ->
-            CharacterSummaryCard(
-                character = character,
-                authorLabel = authorLabel(character.ownerUserId, state.currentUserId),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                scope.launch {
-                    viewModel.ensureConversation(character.id)
-                        .onSuccess(onOpenConversation)
-                        .onFailure { snackbarHostState.showSnackbar(it.message ?: "Couldn't open chat.") }
+            if (state.errorMessage != null && state.feed.isEmpty()) {
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    Text(
+                        text = state.errorMessage ?: "Failed to load the feed.",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.error
+                    )
                 }
             }
-        }
-        if (state.feedCursor != null) {
-            item(span = { GridItemSpan(maxLineSpan) }) {
-                SecondaryButton(
-                    text = if (state.isFeedLoading) "Loading..." else "Load More",
-                    modifier = Modifier.fillMaxWidth(),
-                    enabled = !state.isFeedLoading,
-                    onClick = viewModel::loadMore
-                )
+            items(state.feed, key = { it.id }) { character ->
+                CharacterSummaryCard(
+                    character = character,
+                    authorLabel = authorLabel(character.ownerUserId, state.currentUserId),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    scope.launch {
+                        viewModel.ensureConversation(character.id)
+                            .onSuccess(onOpenConversation)
+                            .onFailure { snackbarHostState.showSnackbar(it.message ?: "Couldn't open chat.") }
+                    }
+                }
+            }
+            if (state.feedCursor != null) {
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    SecondaryButton(
+                        text = if (state.isFeedLoading) "Loading..." else "Load More",
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = !state.isFeedLoading,
+                        onClick = viewModel::loadMore
+                    )
+                }
             }
         }
     }

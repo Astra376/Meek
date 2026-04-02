@@ -99,7 +99,7 @@ fun ChatListRoute(
                 )
                 Text(
                     text = conversation.characterName,
-                    style = MaterialTheme.typography.titleSmall
+                    style = MaterialTheme.typography.titleMedium
                 )
             }
         }

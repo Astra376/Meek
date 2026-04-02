@@ -6,13 +6,14 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AddCircle
 import androidx.compose.material.icons.filled.ChatBubble
@@ -28,6 +29,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -330,7 +332,6 @@ private fun BottomIconBar(
     onNavigate: (String) -> Unit
 ) {
     Surface(
-        modifier = Modifier.navigationBarsPadding(),
         color = MaterialTheme.colorScheme.surface,
         tonalElevation = 0.dp,
         shadowElevation = 0.dp
@@ -338,12 +339,13 @@ private fun BottomIconBar(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(66.dp)
-                .padding(horizontal = 16.dp, vertical = 9.dp),
+                .height(56.dp)
+                .padding(horizontal = 18.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             bottomDestinations.forEach { destination ->
                 val selected = currentRoute == destination.route
+                val interactionSource = remember { MutableInteractionSource() }
                 Box(
                     modifier = Modifier
                         .weight(1f)
@@ -352,12 +354,15 @@ private fun BottomIconBar(
                 ) {
                     Box(
                         modifier = Modifier
-                            .height(42.dp)
-                            .padding(horizontal = 8.dp)
-                            .clickable { onNavigate(destination.route) },
+                            .height(36.dp)
+                            .clickable(
+                                interactionSource = interactionSource,
+                                indication = null
+                            ) { onNavigate(destination.route) },
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
+                            modifier = Modifier.size(28.dp),
                             imageVector = if (selected) destination.filledIcon else destination.outlinedIcon,
                             contentDescription = null,
                             tint = if (selected) {

@@ -1,9 +1,12 @@
 package com.example.aichat.feature.profile
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -109,94 +112,107 @@ fun ProfileRoute(
     val scope = rememberCoroutineScope()
     var section by remember { mutableStateOf(ProfileSection.OWNED) }
 
-    LazyVerticalGrid(
-        columns = GridCells.Fixed(2),
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(
-            start = 20.dp,
-            top = paddingValues.calculateTopPadding() + 16.dp,
-            end = 20.dp,
-            bottom = paddingValues.calculateBottomPadding() + 24.dp
-        ),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
     ) {
-        item(span = { GridItemSpan(maxLineSpan) }) {
-            SnackbarHost(hostState = snackbarHostState)
-        }
-        item(span = { GridItemSpan(maxLineSpan) }) {
-            Text("Profile", style = MaterialTheme.typography.headlineMedium)
-        }
-        item(span = { GridItemSpan(maxLineSpan) }) {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                CircleAvatar(
-                    name = state.displayName.ifBlank { "User" },
-                    avatarUrl = state.avatarUrl,
-                    modifier = Modifier
-                        .size(108.dp)
-                        .aspectRatio(1f)
-                )
-                Text(
-                    text = state.displayName.ifBlank { "User" },
-                    style = MaterialTheme.typography.headlineSmall
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    IconPillButton(
-                        text = "Edit Profile",
-                        onClick = onOpenEditProfile,
-                        leadingIcon = {
-                            Icon(Icons.Outlined.Edit, contentDescription = null)
-                        }
+        SnackbarHost(hostState = snackbarHostState)
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(2),
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(
+                start = 20.dp,
+                top = paddingValues.calculateTopPadding() + 16.dp,
+                end = 20.dp,
+                bottom = paddingValues.calculateBottomPadding() + 24.dp
+            ),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                Text("Profile", style = MaterialTheme.typography.headlineMedium)
+            }
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    CircleAvatar(
+                        name = state.displayName.ifBlank { "User" },
+                        avatarUrl = state.avatarUrl,
+                        modifier = Modifier
+                            .size(104.dp)
+                            .aspectRatio(1f)
                     )
-                    IconCircleButton(onClick = onOpenSettings) {
-                        Icon(Icons.Outlined.Settings, contentDescription = "Settings")
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Text(
+                            text = state.displayName.ifBlank { "User" },
+                            style = MaterialTheme.typography.headlineSmall
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            IconPillButton(
+                                text = "Edit Profile",
+                                onClick = onOpenEditProfile,
+                                leadingIcon = {
+                                    Icon(Icons.Outlined.Edit, contentDescription = null)
+                                }
+                            )
+                            IconCircleButton(onClick = onOpenSettings) {
+                                Icon(Icons.Outlined.Settings, contentDescription = "Settings")
+                            }
+                        }
                     }
                 }
             }
-        }
-        item(span = { GridItemSpan(maxLineSpan) }) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                IconCircleButton(
-                    selected = section == ProfileSection.OWNED,
-                    onClick = { section = ProfileSection.OWNED }
-                ) {
-                    Icon(Icons.Outlined.GridView, contentDescription = "Your Characters")
-                }
-                IconCircleButton(
-                    selected = section == ProfileSection.LIKED,
-                    onClick = { section = ProfileSection.LIKED }
-                ) {
-                    Icon(Icons.Outlined.FavoriteBorder, contentDescription = "Liked Characters")
-                }
-            }
-        }
-        val characters = if (section == ProfileSection.OWNED) state.owned else state.liked
-        if (characters.isEmpty()) {
             item(span = { GridItemSpan(maxLineSpan) }) {
-                Text(
-                    text = if (section == ProfileSection.OWNED) {
-                        "No Characters Yet."
-                    } else {
-                        "No Liked Characters Yet."
-                    },
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    IconCircleButton(
+                        selected = section == ProfileSection.OWNED,
+                        onClick = { section = ProfileSection.OWNED }
+                    ) {
+                        Icon(Icons.Outlined.GridView, contentDescription = "Your Characters")
+                    }
+                    IconCircleButton(
+                        selected = section == ProfileSection.LIKED,
+                        onClick = { section = ProfileSection.LIKED }
+                    ) {
+                        Icon(Icons.Outlined.FavoriteBorder, contentDescription = "Liked Characters")
+                    }
+                    Spacer(modifier = Modifier.weight(1f))
+                }
             }
-        }
-        items(characters, key = { it.id }) { character ->
-            CharacterSummaryCard(
-                character = character,
-                authorLabel = authorLabel(character.ownerUserId, state.userId),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                scope.launch {
-                    viewModel.ensureConversation(character.id)
-                        .onSuccess(onOpenConversation)
-                        .onFailure { snackbarHostState.showSnackbar(it.message ?: "Couldn't open chat.") }
+            val characters = if (section == ProfileSection.OWNED) state.owned else state.liked
+            if (characters.isEmpty()) {
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    Text(
+                        text = if (section == ProfileSection.OWNED) {
+                            "No Characters Yet."
+                        } else {
+                            "No Liked Characters Yet."
+                        },
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+            items(characters, key = { it.id }) { character ->
+                CharacterSummaryCard(
+                    character = character,
+                    authorLabel = authorLabel(character.ownerUserId, state.userId),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    scope.launch {
+                        viewModel.ensureConversation(character.id)
+                            .onSuccess(onOpenConversation)
+                            .onFailure { snackbarHostState.showSnackbar(it.message ?: "Couldn't open chat.") }
+                    }
                 }
             }
         }

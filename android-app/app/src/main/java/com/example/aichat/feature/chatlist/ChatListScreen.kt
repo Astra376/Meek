@@ -98,8 +98,8 @@ fun ChatListRoute(
                 Text(
                     text = conversation.characterName,
                     style = MaterialTheme.typography.titleMedium.copy(
-                        fontSize = 24.sp,
-                        lineHeight = 28.sp
+                        fontSize = 18.sp,
+                        lineHeight = 21.sp
                     )
                 )
             }

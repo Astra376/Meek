@@ -289,7 +289,7 @@ fun IconCircleButton(
             .alpha(if (enabled) 1f else 0.45f)
             .clip(CircleShape)
             .background(
-                if (selected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.surfaceVariant
+                if (selected) MaterialTheme.colorScheme.onSurface else Color.Transparent
             )
             .border(
                 width = 1.dp,
@@ -328,7 +328,7 @@ fun IconPillButton(
             .height(DesignMetrics.iconPillHeight)
             .alpha(if (enabled) 1f else 0.45f)
             .clip(RoundedCornerShape(999.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .background(Color.Transparent)
             .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f), RoundedCornerShape(999.dp))
             .clickable(enabled = enabled, onClick = onClick)
             .padding(horizontal = DesignMetrics.iconPillHorizontalPadding),
@@ -355,7 +355,7 @@ fun SquareIconButton(
             .size(DesignMetrics.squareIconButtonSize)
             .alpha(if (enabled) 1f else 0.45f)
             .clip(RoundedCornerShape(DesignMetrics.squareButtonCorner))
-            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .background(Color.Transparent)
             .border(
                 1.dp,
                 MaterialTheme.colorScheme.outline.copy(alpha = 0.25f),
@@ -416,8 +416,7 @@ fun CharacterPortrait(
             Box(
                 modifier = modifier
                     .clip(shape)
-                    .background(brush = Brush.linearGradient(palette))
-                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.22f), shape),
+                    .background(brush = Brush.linearGradient(palette)),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
@@ -454,8 +453,7 @@ fun CircleAvatar(
             Box(
                 modifier = modifier
                     .clip(CircleShape)
-                    .background(brush = Brush.linearGradient(palette))
-                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.45f), CircleShape),
+                    .background(brush = Brush.linearGradient(palette)),
                 contentAlignment = Alignment.Center
             ) {
                 Text(

@@ -2,6 +2,7 @@ package com.example.aichat.navigation
 
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.core.tween
@@ -32,8 +33,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
@@ -112,25 +116,35 @@ private fun MainShell() {
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = backStackEntry?.destination
     val showBottomBar = currentDestination?.route !in subpageRoutes
+    val screenWidthDp = LocalConfiguration.current.screenWidthDp.dp
+    val density = LocalDensity.current
+    val bottomBarOffset by animateFloatAsState(
+        targetValue = if (showBottomBar) {
+            0f
+        } else {
+            with(density) { -screenWidthDp.toPx() }
+        },
+        animationSpec = tween(durationMillis = 220),
+        label = "bottomBarOffset"
+    )
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
-            if (showBottomBar) {
-                BottomIconBar(
-                    currentRoute = currentDestination?.route,
-                    onNavigate = { route ->
-                        navController.navigate(route) {
-                            popUpTo(navController.graph.findStartDestination().id) {
-                                saveState = true
-                            }
-                            launchSingleTop = true
-                            restoreState = true
+            BottomIconBar(
+                modifier = Modifier.graphicsLayer { translationX = bottomBarOffset },
+                currentRoute = currentDestination?.route,
+                onNavigate = { route ->
+                    navController.navigate(route) {
+                        popUpTo(navController.graph.findStartDestination().id) {
+                            saveState = true
                         }
+                        launchSingleTop = true
+                        restoreState = true
                     }
-                )
-            }
+                }
+            )
         }
     ) { paddingValues ->
         NavHost(
@@ -328,10 +342,12 @@ private fun MainShell() {
 
 @Composable
 private fun BottomIconBar(
+    modifier: Modifier = Modifier,
     currentRoute: String?,
     onNavigate: (String) -> Unit
 ) {
     Surface(
+        modifier = modifier,
         color = MaterialTheme.colorScheme.surface,
         tonalElevation = 0.dp,
         shadowElevation = 0.dp

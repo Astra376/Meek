@@ -136,7 +136,7 @@ fun CharacterStudioRoute(
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             item {
-                Text("Create Character", style = MaterialTheme.typography.headlineMedium)
+                Text("Create", style = MaterialTheme.typography.headlineMedium)
             }
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {

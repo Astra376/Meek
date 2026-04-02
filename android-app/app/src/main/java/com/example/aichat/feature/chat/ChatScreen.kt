@@ -22,10 +22,10 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.ArrowUpward
 import androidx.compose.material.icons.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.KeyboardArrowLeft
 import androidx.compose.material.icons.outlined.KeyboardArrowRight
+import androidx.compose.material.icons.outlined.Send
 import androidx.compose.material.icons.outlined.StopCircle
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
@@ -248,26 +248,26 @@ fun ChatRoute(
                     .imePadding()
                     .padding(horizontal = 20.dp, vertical = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalAlignment = Alignment.Bottom
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                IconCircleButton(
-                    selected = state.composerText.isNotBlank() && !state.isStreaming,
-                    enabled = !state.isStreaming && state.composerText.isNotBlank(),
-                    onClick = viewModel::send
-                ) {
-                    Icon(Icons.Outlined.ArrowUpward, contentDescription = "Send")
-                }
                 AppTextField(
                     value = state.composerText,
                     onValueChange = viewModel::onComposerChanged,
                     placeholder = "Message...",
                     modifier = Modifier
                         .weight(1f)
-                        .heightIn(min = 54.dp, max = 160.dp),
+                        .heightIn(min = 46.dp, max = 160.dp),
                     minLines = 1,
                     maxLines = 6,
                     shape = RoundedCornerShape(999.dp)
                 )
+                IconCircleButton(
+                    selected = state.composerText.isNotBlank() && !state.isStreaming,
+                    enabled = !state.isStreaming && state.composerText.isNotBlank(),
+                    onClick = viewModel::send
+                ) {
+                    Icon(Icons.Outlined.Send, contentDescription = "Send")
+                }
             }
         }
     }

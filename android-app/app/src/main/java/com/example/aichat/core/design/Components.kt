@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -17,6 +18,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -26,8 +28,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextField
-import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Alignment
@@ -36,6 +36,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -170,7 +171,7 @@ fun AppTextField(
     shape: RoundedCornerShape = RoundedCornerShape(26.dp),
     leadingIcon: (@Composable () -> Unit)? = null
 ) {
-    TextField(
+    BasicTextField(
         value = value,
         onValueChange = onValueChange,
         modifier = modifier,
@@ -178,29 +179,63 @@ fun AppTextField(
         singleLine = singleLine,
         minLines = minLines,
         maxLines = maxLines,
-        leadingIcon = leadingIcon,
-        placeholder = {
-            Text(
-                text = placeholder,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f)
-            )
-        },
-        shape = shape,
         textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
-        colors = TextFieldDefaults.colors(
-            focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-            disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.74f),
-            focusedIndicatorColor = Color.Transparent,
-            unfocusedIndicatorColor = Color.Transparent,
-            disabledIndicatorColor = Color.Transparent,
-            focusedLeadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-            unfocusedLeadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-            disabledLeadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f),
-            focusedPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
-            unfocusedPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
-            disabledPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f)
-        )
+        cursorBrush = SolidColor(MaterialTheme.colorScheme.onSurface),
+        decorationBox = { innerTextField ->
+            Row(
+                modifier = Modifier
+                    .clip(shape)
+                    .background(
+                        if (enabled) {
+                            MaterialTheme.colorScheme.surfaceVariant
+                        } else {
+                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.74f)
+                        }
+                    )
+                    .border(
+                        1.dp,
+                        MaterialTheme.colorScheme.outline.copy(alpha = 0.18f),
+                        shape
+                    )
+                    .defaultMinSize(minHeight = if (singleLine) 46.dp else 54.dp)
+                    .padding(
+                        horizontal = 12.dp,
+                        vertical = if (singleLine) 7.dp else 11.dp
+                    ),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = if (singleLine) Alignment.CenterVertically else Alignment.Top
+            ) {
+                leadingIcon?.let {
+                    CompositionLocalProvider(
+                        LocalContentColor provides if (enabled) {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f)
+                        }
+                    ) {
+                        Box(
+                            contentAlignment = if (singleLine) Alignment.Center else Alignment.TopCenter
+                        ) {
+                            it()
+                        }
+                    }
+                }
+                Box(
+                    modifier = Modifier.weight(1f),
+                    contentAlignment = if (singleLine) Alignment.CenterStart else Alignment.TopStart
+                ) {
+                    if (value.isEmpty()) {
+                        Text(
+                            text = placeholder,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(
+                                alpha = if (enabled) 0.72f else 0.45f
+                            )
+                        )
+                    }
+                    innerTextField()
+                }
+            }
+        }
     )
 }
 

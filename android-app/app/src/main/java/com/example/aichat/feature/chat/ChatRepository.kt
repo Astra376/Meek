@@ -72,10 +72,16 @@ class ChatRepository @Inject constructor(
         return streamingDrafts.map { drafts -> drafts[conversationId] }
     }
 
-    suspend fun refreshConversation(conversationId: String): Result<Unit> = withContext(Dispatchers.IO) {
+    suspend fun refreshConversation(
+        conversationId: String,
+        forceWhileStreaming: Boolean = false
+    ): Result<Unit> = withContext(Dispatchers.IO) {
         if (BuildConfig.USE_MOCK_SERVICES) return@withContext Result.success(Unit)
         runCatching {
             val remote = conversationApi.getConversation(conversationId)
+            if (!forceWhileStreaming && streamingDrafts.value.containsKey(conversationId)) {
+                return@runCatching
+            }
             syncConversation(remote)
         }
     }
@@ -113,7 +119,7 @@ class ChatRepository @Inject constructor(
                     anchorMessageId = optimisticMessage.id,
                     source = streamingClient.sendMessage(conversationId, text.trim()),
                     onCompleted = {
-                        refreshConversation(conversationId).getOrThrow()
+                        refreshConversation(conversationId, forceWhileStreaming = true).getOrThrow()
                     }
                 ).getOrThrow()
             } catch (error: CancellationException) {
@@ -182,7 +188,7 @@ class ChatRepository @Inject constructor(
                 anchorMessageId = messageId,
                 source = streamingClient.regenerateLatestAssistant(messageId),
                 onCompleted = {
-                    refreshConversation(message.conversationId).getOrThrow()
+                    refreshConversation(message.conversationId, forceWhileStreaming = true).getOrThrow()
                 }
             ).getOrThrow()
         }.recoverCatching { error ->

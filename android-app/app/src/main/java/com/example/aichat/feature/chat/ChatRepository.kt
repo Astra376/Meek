@@ -48,6 +48,7 @@ class ChatRepository @Inject constructor(
     private val responder: MockAssistantResponder
 ) {
     private val streamingDrafts = MutableStateFlow<Map<String, StreamingDraft>>(emptyMap())
+    private val syncSuppressedConversations = MutableStateFlow<Set<String>>(emptySet())
 
     fun observeConversation(conversationId: String): Flow<ConversationDetail?> {
         return combine(
@@ -79,7 +80,7 @@ class ChatRepository @Inject constructor(
         if (BuildConfig.USE_MOCK_SERVICES) return@withContext Result.success(Unit)
         runCatching {
             val remote = conversationApi.getConversation(conversationId)
-            if (!forceWhileStreaming && streamingDrafts.value.containsKey(conversationId)) {
+            if (shouldSkipRemoteSync(conversationId, forceWhileStreaming)) {
                 return@runCatching
             }
             syncConversation(remote)
@@ -91,29 +92,31 @@ class ChatRepository @Inject constructor(
             return@withContext sendMockMessage(conversationId, text)
         }
 
-        runCatching {
+        val result = runCatching {
             if (text.isBlank()) throw IllegalArgumentException("Message can't be empty.")
             ensureNotStreaming(conversationId)
             val conversation = conversationDao.getById(conversationId)
                 ?: throw IllegalArgumentException("Conversation not found.")
-            val existingMessages = snapshot(conversationId)
-            val nextPosition = (existingMessages.maxByOrNull { it.position }?.position ?: -1) + 1
-            val now = System.currentTimeMillis()
-            val optimisticMessage = MessageEntity(
-                id = generateId("message-local"),
-                conversationId = conversationId,
-                position = nextPosition,
-                role = MessageRole.USER.name,
-                content = text.trim(),
-                edited = false,
-                createdAt = now,
-                updatedAt = now,
-                selectedRegenerationId = null
-            )
-            messageDao.insert(optimisticMessage)
-            updateConversationMetadata(conversation, preview = text.trim(), now = now)
-
+            var optimisticMessageId: String? = null
+            suppressRemoteSync(conversationId)
             try {
+                val existingMessages = snapshot(conversationId)
+                val nextPosition = (existingMessages.maxByOrNull { it.position }?.position ?: -1) + 1
+                val now = System.currentTimeMillis()
+                val optimisticMessage = MessageEntity(
+                    id = generateId("message-local"),
+                    conversationId = conversationId,
+                    position = nextPosition,
+                    role = MessageRole.USER.name,
+                    content = text.trim(),
+                    edited = false,
+                    createdAt = now,
+                    updatedAt = now,
+                    selectedRegenerationId = null
+                )
+                optimisticMessageId = optimisticMessage.id
+                messageDao.insert(optimisticMessage)
+                updateConversationMetadata(conversation, preview = text.trim(), now = now)
                 streamIntoDraft(
                     conversationId = conversationId,
                     anchorMessageId = optimisticMessage.id,
@@ -122,16 +125,19 @@ class ChatRepository @Inject constructor(
                         refreshConversation(conversationId, forceWhileStreaming = true).getOrThrow()
                     }
                 ).getOrThrow()
-            } catch (error: CancellationException) {
-                messageDao.deleteById(optimisticMessage.id)
-                refreshConversation(conversationId)
-                throw error
             } catch (error: Throwable) {
-                messageDao.deleteById(optimisticMessage.id)
-                refreshConversation(conversationId)
+                optimisticMessageId?.let(messageDao::deleteById)
                 throw error
+            } finally {
+                resumeRemoteSync(conversationId)
             }
-        }.recoverCatching { error ->
+        }
+
+        if (result.isFailure) {
+            refreshConversation(conversationId)
+        }
+
+        result.recoverCatching { error ->
             if (error is CancellationException) throw error
             throw error
         }.fold(
@@ -179,19 +185,33 @@ class ChatRepository @Inject constructor(
             return@withContext regenerateMock(messageId)
         }
 
-        runCatching {
+        val result = runCatching {
             val message = messageDao.getById(messageId)
                 ?: throw IllegalArgumentException("Message not found.")
             ensureNotStreaming(message.conversationId)
-            streamIntoDraft(
-                conversationId = message.conversationId,
-                anchorMessageId = messageId,
-                source = streamingClient.regenerateLatestAssistant(messageId),
-                onCompleted = {
-                    refreshConversation(message.conversationId, forceWhileStreaming = true).getOrThrow()
-                }
-            ).getOrThrow()
-        }.recoverCatching { error ->
+            suppressRemoteSync(message.conversationId)
+            try {
+                streamIntoDraft(
+                    conversationId = message.conversationId,
+                    anchorMessageId = messageId,
+                    source = streamingClient.regenerateLatestAssistant(messageId),
+                    onCompleted = {
+                        refreshConversation(message.conversationId, forceWhileStreaming = true).getOrThrow()
+                    }
+                ).getOrThrow()
+            } finally {
+                resumeRemoteSync(message.conversationId)
+            }
+        }
+
+        if (result.isFailure) {
+            val failedConversationId = messageDao.getById(messageId)?.conversationId
+            if (failedConversationId != null) {
+                refreshConversation(failedConversationId)
+            }
+        }
+
+        result.recoverCatching { error ->
             if (error is CancellationException) throw error
             throw error
         }.fold(
@@ -498,9 +518,28 @@ class ChatRepository @Inject constructor(
     }
 
     private fun ensureNotStreaming(conversationId: String) {
-        if (streamingDrafts.value.containsKey(conversationId)) {
+        if (
+            streamingDrafts.value.containsKey(conversationId) ||
+            syncSuppressedConversations.value.contains(conversationId)
+        ) {
             throw ChatRuleViolation("Wait for the current reply to finish before changing the transcript.")
         }
+    }
+
+    private fun shouldSkipRemoteSync(conversationId: String, forceWhileStreaming: Boolean): Boolean {
+        return RemoteConversationSyncRules.shouldSkipRefresh(
+            forceWhileStreaming = forceWhileStreaming,
+            hasStreamingDraft = streamingDrafts.value.containsKey(conversationId),
+            isSyncSuppressed = syncSuppressedConversations.value.contains(conversationId)
+        )
+    }
+
+    private fun suppressRemoteSync(conversationId: String) {
+        syncSuppressedConversations.update { it + conversationId }
+    }
+
+    private fun resumeRemoteSync(conversationId: String) {
+        syncSuppressedConversations.update { it - conversationId }
     }
 
     private suspend fun refreshConversationPreview(conversationId: String) {

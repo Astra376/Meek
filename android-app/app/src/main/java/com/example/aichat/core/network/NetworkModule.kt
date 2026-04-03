@@ -1,7 +1,6 @@
 package com.example.aichat.core.network
 
 import com.example.aichat.BuildConfig
-import com.example.aichat.core.auth.SessionStorage
 import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
 import dagger.Module
 import dagger.Provides
@@ -26,17 +25,11 @@ object NetworkModule {
 
     @Provides
     @Singleton
-    fun provideOkHttpClient(sessionStorage: SessionStorage): OkHttpClient {
+    fun provideOkHttpClient(
+        sessionRefreshingInterceptor: SessionRefreshingInterceptor
+    ): OkHttpClient {
         return OkHttpClient.Builder()
-            .addInterceptor { chain ->
-                val session = sessionStorage.read()
-                val request = chain.request().newBuilder().apply {
-                    if (session != null) {
-                        addHeader("Authorization", "Bearer ${session.accessToken}")
-                    }
-                }.build()
-                chain.proceed(request)
-            }
+            .addInterceptor(sessionRefreshingInterceptor)
             .addInterceptor(
                 HttpLoggingInterceptor().apply {
                     level = HttpLoggingInterceptor.Level.BASIC

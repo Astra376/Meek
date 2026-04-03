@@ -76,7 +76,7 @@ data class ProfileUiState(
 class ProfileViewModel @Inject constructor(
     authRepository: AuthRepository,
     profileRepository: ProfileRepository,
-    characterRepository: CharacterRepository,
+    private val characterRepository: CharacterRepository,
     private val conversationRepository: ConversationRepository
 ) : ViewModel() {
     private val userId = authRepository.sessionState.value.profile?.userId.orEmpty()
@@ -98,6 +98,13 @@ class ProfileViewModel @Inject constructor(
         started = SharingStarted.WhileSubscribed(5_000),
         initialValue = ProfileUiState()
     )
+
+    init {
+        viewModelScope.launch {
+            characterRepository.refreshOwnedCharacters()
+            characterRepository.refreshLikedCharacters()
+        }
+    }
 
     suspend fun ensureConversation(characterId: String): Result<String> {
         return conversationRepository.ensureConversation(userId, characterId)

@@ -13,8 +13,6 @@ fun formatRelativeTime(epochMillis: Long): String {
     return formatter.format(Date(epochMillis))
 }
 
-fun generateId(prefix: String): String = "$prefix-${java.util.UUID.randomUUID()}"
-
 fun generateUlid(timeMillis: Long = System.currentTimeMillis()): String {
     val randomBytes = ByteArray(10)
     ulidRandom.nextBytes(randomBytes)

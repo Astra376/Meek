@@ -1,6 +1,5 @@
 package com.example.aichat.feature.chatlist
 
-import com.example.aichat.BuildConfig
 import com.example.aichat.core.db.CharacterDao
 import com.example.aichat.core.db.CharacterEntity
 import com.example.aichat.core.db.ConversationDao
@@ -10,7 +9,6 @@ import com.example.aichat.core.model.CharacterVisibility
 import com.example.aichat.core.model.ConversationSummary
 import com.example.aichat.core.network.ConversationApi
 import com.example.aichat.core.network.ConversationSummaryDto
-import com.example.aichat.core.util.generateId
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.Flow
@@ -29,7 +27,6 @@ class ConversationRepository @Inject constructor(
     }
 
     suspend fun refreshConversations(ownerUserId: String): Result<Unit> {
-        if (BuildConfig.USE_MOCK_SERVICES) return Result.success(Unit)
         return runCatching {
             val page = conversationApi.getConversations()
             page.items.forEach { summary ->
@@ -39,35 +36,11 @@ class ConversationRepository @Inject constructor(
     }
 
     suspend fun ensureConversation(ownerUserId: String, characterId: String): Result<String> {
-        if (!BuildConfig.USE_MOCK_SERVICES) {
-            return runCatching {
-                val summary = conversationApi.createConversation(mapOf("characterId" to characterId))
-                upsertConversationSummary(ownerUserId, summary)
-                summary.id
-            }
+        return runCatching {
+            val summary = conversationApi.createConversation(mapOf("characterId" to characterId))
+            upsertConversationSummary(ownerUserId, summary)
+            summary.id
         }
-
-        val character = characterDao.getById(characterId)
-            ?: return Result.failure(IllegalArgumentException("Character not found."))
-        if (character.visibility == CharacterVisibility.PRIVATE.name && character.ownerUserId != ownerUserId) {
-            return Result.failure(IllegalStateException("Private characters are only available to their owner."))
-        }
-        val existing = conversationDao.findByOwnerAndCharacter(ownerUserId, characterId)
-        if (existing != null) return Result.success(existing.id)
-
-        val now = System.currentTimeMillis()
-        val conversation = ConversationEntity(
-            id = generateId("conversation"),
-            ownerUserId = ownerUserId,
-            characterId = characterId,
-            version = 0,
-            updatedAt = now,
-            startedAt = now,
-            lastMessageAt = null,
-            previewText = "New conversation"
-        )
-        conversationDao.upsert(conversation)
-        return Result.success(conversation.id)
     }
 
     private suspend fun upsertConversationSummary(ownerUserId: String, summary: ConversationSummaryDto) {

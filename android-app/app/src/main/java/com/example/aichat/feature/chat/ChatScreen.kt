@@ -175,7 +175,8 @@ fun ChatRoute(
     var editText by rememberSaveable { mutableStateOf("") }
 
     val messages = state.conversation?.messages.orEmpty()
-    val showSendStreamBubble = state.activeStream?.mode == ActiveStreamMode.SEND
+    val activeStream = state.activeStream
+    val showSendStreamBubble = activeStream?.mode == ActiveStreamMode.SEND
     val totalItems = messages.size + if (showSendStreamBubble) 1 else 0
     val shouldFollowBottom by remember(listState, totalItems) {
         derivedStateOf {
@@ -237,10 +238,10 @@ fun ChatRoute(
 
                 items(messages, key = { it.id }) { message ->
                     val isActiveRegenerate =
-                        state.activeStream?.mode == ActiveStreamMode.REGENERATE &&
-                            state.activeStream.targetMessageId == message.id
+                        activeStream?.mode == ActiveStreamMode.REGENERATE &&
+                            activeStream.targetMessageId == message.id
                     val displayContent = when {
-                        isActiveRegenerate -> state.activeStream?.text?.takeIf { it.isNotBlank() } ?: "Thinking..."
+                        isActiveRegenerate -> activeStream?.text?.takeIf { it.isNotBlank() } ?: "Thinking..."
                         else -> message.visibleContent
                     }
                     MessageBubble(
@@ -267,8 +268,8 @@ fun ChatRoute(
                 }
 
                 if (showSendStreamBubble) {
-                    item(key = state.activeStream?.assistantMessageId ?: "stream-${state.activeStream?.userMessageId}") {
-                        DraftBubble(content = state.activeStream?.text.orEmpty())
+                    item(key = activeStream?.assistantMessageId ?: "stream-${activeStream?.userMessageId}") {
+                        DraftBubble(content = activeStream?.text.orEmpty())
                     }
                 }
             }

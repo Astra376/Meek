@@ -23,11 +23,8 @@ android {
 
         val apiBaseUrl = providers.gradleProperty("AI_CHAT_API_BASE_URL").orElse("https://example.invalid/")
         val googleWebClientId = providers.gradleProperty("AI_CHAT_GOOGLE_WEB_CLIENT_ID").orElse("")
-        val useMock = providers.gradleProperty("AI_CHAT_USE_MOCK").orElse("true")
-
         buildConfigField("String", "API_BASE_URL", "\"${apiBaseUrl.get()}\"")
         buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"${googleWebClientId.get()}\"")
-        buildConfigField("boolean", "USE_MOCK_SERVICES", useMock.get())
     }
 
     buildTypes {

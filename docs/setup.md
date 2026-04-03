@@ -5,7 +5,7 @@ This repo is split into:
 - `android-app/`: the Android client
 - `backend/`: the Cloudflare Worker
 
-The Android app runs in local mock mode by default. When you are ready for real auth, persistence, portraits, and model responses, wire the Worker first, then point the Android client at it.
+The Android app now expects the real Worker for auth, persistence, portraits, and model responses.
 
 ## 1. Install the local toolchain
 
@@ -27,16 +27,12 @@ The Android build flags live in:
 Edit these keys there:
 
 ```properties
-AI_CHAT_USE_MOCK=false
 AI_CHAT_API_BASE_URL=https://YOUR_WORKER_SUBDOMAIN.workers.dev/
 AI_CHAT_GOOGLE_WEB_CLIENT_ID=YOUR_GOOGLE_WEB_CLIENT_ID.apps.googleusercontent.com
 ```
 
 What each one does:
 
-- `AI_CHAT_USE_MOCK`
-  Set to `true` for the seeded local demo app.
-  Set to `false` to use the real Worker.
 - `AI_CHAT_API_BASE_URL`
   Must end with `/`.
   This is the deployed Cloudflare Worker base URL.
@@ -162,37 +158,24 @@ Set:
 AI_CHAT_API_BASE_URL=https://YOUR_WORKER_SUBDOMAIN.workers.dev/
 ```
 
-## 5. Run the Android app immediately
+## 5. Run the Android app
 
-### 5.1 Mock mode
+After the Worker is deployed:
 
-If you want to run the app right away without the Worker:
-
-1. Keep `AI_CHAT_USE_MOCK=true` in `/home/connor/projects/AIChat/AIChatApp/android-app/gradle.properties`
-2. Open `/home/connor/projects/AIChat/AIChatApp/android-app` in Android Studio
-3. Let Android Studio install missing SDK components
-4. If the Gradle wrapper jar is missing, open Terminal in `android-app/` and run:
+1. Set `AI_CHAT_API_BASE_URL` to your Worker URL
+2. Set `AI_CHAT_GOOGLE_WEB_CLIENT_ID` to your Web client ID
+3. Open `/home/connor/projects/AIChat/AIChatApp/android-app` in Android Studio
+4. Let Android Studio install missing SDK components
+5. If the Gradle wrapper jar is missing, open Terminal in `android-app/` and run:
 
 ```bash
 gradle wrapper
 ```
 
-5. Sync the project
-6. Connect your Android phone with USB debugging enabled, or start an emulator
-7. Select the `app` run configuration
-8. Press Run
-
-The app will sign into the seeded local demo account and the full UI shell will work with Room-backed local data and mock streaming.
-
-### 5.2 Real backend mode
-
-After the Worker is deployed:
-
-1. Set `AI_CHAT_USE_MOCK=false`
-2. Set `AI_CHAT_API_BASE_URL` to your Worker URL
-3. Set `AI_CHAT_GOOGLE_WEB_CLIENT_ID` to your Web client ID
-4. Sync the project again
-5. Run the app on your phone
+6. Sync the project again
+7. Connect your Android phone with USB debugging enabled, or start an emulator
+8. Select the `app` run configuration
+9. Press Run
 
 ## 6. Test commands
 

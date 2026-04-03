@@ -24,7 +24,6 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
-import com.example.aichat.core.auth.AuthRepository
 import com.example.aichat.core.design.AppIcon
 import com.example.aichat.core.design.AppIcons
 import com.example.aichat.core.design.AppTextField
@@ -55,10 +54,8 @@ data class CharacterStudioUiState(
 
 @HiltViewModel
 class CharacterStudioViewModel @Inject constructor(
-    authRepository: AuthRepository,
     private val characterRepository: CharacterRepository
 ) : ViewModel() {
-    private val userId = authRepository.sessionState.value.profile?.userId.orEmpty()
     private val _uiState = MutableStateFlow(CharacterStudioUiState())
     val uiState: StateFlow<CharacterStudioUiState> = _uiState.asStateFlow()
     private val _events = MutableSharedFlow<String>()
@@ -89,7 +86,7 @@ class CharacterStudioViewModel @Inject constructor(
     fun saveCharacter() {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isSaving = true)
-            characterRepository.saveCharacter(userId, _uiState.value.draft)
+            characterRepository.saveCharacter(_uiState.value.draft)
                 .onSuccess {
                     _uiState.value = _uiState.value.copy(
                         isSaving = false,

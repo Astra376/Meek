@@ -12,7 +12,7 @@ import androidx.room.RoomDatabase
         AssistantRegenerationEntity::class
     ],
     version = 2,
-    exportSchema = true
+    exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun profileDao(): ProfileDao

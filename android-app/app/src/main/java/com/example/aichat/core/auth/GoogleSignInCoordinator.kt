@@ -19,29 +19,11 @@ data class GoogleSignInPayload(
     val googleIdToken: String?
 )
 
-interface GoogleSignInCoordinator {
-    suspend fun signIn(activity: Activity): Result<GoogleSignInPayload>
-}
-
 @Singleton
-class MockGoogleSignInCoordinator @Inject constructor() : GoogleSignInCoordinator {
-    override suspend fun signIn(activity: Activity): Result<GoogleSignInPayload> {
-        return Result.success(
-            GoogleSignInPayload(
-                email = "demo@character.chat",
-                displayName = "Demo User",
-                avatarUrl = "seed:demo-user",
-                googleIdToken = "mock-google-id-token"
-            )
-        )
-    }
-}
-
-@Singleton
-class RealGoogleSignInCoordinator @Inject constructor(
+class GoogleSignInCoordinator @Inject constructor(
     @ApplicationContext private val context: Context
-) : GoogleSignInCoordinator {
-    override suspend fun signIn(activity: Activity): Result<GoogleSignInPayload> {
+) {
+    suspend fun signIn(activity: Activity): Result<GoogleSignInPayload> {
         return runCatching {
             check(BuildConfig.GOOGLE_WEB_CLIENT_ID.isNotBlank()) {
                 "AI_CHAT_GOOGLE_WEB_CLIENT_ID is empty."

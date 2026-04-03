@@ -21,7 +21,6 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.ViewModel
-import com.example.aichat.BuildConfig
 import com.example.aichat.core.auth.AuthRepository
 import com.example.aichat.core.design.AppCard
 import com.example.aichat.core.design.PrimaryButton
@@ -89,7 +88,7 @@ fun SignInRoute(viewModel: SignInViewModel = hiltViewModel()) {
                     style = MaterialTheme.typography.headlineLarge
                 )
                 Text(
-                    text = "Google sign-in is the only entry point. The app is ready to run locally now, and the same flow swaps to the Worker once your backend is configured.",
+                    text = "Google sign-in is the only entry point. Configure the Worker URL and Google web client ID, then sign in here.",
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -99,13 +98,6 @@ fun SignInRoute(viewModel: SignInViewModel = hiltViewModel()) {
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     viewModel.signIn(activity)
-                }
-                if (BuildConfig.USE_MOCK_SERVICES) {
-                    Text(
-                        text = "Mock mode is enabled, so this button signs into a seeded local demo account until the Worker URL and Google client ID are added.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.tertiary
-                    )
                 }
                 state.errorMessage?.let { error ->
                     Text(

@@ -33,7 +33,10 @@ class WorkerStreamingClient @Inject constructor(
 
     override fun sendMessage(conversationId: String, content: String): Flow<String> {
         val url = "${baseUrl}v1/conversations/$conversationId/messages/stream"
-        val body = json.encodeToString(SendMessageRequestDto(content)).toRequestBody(jsonMediaType)
+        val body = json.encodeToString(
+            SendMessageRequestDto.serializer(),
+            SendMessageRequestDto(content)
+        ).toRequestBody(jsonMediaType)
         return stream(Request.Builder().url(url).post(body).build())
     }
 

@@ -15,14 +15,8 @@ import {
 } from "../../db/queries/conversations";
 import { AppError, forbidden } from "../../lib/errors";
 import { createId } from "../../lib/ids";
-import { streamChatText } from "../../providers/openrouter";
-import {
-  ChatRuleError,
-  editTranscriptMessage,
-  requireLatestAssistant,
-  requireRegenerationSelection,
-  rewindTranscript
-} from "./rules";
+import { generateChatText, streamChatText } from "../../providers/openrouter";
+import { editTranscriptMessage, requireLatestAssistant, requireRegenerationSelection, rewindTranscript } from "./rules";
 
 async function loadTranscript(context: RequestContext, conversationId: string) {
   const messages = await listMessages(context.env, conversationId);
@@ -93,6 +87,39 @@ async function buildAssistantContext(context: RequestContext, conversationId: st
 
 function sseEvent(payload: object): Uint8Array {
   return new TextEncoder().encode(`data: ${JSON.stringify(payload)}\n\n`);
+}
+
+async function streamAssistantReply(
+  context: RequestContext,
+  messages: Array<{ role: "system" | "user" | "assistant"; content: string }>,
+  onChunk: (chunk: string) => void,
+  signal: AbortSignal
+): Promise<string> {
+  let fullText = "";
+  let emittedChunk = false;
+
+  try {
+    for await (const chunk of streamChatText(context.env, messages, signal)) {
+      emittedChunk = true;
+      fullText += chunk;
+      onChunk(chunk);
+    }
+  } catch (error) {
+    if (emittedChunk) {
+      throw error;
+    }
+
+    const fallbackText = await generateChatText(context.env, messages);
+    fullText = fallbackText;
+    onChunk(fallbackText);
+  }
+
+  const finalText = fullText.trim();
+  if (!finalText) {
+    throw new AppError(502, "OPENROUTER_EMPTY", "The model returned an empty response.");
+  }
+
+  return finalText;
 }
 
 export async function editMessage(context: RequestContext, messageId: string, newContent: string) {
@@ -182,23 +209,19 @@ export async function sendMessageAndStream(context: RequestContext, conversation
     selected_regeneration_id: null
   });
   const { character, messages } = await buildAssistantContext(context, conversationId);
-  const encoder = new TextEncoder();
   const abortController = new AbortController();
 
   const stream = new ReadableStream({
     async start(controller) {
-      let fullText = "";
-
       try {
-        for await (const chunk of streamChatText(context.env, messages, abortController.signal)) {
-          fullText += chunk;
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "chunk", text: chunk })}\n\n`));
-        }
-
-        const finalText = fullText.trim();
-        if (!finalText) {
-          throw new AppError(502, "OPENROUTER_EMPTY", "The model returned an empty response.");
-        }
+        const finalText = await streamAssistantReply(
+          context,
+          messages,
+          (chunk) => {
+            controller.enqueue(sseEvent({ type: "chunk", text: chunk }));
+          },
+          abortController.signal
+        );
 
         const assistantNow = Date.now();
         await insertMessage(context.env, {
@@ -253,23 +276,19 @@ export async function regenerateLatestAssistantAndStream(
 
   const regenerationId = createId("regen");
   const { messages } = await buildAssistantContext(context, message.conversation_id, latest.position);
-  const encoder = new TextEncoder();
   const abortController = new AbortController();
 
   const stream = new ReadableStream({
     async start(controller) {
-      let fullText = "";
-
       try {
-        for await (const chunk of streamChatText(context.env, messages, abortController.signal)) {
-          fullText += chunk;
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "chunk", text: chunk })}\n\n`));
-        }
-
-        const finalText = fullText.trim();
-        if (!finalText) {
-          throw new AppError(502, "OPENROUTER_EMPTY", "The model returned an empty response.");
-        }
+        const finalText = await streamAssistantReply(
+          context,
+          messages,
+          (chunk) => {
+            controller.enqueue(sseEvent({ type: "chunk", text: chunk }));
+          },
+          abortController.signal
+        );
 
         await insertRegeneration(context.env, {
           id: regenerationId,
@@ -302,4 +321,3 @@ export async function regenerateLatestAssistantAndStream(
     }
   });
 }
-

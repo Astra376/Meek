@@ -50,8 +50,13 @@ class WorkerStreamingClient @Inject constructor(
         val response = call.execute()
 
         if (!response.isSuccessful) {
+            val errorMessage = response.body?.string()?.let { body ->
+                runCatching {
+                    json.decodeFromString(ErrorResponseDto.serializer(), body).message
+                }.getOrNull()
+            }
             response.close()
-            close(IllegalStateException("Streaming request failed with HTTP ${response.code}."))
+            close(IllegalStateException(errorMessage ?: "Streaming request failed with HTTP ${response.code}."))
             return@callbackFlow
         }
 
@@ -91,4 +96,3 @@ class WorkerStreamingClient @Inject constructor(
         }
     }.flowOn(Dispatchers.IO)
 }
-

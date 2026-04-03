@@ -6,6 +6,24 @@ interface OpenRouterMessage {
   content: string;
 }
 
+async function throwOpenRouterError(response: Response): Promise<never> {
+  let message = "Text generation failed.";
+  try {
+    const data = (await response.json()) as {
+      error?: {
+        message?: string;
+      };
+    };
+    const providerMessage = data.error?.message?.trim();
+    if (providerMessage) {
+      message = providerMessage;
+    }
+  } catch {
+    // Ignore parse failures and fall back to the generic message.
+  }
+  throw new AppError(502, "OPENROUTER_ERROR", message);
+}
+
 export async function generateChatText(
   env: Env,
   messages: OpenRouterMessage[]
@@ -24,7 +42,7 @@ export async function generateChatText(
   });
 
   if (!response.ok) {
-    throw new AppError(502, "OPENROUTER_ERROR", "Text generation failed.");
+    await throwOpenRouterError(response);
   }
 
   const data = (await response.json()) as {
@@ -60,7 +78,7 @@ export async function* streamChatText(
   });
 
   if (!response.ok || !response.body) {
-    throw new AppError(502, "OPENROUTER_ERROR", "Text generation failed.");
+    await throwOpenRouterError(response);
   }
 
   const reader = response.body.getReader();
@@ -92,11 +110,21 @@ export async function* streamChatText(
             return;
           }
 
-          let parsed: { choices?: Array<{ delta?: { content?: string } }> };
+          let parsed: {
+            error?: { message?: string };
+            choices?: Array<{ delta?: { content?: string } }>;
+          };
           try {
-            parsed = JSON.parse(data) as { choices?: Array<{ delta?: { content?: string } }> };
+            parsed = JSON.parse(data) as {
+              error?: { message?: string };
+              choices?: Array<{ delta?: { content?: string } }>;
+            };
           } catch {
             continue;
+          }
+
+          if (parsed.error?.message) {
+            throw new AppError(502, "OPENROUTER_ERROR", parsed.error.message);
           }
 
           const chunk = parsed.choices?.[0]?.delta?.content;
@@ -114,4 +142,3 @@ export async function* streamChatText(
     throw new AppError(502, "OPENROUTER_EMPTY", "The model returned an empty response.");
   }
 }
-

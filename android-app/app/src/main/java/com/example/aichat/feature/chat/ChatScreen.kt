@@ -24,7 +24,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -65,7 +64,6 @@ import com.example.aichat.core.model.StreamingDraft
 import com.example.aichat.core.util.formatRelativeTime
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -93,7 +91,6 @@ class ChatViewModel @Inject constructor(
     private val composerText = MutableStateFlow("")
     private val _events = MutableSharedFlow<String>()
     val events = _events.asSharedFlow()
-    private var activeJob: Job? = null
 
     val uiState: StateFlow<ChatUiState> = combine(
         chatRepository.observeConversation(conversationId),
@@ -126,17 +123,13 @@ class ChatViewModel @Inject constructor(
         val text = composerText.value.trim()
         if (text.isBlank()) return
         composerText.value = ""
-        activeJob = viewModelScope.launch {
+        viewModelScope.launch {
             chatRepository.sendMessage(conversationId, text)
                 .onFailure {
                     composerText.value = text
                     _events.emit(it.message ?: "Message send failed.")
                 }
         }
-    }
-
-    fun cancelStreaming() {
-        activeJob?.cancel()
     }
 
     fun editMessage(messageId: String, newContent: String) {
@@ -154,7 +147,7 @@ class ChatViewModel @Inject constructor(
     }
 
     fun regenerateLatestAssistant(messageId: String) {
-        activeJob = viewModelScope.launch {
+        viewModelScope.launch {
             chatRepository.regenerateLatestAssistant(messageId)
                 .onFailure { _events.emit(it.message ?: "Regeneration failed.") }
         }
@@ -201,9 +194,7 @@ fun ChatRoute(
             ChatHeader(
                 characterName = state.conversation?.character?.name ?: "Chat",
                 avatarUrl = state.conversation?.character?.avatarUrl,
-                isStreaming = state.isStreaming,
-                onBack = onBack,
-                onStop = viewModel::cancelStreaming
+                onBack = onBack
             )
         },
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
@@ -347,9 +338,7 @@ fun ChatRoute(
 private fun ChatHeader(
     characterName: String,
     avatarUrl: String?,
-    isStreaming: Boolean,
-    onBack: () -> Unit,
-    onStop: () -> Unit
+    onBack: () -> Unit
 ) {
     val background = MaterialTheme.colorScheme.background
     Box(
@@ -386,11 +375,6 @@ private fun ChatHeader(
                         text = characterName,
                         style = MaterialTheme.typography.titleLarge
                     )
-                }
-                if (isStreaming) {
-                    IconCircleButton(onClick = onStop) {
-                        AppIcon(AppIcons.stop, contentDescription = "Stop")
-                    }
                 }
             }
             Box(

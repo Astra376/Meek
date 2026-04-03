@@ -126,7 +126,9 @@ class ChatRepository @Inject constructor(
                     }
                 ).getOrThrow()
             } catch (error: Throwable) {
-                optimisticMessageId?.let(messageDao::deleteById)
+                if (optimisticMessageId != null) {
+                    messageDao.deleteById(optimisticMessageId)
+                }
                 throw error
             } finally {
                 resumeRemoteSync(conversationId)

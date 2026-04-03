@@ -3,7 +3,7 @@ main = "src/index.ts"
 compatibility_date = "2026-04-01"
 
 [vars]
-GOOGLE_WEB_CLIENT_ID = ""
+GOOGLE_WEB_CLIENT_ID = "1081775489416-m4hjl4vususc5e31n9dnvu3r2std0uia.apps.googleusercontent.com"
 OPENROUTER_MODEL = "openrouter/auto"
 FAL_MODEL = "fal-ai/flux/dev"
 R2_PUBLIC_BASE_URL = ""
@@ -11,7 +11,7 @@ R2_PUBLIC_BASE_URL = ""
 [[d1_databases]]
 binding = "DB"
 database_name = "character-chat"
-database_id = "REPLACE_WITH_D1_DATABASE_ID"
+database_id = "ad611737-fc84-4002-bcfe-0f0ce257f2ae"
 
 [[r2_buckets]]
 binding = "ASSETS"

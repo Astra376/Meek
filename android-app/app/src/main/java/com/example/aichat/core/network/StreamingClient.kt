@@ -25,15 +25,20 @@ class WorkerStreamingClient @Inject constructor(
     private val json: Json
 ) : ChatStreamingClient {
     private val jsonMediaType = "application/json".toMediaType()
+    private val baseUrl = if (BuildConfig.API_BASE_URL.endsWith("/")) {
+        BuildConfig.API_BASE_URL
+    } else {
+        "${BuildConfig.API_BASE_URL}/"
+    }
 
     override fun sendMessage(conversationId: String, content: String): Flow<String> {
-        val url = "${BuildConfig.API_BASE_URL}v1/conversations/$conversationId/messages/stream"
+        val url = "${baseUrl}v1/conversations/$conversationId/messages/stream"
         val body = json.encodeToString(SendMessageRequestDto(content)).toRequestBody(jsonMediaType)
         return stream(Request.Builder().url(url).post(body).build())
     }
 
     override fun regenerateLatestAssistant(messageId: String): Flow<String> {
-        val url = "${BuildConfig.API_BASE_URL}v1/messages/$messageId/regenerate/stream"
+        val url = "${baseUrl}v1/messages/$messageId/regenerate/stream"
         return stream(Request.Builder().url(url).post("{}".toRequestBody(jsonMediaType)).build())
     }
 

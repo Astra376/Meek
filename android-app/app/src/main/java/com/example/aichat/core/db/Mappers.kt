@@ -7,6 +7,7 @@ import com.example.aichat.core.model.ChatMessage
 import com.example.aichat.core.model.ConversationSummary
 import com.example.aichat.core.model.MessageRole
 import com.example.aichat.core.model.UserProfile
+import com.example.aichat.core.network.CharacterDto
 
 fun ProfileEntity.toModel(): UserProfile = UserProfile(
     userId = userId,
@@ -51,6 +52,23 @@ fun CharacterSummary.toEntity(): CharacterEntity = CharacterEntity(
     description = description,
     systemPrompt = systemPrompt,
     visibility = visibility.name,
+    avatarUrl = avatarUrl,
+    publicChatCount = publicChatCount,
+    likeCount = likeCount,
+    likedByMe = likedByMe,
+    lastActiveAt = lastActiveAt,
+    createdAt = createdAt,
+    updatedAt = updatedAt
+)
+
+fun CharacterDto.toEntity(): CharacterEntity = CharacterEntity(
+    id = id,
+    ownerUserId = ownerUserId,
+    name = name,
+    tagline = tagline,
+    description = description,
+    systemPrompt = systemPrompt,
+    visibility = visibility.uppercase(),
     avatarUrl = avatarUrl,
     publicChatCount = publicChatCount,
     likeCount = likeCount,

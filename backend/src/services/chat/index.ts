@@ -1,4 +1,5 @@
 import type { RequestContext } from "../../env";
+import { ensureConversationStreamingSchema } from "../../db/ensureConversationStreamingSchema";
 import { getCharacterById, incrementCharacterActivity } from "../../db/queries/characters";
 import {
   claimConversationRun,
@@ -141,6 +142,7 @@ function visibleContent(message: TranscriptMessage): string {
 }
 
 async function requireOwnedConversation(context: RequestContext, conversationId: string) {
+  await ensureConversationStreamingSchema(context.env);
   const conversation = await getConversationById(context.env, conversationId);
   if (!conversation) {
     throw new AppError(404, "CONVERSATION_NOT_FOUND", "Conversation not found.");

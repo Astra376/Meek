@@ -1,4 +1,5 @@
 import type { RequestContext } from "../../env";
+import { ensureConversationStreamingSchema } from "../../db/ensureConversationStreamingSchema";
 import { getCharacterById } from "../../db/queries/characters";
 import {
   findConversationByOwnerAndCharacter,
@@ -25,6 +26,7 @@ function toConversationSummary(record: Awaited<ReturnType<typeof listConversatio
 }
 
 export async function listConversations(context: RequestContext, cursor: number, limit: number) {
+  await ensureConversationStreamingSchema(context.env);
   const rows = await listConversationSummaries(context.env, context.user!.userId, cursor, limit);
   return {
     items: rows.map(toConversationSummary),
@@ -33,6 +35,7 @@ export async function listConversations(context: RequestContext, cursor: number,
 }
 
 export async function createConversation(context: RequestContext, characterId: string) {
+  await ensureConversationStreamingSchema(context.env);
   const character = await getCharacterById(context.env, context.user!.userId, characterId);
   if (!character) {
     throw new AppError(404, "CHARACTER_NOT_FOUND", "Character not found.");
@@ -77,6 +80,7 @@ export async function createConversation(context: RequestContext, characterId: s
 }
 
 export async function getConversationDetail(context: RequestContext, conversationId: string) {
+  await ensureConversationStreamingSchema(context.env);
   const conversation = await getConversationById(context.env, conversationId);
   if (!conversation) {
     throw new AppError(404, "CONVERSATION_NOT_FOUND", "Conversation not found.");

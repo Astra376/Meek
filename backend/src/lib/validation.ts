@@ -1,5 +1,7 @@
 import { AppError, assert } from "./errors";
 
+const ulidPattern = /^[0-9A-HJKMNP-TV-Z]{26}$/;
+
 export async function parseJson<T>(request: Request): Promise<T> {
   try {
     return (await request.json()) as T;
@@ -21,6 +23,12 @@ export function optionalString(value: unknown, field: string, maxLength = 4000):
   return requireString(value, field, maxLength);
 }
 
+export function requireUlid(value: unknown, field: string): string {
+  const normalized = requireString(value, field, 26).toUpperCase();
+  assert(ulidPattern.test(normalized), 400, "VALIDATION_ERROR", `${field} must be a valid ULID.`);
+  return normalized;
+}
+
 export function parseCursor(value: string | null): number {
   if (!value) return 0;
   const parsed = Number(value);
@@ -36,4 +44,3 @@ export function clampPageSize(value: string | null, fallback = 20, max = 50): nu
   if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
   return Math.min(parsed, max);
 }
-

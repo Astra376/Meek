@@ -116,17 +116,38 @@ interface ConversationDao {
 
 @Dao
 interface MessageDao {
-    @Query("SELECT * FROM messages WHERE conversationId = :conversationId ORDER BY position ASC")
+    @Query(
+        """
+        SELECT * FROM messages
+        WHERE conversationId = :conversationId
+        ORDER BY createdAt ASC, position ASC
+        """
+    )
     fun observeMessages(conversationId: String): Flow<List<MessageEntity>>
 
-    @Query("SELECT * FROM messages WHERE conversationId = :conversationId ORDER BY position ASC")
+    @Query(
+        """
+        SELECT * FROM messages
+        WHERE conversationId = :conversationId
+        ORDER BY createdAt ASC, position ASC
+        """
+    )
     suspend fun getMessages(conversationId: String): List<MessageEntity>
+
+    @Query("SELECT * FROM messages WHERE conversationId = :conversationId AND sendState = 'SENT' ORDER BY position ASC")
+    suspend fun getCommittedMessages(conversationId: String): List<MessageEntity>
 
     @Query("SELECT * FROM messages WHERE id = :messageId LIMIT 1")
     suspend fun getById(messageId: String): MessageEntity?
 
-    @Query("SELECT * FROM messages WHERE conversationId = :conversationId ORDER BY position DESC LIMIT 1")
+    @Query("SELECT * FROM messages WHERE conversationId = :conversationId AND sendState = 'SENT' ORDER BY position DESC LIMIT 1")
     suspend fun getLatestMessage(conversationId: String): MessageEntity?
+
+    @Query("SELECT COALESCE(MIN(position), 0) FROM messages WHERE conversationId = :conversationId")
+    suspend fun getMinimumPosition(conversationId: String): Int
+
+    @Query("SELECT * FROM messages WHERE conversationId = :conversationId AND sendState != 'SENT' ORDER BY createdAt ASC")
+    suspend fun getLocalOnlyMessages(conversationId: String): List<MessageEntity>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(message: MessageEntity)
@@ -145,6 +166,9 @@ interface MessageDao {
 
     @Query("DELETE FROM messages WHERE conversationId = :conversationId")
     suspend fun deleteByConversation(conversationId: String)
+
+    @Query("DELETE FROM messages WHERE conversationId = :conversationId AND sendState = 'SENT'")
+    suspend fun deleteCommittedByConversation(conversationId: String)
 
     @Query("DELETE FROM messages WHERE id = :messageId")
     suspend fun deleteById(messageId: String)

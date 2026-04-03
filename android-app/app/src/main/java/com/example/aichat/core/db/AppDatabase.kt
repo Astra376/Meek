@@ -11,7 +11,7 @@ import androidx.room.RoomDatabase
         MessageEntity::class,
         AssistantRegenerationEntity::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -21,4 +21,3 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun messageDao(): MessageDao
     abstract fun assistantRegenerationDao(): AssistantRegenerationDao
 }
-

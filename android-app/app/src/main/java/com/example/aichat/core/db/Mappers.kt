@@ -6,6 +6,7 @@ import com.example.aichat.core.model.CharacterVisibility
 import com.example.aichat.core.model.ChatMessage
 import com.example.aichat.core.model.ConversationSummary
 import com.example.aichat.core.model.MessageRole
+import com.example.aichat.core.model.MessageSendState
 import com.example.aichat.core.model.UserProfile
 import com.example.aichat.core.network.CharacterDto
 
@@ -88,6 +89,7 @@ fun MessageEntity.toModel(regenerations: List<AssistantRegenerationEntity>): Cha
     createdAt = createdAt,
     updatedAt = updatedAt,
     selectedRegenerationId = selectedRegenerationId,
+    sendState = MessageSendState.valueOf(sendState),
     regenerations = regenerations.map { it.toModel() }
 )
 
@@ -108,4 +110,3 @@ fun ConversationSummaryRow.toModel(): ConversationSummary = ConversationSummary(
     lastMessageAt = lastMessageAt,
     lastPreview = lastPreview
 )
-

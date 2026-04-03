@@ -106,12 +106,15 @@ data class MessageDto(
 @Serializable
 data class ConversationDetailDto(
     val id: String,
+    val ownerUserId: String,
+    val conversationVersion: Long,
     val character: CharacterDto,
     val messages: List<MessageDto>
 )
 
 @Serializable
 data class SendMessageRequestDto(
+    val userMessageId: String,
     val content: String
 )
 
@@ -138,7 +141,18 @@ data class GeneratePortraitResponseDto(
 @Serializable
 data class StreamEventDto(
     val type: String,
-    val text: String? = null
+    val runId: String? = null,
+    val conversationVersion: Long? = null,
+    val userMessage: MessageDto? = null,
+    val assistantMessageId: String? = null,
+    val textDelta: String? = null,
+    val assistantMessage: MessageDto? = null,
+    val messageId: String? = null,
+    val regeneration: AssistantRegenerationDto? = null,
+    val selectedRegenerationId: String? = null,
+    val conversationSummary: ConversationSummaryDto? = null,
+    val code: String? = null,
+    val message: String? = null
 )
 
 @Serializable
@@ -146,4 +160,3 @@ data class CursorPageDto<T>(
     val items: List<T>,
     val nextCursor: String? = null
 )
-

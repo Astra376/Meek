@@ -100,6 +100,8 @@ export async function getConversationDetail(context: RequestContext, conversatio
 
   return {
     id: conversation.id,
+    ownerUserId: conversation.owner_user_id,
+    conversationVersion: conversation.version,
     character: {
       id: character.id,
       ownerUserId: character.owner_user_id,
@@ -135,4 +137,3 @@ export async function getConversationDetail(context: RequestContext, conversatio
     }))
   };
 }
-

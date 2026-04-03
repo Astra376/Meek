@@ -113,6 +113,7 @@ class LocalSeedManager @Inject constructor(
             id = conversationId,
             ownerUserId = userId,
             characterId = "char-noctis",
+            version = 0,
             updatedAt = now - 10_000L,
             startedAt = now - 90_000L,
             lastMessageAt = now - 10_000L,
@@ -133,7 +134,8 @@ class LocalSeedManager @Inject constructor(
                 edited = false,
                 createdAt = now - 10_000L,
                 updatedAt = now - 10_000L,
-                selectedRegenerationId = "regen-1"
+                selectedRegenerationId = "regen-1",
+                sendState = "SENT"
             )
         )
         messageDao.insertAll(messages)
@@ -201,6 +203,7 @@ class LocalSeedManager @Inject constructor(
         edited = false,
         createdAt = createdAt,
         updatedAt = createdAt,
-        selectedRegenerationId = null
+        selectedRegenerationId = null,
+        sendState = "SENT"
     )
 }

@@ -44,6 +44,7 @@ data class ConversationEntity(
     @PrimaryKey val id: String,
     val ownerUserId: String,
     val characterId: String,
+    val version: Long,
     val updatedAt: Long,
     val startedAt: Long,
     val lastMessageAt: Long?,
@@ -71,7 +72,8 @@ data class MessageEntity(
     val edited: Boolean,
     val createdAt: Long,
     val updatedAt: Long,
-    val selectedRegenerationId: String?
+    val selectedRegenerationId: String?,
+    val sendState: String
 )
 
 @Entity(
@@ -92,4 +94,3 @@ data class AssistantRegenerationEntity(
     val content: String,
     val createdAt: Long
 )
-

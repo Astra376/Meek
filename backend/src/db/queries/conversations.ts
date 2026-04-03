@@ -8,6 +8,9 @@ export interface ConversationRecord {
   updated_at: number;
   started_at: number;
   last_message_at: number | null;
+  version: number;
+  active_run_id: string | null;
+  active_run_expires_at: number | null;
 }
 
 export interface ConversationSummaryRecord {
@@ -77,6 +80,41 @@ export async function listConversationSummaries(
   );
 }
 
+export async function getConversationSummaryById(
+  env: Env,
+  userId: string,
+  conversationId: string
+): Promise<ConversationSummaryRecord | null> {
+  return first<ConversationSummaryRecord>(
+    env.DB.prepare(
+      `
+      SELECT
+        conversations.id,
+        conversations.character_id,
+        characters.name AS character_name,
+        characters.avatar_url AS character_avatar_url,
+        conversations.updated_at,
+        conversations.started_at,
+        conversations.last_message_at,
+        COALESCE(selected_regenerations.content, latest_messages.content, '') AS last_preview
+      FROM conversations
+      INNER JOIN characters ON characters.id = conversations.character_id
+      LEFT JOIN messages AS latest_messages
+        ON latest_messages.conversation_id = conversations.id
+        AND latest_messages.position = (
+          SELECT MAX(messages.position)
+          FROM messages
+          WHERE messages.conversation_id = conversations.id
+        )
+      LEFT JOIN assistant_regenerations AS selected_regenerations
+        ON selected_regenerations.id = latest_messages.selected_regeneration_id
+      WHERE conversations.owner_user_id = ? AND conversations.id = ?
+      LIMIT 1
+      `
+    ).bind(userId, conversationId)
+  );
+}
+
 export async function getConversationById(env: Env, conversationId: string): Promise<ConversationRecord | null> {
   return first<ConversationRecord>(
     env.DB.prepare("SELECT * FROM conversations WHERE id = ? LIMIT 1").bind(conversationId)
@@ -104,8 +142,10 @@ export async function insertConversation(env: Env, input: {
   await run(
     env.DB.prepare(
       `
-      INSERT INTO conversations (id, owner_user_id, character_id, updated_at, started_at, last_message_at)
-      VALUES (?, ?, ?, ?, ?, NULL)
+      INSERT INTO conversations (
+        id, owner_user_id, character_id, updated_at, started_at, last_message_at, version, active_run_id, active_run_expires_at
+      )
+      VALUES (?, ?, ?, ?, ?, NULL, 0, NULL, NULL)
       `
     ).bind(input.id, input.ownerUserId, input.characterId, input.now, input.now)
   );
@@ -235,9 +275,45 @@ export async function updateConversationActivity(env: Env, conversationId: strin
     env.DB.prepare(
       `
       UPDATE conversations
-      SET updated_at = ?, last_message_at = ?
+      SET updated_at = ?, last_message_at = ?, version = version + 1
       WHERE id = ?
       `
     ).bind(now, now, conversationId)
+  );
+}
+
+export async function claimConversationRun(
+  env: Env,
+  conversationId: string,
+  runId: string,
+  now: number,
+  expiresAt: number
+): Promise<boolean> {
+  const result = await run(
+    env.DB.prepare(
+      `
+      UPDATE conversations
+      SET active_run_id = ?, active_run_expires_at = ?
+      WHERE id = ?
+        AND (
+          active_run_id IS NULL
+          OR active_run_expires_at IS NULL
+          OR active_run_expires_at <= ?
+        )
+      `
+    ).bind(runId, expiresAt, conversationId, now)
+  );
+  return Number(result.meta.changes ?? 0) > 0;
+}
+
+export async function releaseConversationRun(env: Env, conversationId: string, runId: string): Promise<void> {
+  await run(
+    env.DB.prepare(
+      `
+      UPDATE conversations
+      SET active_run_id = NULL, active_run_expires_at = NULL
+      WHERE id = ? AND active_run_id = ?
+      `
+    ).bind(conversationId, runId)
   );
 }

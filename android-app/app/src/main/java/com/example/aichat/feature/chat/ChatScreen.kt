@@ -34,6 +34,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -55,13 +56,13 @@ import com.example.aichat.core.design.AppIcons
 import com.example.aichat.core.design.AppTextField
 import com.example.aichat.core.design.CharacterPortrait
 import com.example.aichat.core.design.IconCircleButton
-import com.example.aichat.core.ui.AppBackButton
-import com.example.aichat.core.ui.AppChrome
-import com.example.aichat.core.ui.clearFocusOnTap
 import com.example.aichat.core.model.ChatMessage
 import com.example.aichat.core.model.ConversationDetail
 import com.example.aichat.core.model.MessageRole
-import com.example.aichat.core.model.StreamingDraft
+import com.example.aichat.core.model.MessageSendState
+import com.example.aichat.core.ui.AppBackButton
+import com.example.aichat.core.ui.AppChrome
+import com.example.aichat.core.ui.clearFocusOnTap
 import com.example.aichat.core.util.formatRelativeTime
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -77,10 +78,10 @@ import kotlinx.coroutines.launch
 
 data class ChatUiState(
     val conversation: ConversationDetail? = null,
-    val draft: StreamingDraft? = null,
+    val activeStream: ActiveAssistantStream? = null,
     val composerText: String = ""
 ) {
-    val isStreaming: Boolean get() = draft != null
+    val isStreaming: Boolean get() = activeStream != null
 }
 
 @HiltViewModel
@@ -95,12 +96,12 @@ class ChatViewModel @Inject constructor(
 
     val uiState: StateFlow<ChatUiState> = combine(
         chatRepository.observeConversation(conversationId),
-        chatRepository.observeStreamingDraft(conversationId),
+        chatRepository.observeActiveStream(conversationId),
         composerText
-    ) { conversation, draft, composer ->
+    ) { conversation, activeStream, composer ->
         ChatUiState(
             conversation = conversation,
-            draft = draft,
+            activeStream = activeStream,
             composerText = composer
         )
     }.stateIn(
@@ -126,10 +127,7 @@ class ChatViewModel @Inject constructor(
         composerText.value = ""
         viewModelScope.launch {
             chatRepository.sendMessage(conversationId, text)
-                .onFailure {
-                    composerText.value = text
-                    _events.emit(it.message ?: "Message send failed.")
-                }
+                .onFailure { _events.emit(it.message ?: "Message send failed.") }
         }
     }
 
@@ -176,13 +174,29 @@ fun ChatRoute(
     var editTarget by remember { mutableStateOf<ChatMessage?>(null) }
     var editText by rememberSaveable { mutableStateOf("") }
 
+    val messages = state.conversation?.messages.orEmpty()
+    val showSendStreamBubble = state.activeStream?.mode == ActiveStreamMode.SEND
+    val totalItems = messages.size + if (showSendStreamBubble) 1 else 0
+    val shouldFollowBottom by remember(listState, totalItems) {
+        derivedStateOf {
+            val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1
+            lastVisible >= totalItems - 2
+        }
+    }
+
     LaunchedEffect(Unit) {
         viewModel.events.collect { snackbarHostState.showSnackbar(it) }
     }
 
-    LaunchedEffect(state.conversation?.messages?.size, state.draft?.content) {
-        val totalItems = (state.conversation?.messages?.size ?: 0) + if (state.draft != null) 1 else 0
-        if (totalItems > 0) {
+    LaunchedEffect(state.isStreaming) {
+        if (state.isStreaming) {
+            actionMessage = null
+            editTarget = null
+        }
+    }
+
+    LaunchedEffect(totalItems, state.activeStream?.text?.length) {
+        if (totalItems > 0 && shouldFollowBottom) {
             listState.scrollToItem(totalItems - 1)
         }
     }
@@ -217,32 +231,44 @@ fun ChatRoute(
                 ),
                 verticalArrangement = Arrangement.spacedBy(AppChrome.compactControlGap)
             ) {
-                state.conversation?.messages?.let { messages ->
-                    val latestAssistantId = messages.lastOrNull { it.role == MessageRole.ASSISTANT }?.id
-                    items(messages, key = { it.id }) { message ->
-                        MessageBubble(
-                            message = message,
-                            isLatestAssistant = message.id == latestAssistantId,
-                            onTap = { focusManager.clearFocus(force = true) },
-                            onLongPress = { actionMessage = message },
-                            onSelectPreviousVariant = {
-                                val index = message.regenerations.indexOfFirst { it.id == message.selectedRegenerationId }.coerceAtLeast(0)
-                                if (index > 0) {
-                                    viewModel.selectRegeneration(message.id, message.regenerations[index - 1].id)
-                                }
-                            },
-                            onSelectNextVariant = {
-                                val index = message.regenerations.indexOfFirst { it.id == message.selectedRegenerationId }.coerceAtLeast(0)
-                                if (index < message.regenerations.lastIndex) {
-                                    viewModel.selectRegeneration(message.id, message.regenerations[index + 1].id)
-                                }
-                            }
-                        )
+                val latestAssistantId = messages.lastOrNull {
+                    it.role == MessageRole.ASSISTANT && it.sendState == MessageSendState.SENT
+                }?.id
+
+                items(messages, key = { it.id }) { message ->
+                    val isActiveRegenerate =
+                        state.activeStream?.mode == ActiveStreamMode.REGENERATE &&
+                            state.activeStream.targetMessageId == message.id
+                    val displayContent = when {
+                        isActiveRegenerate -> state.activeStream?.text?.takeIf { it.isNotBlank() } ?: "Thinking..."
+                        else -> message.visibleContent
                     }
+                    MessageBubble(
+                        message = message,
+                        displayContent = displayContent,
+                        isLatestAssistant = message.id == latestAssistantId,
+                        actionsEnabled = !state.isStreaming && message.sendState == MessageSendState.SENT,
+                        variantControlsEnabled = !state.isStreaming,
+                        onTap = { focusManager.clearFocus(force = true) },
+                        onLongPress = { actionMessage = message },
+                        onSelectPreviousVariant = {
+                            val index = message.regenerations.indexOfFirst { it.id == message.selectedRegenerationId }.coerceAtLeast(0)
+                            if (index > 0) {
+                                viewModel.selectRegeneration(message.id, message.regenerations[index - 1].id)
+                            }
+                        },
+                        onSelectNextVariant = {
+                            val index = message.regenerations.indexOfFirst { it.id == message.selectedRegenerationId }.coerceAtLeast(0)
+                            if (index < message.regenerations.lastIndex) {
+                                viewModel.selectRegeneration(message.id, message.regenerations[index + 1].id)
+                            }
+                        }
+                    )
                 }
-                state.draft?.let { draft ->
-                    item(key = "draft-${draft.conversationId}") {
-                        DraftBubble(content = draft.content)
+
+                if (showSendStreamBubble) {
+                    item(key = state.activeStream?.assistantMessageId ?: "stream-${state.activeStream?.userMessageId}") {
+                        DraftBubble(content = state.activeStream?.text.orEmpty())
                     }
                 }
             }
@@ -281,7 +307,7 @@ fun ChatRoute(
     }
 
     actionMessage?.let { message ->
-        val isLatestAssistant = state.conversation?.messages?.lastOrNull { it.role == MessageRole.ASSISTANT }?.id == message.id
+        val isLatestAssistant = messages.lastOrNull { it.role == MessageRole.ASSISTANT && it.sendState == MessageSendState.SENT }?.id == message.id
         MessageActionsDialog(
             canRegenerate = isLatestAssistant,
             onDismiss = { actionMessage = null },
@@ -349,13 +375,13 @@ private fun ChatHeader(
     ) {
         Column {
             Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .statusBarsPadding()
-                        .padding(
-                            horizontal = AppChrome.screenHorizontalPadding,
-                            vertical = AppChrome.compactHeaderVerticalPadding
-                        ),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .statusBarsPadding()
+                    .padding(
+                        horizontal = AppChrome.screenHorizontalPadding,
+                        vertical = AppChrome.compactHeaderVerticalPadding
+                    ),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 AppBackButton(onClick = onBack)
@@ -396,13 +422,22 @@ private fun ChatHeader(
 @Composable
 private fun MessageBubble(
     message: ChatMessage,
+    displayContent: String,
     isLatestAssistant: Boolean,
+    actionsEnabled: Boolean,
+    variantControlsEnabled: Boolean,
     onTap: () -> Unit,
     onLongPress: () -> Unit,
     onSelectPreviousVariant: () -> Unit,
     onSelectNextVariant: () -> Unit
 ) {
     val isUser = message.role == MessageRole.USER
+    val statusSuffix = when (message.sendState) {
+        MessageSendState.PENDING -> "Sending..."
+        MessageSendState.FAILED -> "Failed to send"
+        MessageSendState.SENT -> null
+    }
+
     Column(
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = if (isUser) Alignment.End else Alignment.Start
@@ -412,14 +447,18 @@ private fun MessageBubble(
                 .fillMaxWidth(0.88f)
                 .combinedClickable(
                     onClick = onTap,
-                    onLongClick = onLongPress
+                    onLongClick = {
+                        if (actionsEnabled) {
+                            onLongPress()
+                        }
+                    }
                 ),
             shape = RoundedCornerShape(24.dp),
             color = if (isUser) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text(
-                    text = message.visibleContent,
+                    text = displayContent,
                     style = MaterialTheme.typography.bodyLarge,
                     color = if (isUser) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
                 )
@@ -428,6 +467,10 @@ private fun MessageBubble(
                     text = buildString {
                         append(formatRelativeTime(message.updatedAt))
                         if (message.edited) append(" (Edited)")
+                        if (statusSuffix != null) {
+                            append(" • ")
+                            append(statusSuffix)
+                        }
                     },
                     style = MaterialTheme.typography.bodyMedium,
                     color = if (isUser) {
@@ -445,7 +488,7 @@ private fun MessageBubble(
                 modifier = Modifier.padding(top = 6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = onSelectPreviousVariant, enabled = currentIndex > 0) {
+                IconButton(onClick = onSelectPreviousVariant, enabled = variantControlsEnabled && currentIndex > 0) {
                     AppIcon(AppIcons.previous, contentDescription = "Previous variant")
                 }
                 Text(
@@ -453,7 +496,10 @@ private fun MessageBubble(
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Medium
                 )
-                IconButton(onClick = onSelectNextVariant, enabled = currentIndex < message.regenerations.lastIndex) {
+                IconButton(
+                    onClick = onSelectNextVariant,
+                    enabled = variantControlsEnabled && currentIndex < message.regenerations.lastIndex
+                ) {
                     AppIcon(AppIcons.next, contentDescription = "Next variant")
                 }
             }

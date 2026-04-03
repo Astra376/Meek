@@ -22,7 +22,7 @@ This workspace did not have Java, Gradle, Node, or npm available, so I could not
 
 The Android build flags live in:
 
-- `/home/astra/dev/chatAI/android-app/gradle.properties`
+- `/home/connor/projects/AIChat/AIChatApp/android-app/gradle.properties`
 
 Edit these keys there:
 
@@ -53,8 +53,8 @@ Because the app uses Credential Manager + Google ID tokens, create these Google 
 3. Add your debug SHA-1 and release SHA-1 fingerprints to that Android OAuth client.
 4. Create a **Web application** OAuth client.
 5. Put the **Web application client ID** in both places:
-   - `/home/astra/dev/chatAI/android-app/gradle.properties` as `AI_CHAT_GOOGLE_WEB_CLIENT_ID`
-   - `/home/astra/dev/chatAI/backend/wrangler.toml` under `[vars]` as `GOOGLE_WEB_CLIENT_ID`
+   - `/home/connor/projects/AIChat/AIChatApp/android-app/gradle.properties` as `AI_CHAT_GOOGLE_WEB_CLIENT_ID`
+   - `/home/connor/projects/AIChat/AIChatApp/backend/wrangler.toml` under `[vars]` as `GOOGLE_WEB_CLIENT_ID`
 
 You do not need `google-services.json` for this implementation because the app is not using Firebase Auth SDKs.
 
@@ -63,7 +63,7 @@ You do not need `google-services.json` for this implementation because the app i
 ### 4.1 Install backend dependencies
 
 ```bash
-cd /home/astra/dev/chatAI/backend
+cd /home/connor/projects/AIChat/AIChatApp/backend
 npm install
 ```
 
@@ -83,7 +83,7 @@ wrangler r2 bucket create character-chat-assets
 
 Then update:
 
-- `/home/astra/dev/chatAI/backend/wrangler.toml`
+- `/home/connor/projects/AIChat/AIChatApp/backend/wrangler.toml`
 
 Fill in these fields:
 
@@ -104,19 +104,21 @@ Fill in these fields:
 
 ### 4.3 Apply the database schema
 
-Run the initial migration from:
+Run the backend migrations from:
 
-- `/home/astra/dev/chatAI/backend/src/db/migrations/0001_initial.sql`
+- `/home/connor/projects/AIChat/AIChatApp/backend/src/db/migrations/0001_initial.sql`
+- `/home/connor/projects/AIChat/AIChatApp/backend/src/db/migrations/0002_conversation_streaming.sql`
 
-Command:
+Commands:
 
 ```bash
 wrangler d1 execute character-chat --remote --file=src/db/migrations/0001_initial.sql
+wrangler d1 execute character-chat --remote --file=src/db/migrations/0002_conversation_streaming.sql
 ```
 
 ### 4.4 Create Worker secrets
 
-These secrets must be created with `wrangler secret put` from inside `/home/astra/dev/chatAI/backend`.
+These secrets must be created with `wrangler secret put` from inside `/home/connor/projects/AIChat/AIChatApp/backend`.
 
 Create the session signing secret:
 
@@ -152,7 +154,7 @@ npm run deploy
 
 After deployment, copy the Worker URL into:
 
-- `/home/astra/dev/chatAI/android-app/gradle.properties`
+- `/home/connor/projects/AIChat/AIChatApp/android-app/gradle.properties`
 
 Set:
 
@@ -166,8 +168,8 @@ AI_CHAT_API_BASE_URL=https://YOUR_WORKER_SUBDOMAIN.workers.dev/
 
 If you want to run the app right away without the Worker:
 
-1. Keep `AI_CHAT_USE_MOCK=true` in `/home/astra/dev/chatAI/android-app/gradle.properties`
-2. Open `/home/astra/dev/chatAI/android-app` in Android Studio
+1. Keep `AI_CHAT_USE_MOCK=true` in `/home/connor/projects/AIChat/AIChatApp/android-app/gradle.properties`
+2. Open `/home/connor/projects/AIChat/AIChatApp/android-app` in Android Studio
 3. Let Android Studio install missing SDK components
 4. If the Gradle wrapper jar is missing, open Terminal in `android-app/` and run:
 
@@ -194,13 +196,13 @@ After the Worker is deployed:
 
 ## 6. Test commands
 
-Run Android unit tests from `/home/astra/dev/chatAI/android-app`:
+Run Android unit tests from `/home/connor/projects/AIChat/AIChatApp/android-app`:
 
 ```bash
 ./gradlew testDebugUnitTest
 ```
 
-Run backend tests from `/home/astra/dev/chatAI/backend`:
+Run backend tests from `/home/connor/projects/AIChat/AIChatApp/backend`:
 
 ```bash
 npm test
@@ -232,4 +234,3 @@ Needs real credentials/resources to go live:
 - R2 asset serving
 - OpenRouter model responses
 - fal portrait generation
-

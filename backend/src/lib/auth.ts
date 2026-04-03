@@ -13,10 +13,17 @@ function fromBase64Url(value: string): Uint8Array {
   return Uint8Array.from(atob(padded), (char) => char.charCodeAt(0));
 }
 
+function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  const buffer = new ArrayBuffer(bytes.byteLength);
+  new Uint8Array(buffer).set(bytes);
+  return buffer;
+}
+
 async function importHmacKey(secret: string): Promise<CryptoKey> {
+  const encoded = new TextEncoder().encode(secret);
   return crypto.subtle.importKey(
     "raw",
-    new TextEncoder().encode(secret),
+    toArrayBuffer(encoded),
     { name: "HMAC", hash: "SHA-256" },
     false,
     ["sign", "verify"]
@@ -46,7 +53,7 @@ async function verifyToken(secret: string, token: string): Promise<Record<string
   const isValid = await crypto.subtle.verify(
     "HMAC",
     key,
-    fromBase64Url(signaturePart),
+    toArrayBuffer(fromBase64Url(signaturePart)),
     new TextEncoder().encode(`${headerPart}.${payloadPart}`)
   );
 

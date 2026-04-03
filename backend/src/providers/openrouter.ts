@@ -77,11 +77,16 @@ export async function* streamChatText(
     signal
   });
 
-  if (!response.ok || !response.body) {
+  if (!response.ok) {
     await throwOpenRouterError(response);
   }
 
-  const reader = response.body.getReader();
+  const body = response.body;
+  if (!body) {
+    throw new AppError(502, "OPENROUTER_EMPTY", "The model returned an empty response.");
+  }
+
+  const reader = body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
   let emittedContent = false;

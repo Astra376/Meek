@@ -6,7 +6,7 @@ import {
   sendMessageAndStream
 } from "../services/chat";
 import { noContent } from "../lib/response";
-import { parseJson, requireString } from "../lib/validation";
+import { parseJson, requireString, requireUlid } from "../lib/validation";
 import type { RouteDefinition } from "./types";
 
 export const chatRoutes: RouteDefinition[] = [
@@ -15,8 +15,13 @@ export const chatRoutes: RouteDefinition[] = [
     path: "/v1/conversations/:conversationId/messages/stream",
     auth: true,
     handler: async (context) => {
-      const body = await parseJson<{ content?: string }>(context.request);
-      return sendMessageAndStream(context, context.params.conversationId, requireString(body.content, "content", 8_000));
+      const body = await parseJson<{ userMessageId?: string; content?: string }>(context.request);
+      return sendMessageAndStream(
+        context,
+        context.params.conversationId,
+        requireUlid(body.userMessageId, "userMessageId"),
+        requireString(body.content, "content", 8_000)
+      );
     }
   },
   {
@@ -55,4 +60,3 @@ export const chatRoutes: RouteDefinition[] = [
     }
   }
 ];
-

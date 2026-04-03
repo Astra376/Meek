@@ -5,6 +5,12 @@ enum class MessageRole {
     ASSISTANT
 }
 
+enum class MessageSendState {
+    PENDING,
+    SENT,
+    FAILED
+}
+
 data class AssistantRegeneration(
     val id: String,
     val messageId: String,
@@ -22,6 +28,7 @@ data class ChatMessage(
     val createdAt: Long,
     val updatedAt: Long,
     val selectedRegenerationId: String?,
+    val sendState: MessageSendState = MessageSendState.SENT,
     val regenerations: List<AssistantRegeneration> = emptyList()
 ) {
     val visibleContent: String
@@ -41,13 +48,8 @@ data class ConversationSummary(
 
 data class ConversationDetail(
     val id: String,
+    val ownerUserId: String,
+    val conversationVersion: Long,
     val character: CharacterSummary,
     val messages: List<ChatMessage>
 )
-
-data class StreamingDraft(
-    val conversationId: String,
-    val anchorMessageId: String?,
-    val content: String
-)
-

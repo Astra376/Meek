@@ -84,4 +84,3 @@ CREATE INDEX IF NOT EXISTS idx_conversations_owner_updated
 
 CREATE INDEX IF NOT EXISTS idx_messages_conversation_position
   ON messages(conversation_id, position ASC);
-

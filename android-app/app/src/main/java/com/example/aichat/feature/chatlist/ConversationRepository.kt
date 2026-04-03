@@ -60,6 +60,7 @@ class ConversationRepository @Inject constructor(
             id = generateId("conversation"),
             ownerUserId = ownerUserId,
             characterId = characterId,
+            version = 0,
             updatedAt = now,
             startedAt = now,
             lastMessageAt = null,
@@ -94,11 +95,16 @@ class ConversationRepository @Inject constructor(
                 id = summary.id,
                 ownerUserId = ownerUserId,
                 characterId = summary.characterId,
+                version = existingConversationVersion(summary.id),
                 updatedAt = summary.updatedAt,
                 startedAt = summary.startedAt,
                 lastMessageAt = summary.lastMessageAt,
                 previewText = summary.lastPreview
             )
         )
+    }
+
+    private suspend fun existingConversationVersion(conversationId: String): Long {
+        return conversationDao.getById(conversationId)?.version ?: 0L
     }
 }

@@ -321,11 +321,30 @@ class ChatRepository @Inject constructor(
     }
 
     private suspend fun syncConversation(detail: ConversationDetailDto) {
+        if (currentActiveStream(detail.id) != null) return
+
         database.withTransaction {
+            val existingConversation = conversationDao.getById(detail.id)
+            val existingCommittedMessages = if (existingConversation == null) {
+                emptyList()
+            } else {
+                messageDao.getCommittedMessages(detail.id)
+            }
+            if (currentActiveStream(detail.id) != null) {
+                return@withTransaction
+            }
+            if (existingConversation != null && detail.conversationVersion < existingConversation.version) {
+                return@withTransaction
+            }
+            if (
+                existingConversation != null &&
+                detail.conversationVersion == existingConversation.version &&
+                detail.messages.size < existingCommittedMessages.size
+            ) {
+                return@withTransaction
+            }
             markPendingMessagesFailed(detail.id)
             characterDao.upsert(detail.character.toEntity())
-
-            val existingConversation = conversationDao.getById(detail.id)
             val latestMessage = detail.messages.maxByOrNull { it.position }
             val preview = latestMessage?.let { message ->
                 message.regenerations.firstOrNull { it.id == message.selectedRegenerationId }?.content ?: message.content

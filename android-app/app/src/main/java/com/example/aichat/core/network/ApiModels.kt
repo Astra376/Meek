@@ -136,6 +136,12 @@ data class GeneratePortraitResponseDto(
 )
 
 @Serializable
+data class StreamEventDto(
+    val type: String,
+    val text: String? = null
+)
+
+@Serializable
 data class CursorPageDto<T>(
     val items: List<T>,
     val nextCursor: String? = null

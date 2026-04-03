@@ -74,5 +74,12 @@ object NetworkModule {
     fun provideChatApi(retrofit: Retrofit): ChatApi = retrofit.create(ChatApi::class.java)
 
     @Provides
+    @Singleton
+    fun provideChatStreamingClient(
+        okHttpClient: OkHttpClient,
+        json: Json
+    ): ChatStreamingClient = WorkerStreamingClient(okHttpClient, json)
+
+    @Provides
     fun provideImageApi(retrofit: Retrofit): ImageApi = retrofit.create(ImageApi::class.java)
 }

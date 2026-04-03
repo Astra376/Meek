@@ -48,6 +48,12 @@ class ChatListViewModel @Inject constructor(
             started = SharingStarted.WhileSubscribed(5_000),
             initialValue = emptyList()
         )
+
+    init {
+        viewModelScope.launch {
+            conversationRepository.refreshConversations(userId)
+        }
+    }
 }
 
 @Composable

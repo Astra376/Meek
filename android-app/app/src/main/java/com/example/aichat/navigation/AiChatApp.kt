@@ -386,11 +386,7 @@ private fun BottomIconBar(
                         AppIcon(
                             icon = if (selected) destination.filledIcon else destination.outlinedIcon,
                             contentDescription = destination.contentDescription,
-                            size = if (selected) {
-                                AppChrome.bottomBarSelectedIconSize
-                            } else {
-                                AppChrome.bottomBarOutlinedIconSize
-                            },
+                            size = AppChrome.bottomBarIconSize,
                             tint = MaterialTheme.colorScheme.onSurface
                         )
                     }

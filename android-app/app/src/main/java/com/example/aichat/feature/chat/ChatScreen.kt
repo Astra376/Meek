@@ -49,6 +49,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -180,58 +181,13 @@ fun ChatRoute(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
-    val listState = rememberLazyListState()
-    val coroutineScope = rememberCoroutineScope()
-    val density = LocalDensity.current
-    val focusManager = LocalFocusManager.current
     var actionMessage by remember { mutableStateOf<ChatMessage?>(null) }
     var editTarget by remember { mutableStateOf<ChatMessage?>(null) }
     var editText by rememberSaveable { mutableStateOf("") }
-    var followLatest by rememberSaveable { mutableStateOf(true) }
-    var autoScrolling by remember { mutableStateOf(false) }
-
     val messages = state.conversation?.messages.orEmpty()
-    val activeStream = state.activeStream
-    val showSendDraft = activeStream?.mode == ActiveStreamMode.SEND &&
-        messages.none { message ->
-            message.id == activeStream.assistantMessageId &&
-                message.sendState == MessageSendState.SENT
-        }
-    val transcriptItemCount = messages.size + if (showSendDraft) 1 else 0
-    val bottomAnchorIndex = transcriptItemCount
-    val isNearBottom by remember(listState, bottomAnchorIndex) {
-        derivedStateOf {
-            val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1
-            lastVisible >= bottomAnchorIndex - 1
-        }
-    }
-    val showJumpToLatest = transcriptItemCount > 0 && !followLatest && !isNearBottom
-    val imeBottom = WindowInsets.ime.getBottom(density)
-
-    suspend fun scrollToLatest(animated: Boolean) {
-        autoScrolling = true
-        try {
-            if (animated) {
-                listState.animateScrollToItem(bottomAnchorIndex)
-            } else {
-                listState.scrollToItem(bottomAnchorIndex)
-            }
-        } finally {
-            autoScrolling = false
-        }
-    }
 
     LaunchedEffect(Unit) {
         viewModel.events.collect { snackbarHostState.showSnackbar(it) }
-    }
-
-    LaunchedEffect(listState) {
-        snapshotFlow { listState.isScrollInProgress to isNearBottom }.collect { (isScrolling, atBottom) ->
-            when {
-                atBottom && !followLatest -> followLatest = true
-                isScrolling && !autoScrolling && !atBottom && followLatest -> followLatest = false
-            }
-        }
     }
 
     LaunchedEffect(state.isStreaming) {
@@ -241,86 +197,27 @@ fun ChatRoute(
         }
     }
 
-    LaunchedEffect(
-        followLatest,
-        bottomAnchorIndex,
-        activeStream?.text?.length ?: -1,
-        activeStream?.committedRegenerationId,
-        showSendDraft,
-        imeBottom
-    ) {
-        if (followLatest) {
-            scrollToLatest(animated = false)
-        }
-    }
-
-    Scaffold(
-        modifier = Modifier.clearFocusOnTap(),
-        containerColor = MaterialTheme.colorScheme.background,
-        contentWindowInsets = WindowInsets(0, 0, 0, 0),
-        topBar = {
-            ChatHeader(
-                characterName = state.conversation?.character?.name ?: "Chat",
-                avatarUrl = state.conversation?.character?.avatarUrl,
-                onBack = onBack
-            )
+    ChatScreenContent(
+        paddingValues = paddingValues,
+        onBack = onBack,
+        state = state,
+        snackbarHostState = snackbarHostState,
+        onComposerChanged = viewModel::onComposerChanged,
+        onSend = viewModel::send,
+        onMessageLongPress = { actionMessage = it },
+        onSelectPreviousVariant = { message ->
+            val index = message.regenerations.indexOfFirst { it.id == message.selectedRegenerationId }.coerceAtLeast(0)
+            if (index > 0) {
+                viewModel.selectRegeneration(message.id, message.regenerations[index - 1].id)
+            }
         },
-        snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
-        ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .clearFocusOnTap()
-                .padding(top = paddingValues.calculateTopPadding())
-        ) {
-            ChatTranscriptPane(
-                modifier = Modifier.weight(1f),
-                state = listState,
-                messages = messages,
-                activeStream = activeStream,
-                isStreaming = state.isStreaming,
-                showSendDraft = showSendDraft,
-                showJumpToLatest = showJumpToLatest,
-                contentPadding = PaddingValues(
-                    start = AppChrome.screenHorizontalPadding,
-                    top = innerPadding.calculateTopPadding() + AppChrome.compactHeaderVerticalPadding,
-                    end = AppChrome.screenHorizontalPadding,
-                    bottom = AppChrome.gridSpacing
-                ),
-                onJumpToLatest = {
-                    followLatest = true
-                    coroutineScope.launch {
-                        scrollToLatest(animated = true)
-                    }
-                },
-                onMessageTap = { focusManager.clearFocus(force = true) },
-                onMessageLongPress = { actionMessage = it },
-                onSelectPreviousVariant = { message ->
-                    val index = message.regenerations.indexOfFirst { it.id == message.selectedRegenerationId }.coerceAtLeast(0)
-                    if (index > 0) {
-                        viewModel.selectRegeneration(message.id, message.regenerations[index - 1].id)
-                    }
-                },
-                onSelectNextVariant = { message ->
-                    val index = message.regenerations.indexOfFirst { it.id == message.selectedRegenerationId }.coerceAtLeast(0)
-                    if (index < message.regenerations.lastIndex) {
-                        viewModel.selectRegeneration(message.id, message.regenerations[index + 1].id)
-                    }
-                }
-            )
-
-            ChatComposerBar(
-                composerText = state.composerText,
-                isStreaming = state.isStreaming,
-                onComposerChanged = viewModel::onComposerChanged,
-                onSend = {
-                    followLatest = true
-                    focusManager.clearFocus(force = true)
-                    viewModel.send()
-                }
-            )
+        onSelectNextVariant = { message ->
+            val index = message.regenerations.indexOfFirst { it.id == message.selectedRegenerationId }.coerceAtLeast(0)
+            if (index < message.regenerations.lastIndex) {
+                viewModel.selectRegeneration(message.id, message.regenerations[index + 1].id)
+            }
         }
-    }
+    )
 
     actionMessage?.let { message ->
         val isLatestAssistant = messages.lastOrNull { it.role == MessageRole.ASSISTANT && it.sendState == MessageSendState.SENT }?.id == message.id
@@ -378,6 +275,137 @@ fun ChatRoute(
 }
 
 @Composable
+internal fun ChatScreenContent(
+    paddingValues: PaddingValues,
+    onBack: () -> Unit,
+    state: ChatUiState,
+    snackbarHostState: SnackbarHostState,
+    onComposerChanged: (String) -> Unit,
+    onSend: () -> Unit,
+    onMessageLongPress: (ChatMessage) -> Unit,
+    onSelectPreviousVariant: (ChatMessage) -> Unit,
+    onSelectNextVariant: (ChatMessage) -> Unit
+) {
+    val listState = rememberLazyListState()
+    val coroutineScope = rememberCoroutineScope()
+    val density = LocalDensity.current
+    val focusManager = LocalFocusManager.current
+    var followLatest by rememberSaveable { mutableStateOf(true) }
+    var autoScrolling by remember { mutableStateOf(false) }
+
+    val messages = state.conversation?.messages.orEmpty()
+    val activeStream = state.activeStream
+    val showSendDraft = activeStream?.mode == ActiveStreamMode.SEND &&
+        messages.none { message ->
+            message.id == activeStream.assistantMessageId &&
+                message.sendState == MessageSendState.SENT
+        }
+    val transcriptItemCount = messages.size + if (showSendDraft) 1 else 0
+    val bottomAnchorIndex = transcriptItemCount
+    val isNearBottom by remember(listState, bottomAnchorIndex) {
+        derivedStateOf {
+            val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1
+            lastVisible >= bottomAnchorIndex - 1
+        }
+    }
+    val showJumpToLatest = transcriptItemCount > 0 && !followLatest && !isNearBottom
+    val imeBottom = WindowInsets.ime.getBottom(density)
+
+    suspend fun scrollToLatest(animated: Boolean) {
+        autoScrolling = true
+        try {
+            if (animated) {
+                listState.animateScrollToItem(bottomAnchorIndex)
+            } else {
+                listState.scrollToItem(bottomAnchorIndex)
+            }
+        } finally {
+            autoScrolling = false
+        }
+    }
+
+    LaunchedEffect(listState) {
+        snapshotFlow { listState.isScrollInProgress to isNearBottom }.collect { (isScrolling, atBottom) ->
+            when {
+                atBottom && !followLatest -> followLatest = true
+                isScrolling && !autoScrolling && !atBottom && followLatest -> followLatest = false
+            }
+        }
+    }
+
+    LaunchedEffect(
+        followLatest,
+        bottomAnchorIndex,
+        activeStream?.text?.length ?: -1,
+        activeStream?.committedRegenerationId,
+        showSendDraft,
+        imeBottom
+    ) {
+        if (followLatest) {
+            scrollToLatest(animated = false)
+        }
+    }
+
+    Scaffold(
+        modifier = Modifier.clearFocusOnTap(),
+        containerColor = MaterialTheme.colorScheme.background,
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
+        topBar = {
+            ChatHeader(
+                characterName = state.conversation?.character?.name ?: "Chat",
+                avatarUrl = state.conversation?.character?.avatarUrl,
+                onBack = onBack
+            )
+        },
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .clearFocusOnTap()
+                .padding(top = paddingValues.calculateTopPadding())
+        ) {
+            ChatTranscriptPane(
+                modifier = Modifier.weight(1f),
+                state = listState,
+                messages = messages,
+                activeStream = activeStream,
+                isStreaming = state.isStreaming,
+                showSendDraft = showSendDraft,
+                showJumpToLatest = showJumpToLatest,
+                contentPadding = PaddingValues(
+                    start = AppChrome.screenHorizontalPadding,
+                    top = innerPadding.calculateTopPadding() + AppChrome.compactHeaderVerticalPadding,
+                    end = AppChrome.screenHorizontalPadding,
+                    bottom = AppChrome.gridSpacing
+                ),
+                onJumpToLatest = {
+                    followLatest = true
+                    coroutineScope.launch {
+                        scrollToLatest(animated = true)
+                    }
+                },
+                onMessageTap = { focusManager.clearFocus(force = true) },
+                onMessageLongPress = onMessageLongPress,
+                onSelectPreviousVariant = onSelectPreviousVariant,
+                onSelectNextVariant = onSelectNextVariant
+            )
+
+            ChatComposerBar(
+                composerText = state.composerText,
+                isStreaming = state.isStreaming,
+                onComposerChanged = onComposerChanged,
+                onSend = {
+                    followLatest = true
+                    focusManager.clearFocus(force = true)
+                    onSend()
+                }
+            )
+        }
+    }
+}
+
+@Composable
 internal fun ChatTranscriptPane(
     modifier: Modifier = Modifier,
     state: LazyListState,
@@ -399,7 +427,9 @@ internal fun ChatTranscriptPane(
 
     Box(modifier = modifier.fillMaxWidth()) {
         LazyColumn(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .fillMaxSize()
+                .testTag("chat-transcript"),
             state = state,
             contentPadding = contentPadding,
             verticalArrangement = Arrangement.spacedBy(AppChrome.compactControlGap)
@@ -441,6 +471,7 @@ internal fun ChatTranscriptPane(
             SecondaryButton(
                 text = "Jump to Latest",
                 modifier = Modifier
+                    .testTag("jump-to-latest")
                     .align(Alignment.BottomEnd)
                     .padding(
                         end = AppChrome.screenHorizontalPadding,

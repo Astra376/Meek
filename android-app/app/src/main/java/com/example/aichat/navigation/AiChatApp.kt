@@ -63,6 +63,13 @@ private sealed class MainDestination(
         filledIcon = AppIcons.home
     )
 
+    data object Search : MainDestination(
+        route = "search",
+        contentDescription = "Search",
+        outlinedIcon = AppIcons.search,
+        filledIcon = AppIcons.searchFilled
+    )
+
     data object Studio : MainDestination(
         route = "studio",
         contentDescription = "Create",
@@ -87,6 +94,7 @@ private sealed class MainDestination(
 
 private val bottomDestinations = listOf(
     MainDestination.Home,
+    MainDestination.Search,
     MainDestination.Studio,
     MainDestination.Chats,
     MainDestination.Profile

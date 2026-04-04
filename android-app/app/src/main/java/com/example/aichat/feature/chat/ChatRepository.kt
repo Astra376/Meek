@@ -40,7 +40,23 @@ private class StreamFailedException(
     override val message: String
 ) : IllegalStateException(message)
 
+class SendMessageFailedException(
+    val accepted: Boolean,
+    override val message: String,
+    cause: Throwable? = null
+) : IllegalStateException(message, cause)
+
 private class ChatRuleViolation(message: String) : IllegalStateException(message)
+
+private suspend inline fun <T> captureResult(crossinline block: suspend () -> T): Result<T> {
+    return try {
+        Result.success(block())
+    } catch (error: CancellationException) {
+        throw error
+    } catch (error: Throwable) {
+        Result.failure(error)
+    }
+}
 
 @Singleton
 class ChatRepository @Inject constructor(
@@ -81,15 +97,14 @@ class ChatRepository @Inject constructor(
     }
 
     suspend fun refreshConversation(conversationId: String): Result<Unit> = withContext(Dispatchers.IO) {
-        runCatching {
-            recoverConversation(conversationId)
-            if (!shouldFetchConversationSnapshot(conversationId)) return@runCatching
+        captureResult {
+            if (currentActiveStream(conversationId) != null) return@captureResult
             syncConversation(conversationApi.getConversation(conversationId))
         }
     }
 
     suspend fun sendMessage(conversationId: String, text: String): Result<Unit> = withContext(Dispatchers.IO) {
-        runCatching {
+        captureResult {
             val normalized = text.trim()
             if (normalized.isBlank()) throw IllegalArgumentException("Message can't be empty.")
             ensureNotStreaming(conversationId)
@@ -114,6 +129,7 @@ class ChatRepository @Inject constructor(
                 conversationId,
                 ActiveAssistantStream(
                     conversationId = conversationId,
+                    draftKey = "send-draft-$userMessageId",
                     mode = ActiveStreamMode.SEND,
                     userMessageId = userMessageId
                 )
@@ -124,7 +140,7 @@ class ChatRepository @Inject constructor(
     }
 
     suspend fun editMessage(messageId: String, newContent: String): Result<Unit> = withContext(Dispatchers.IO) {
-        runCatching {
+        captureResult {
             val normalized = newContent.trim()
             if (normalized.isBlank()) throw IllegalArgumentException("Message can't be empty.")
 
@@ -139,7 +155,7 @@ class ChatRepository @Inject constructor(
     }
 
     suspend fun rewind(messageId: String): Result<Unit> = withContext(Dispatchers.IO) {
-        runCatching {
+        captureResult {
             val message = requireMutableMessage(messageId)
             chatApi.rewind(messageId)
 
@@ -152,7 +168,7 @@ class ChatRepository @Inject constructor(
     }
 
     suspend fun regenerateLatestAssistant(messageId: String): Result<Unit> = withContext(Dispatchers.IO) {
-        runCatching {
+        captureResult {
             val message = requireMutableMessage(messageId)
             ensureLatestAssistant(message)
 
@@ -160,6 +176,7 @@ class ChatRepository @Inject constructor(
                 message.conversationId,
                 ActiveAssistantStream(
                     conversationId = message.conversationId,
+                    draftKey = "regenerate-draft-$messageId",
                     mode = ActiveStreamMode.REGENERATE,
                     assistantMessageId = messageId,
                     targetMessageId = messageId
@@ -171,7 +188,7 @@ class ChatRepository @Inject constructor(
     }
 
     suspend fun selectRegeneration(messageId: String, regenerationId: String): Result<Unit> = withContext(Dispatchers.IO) {
-        runCatching {
+        captureResult {
             val message = requireMutableMessage(messageId)
             ensureLatestAssistant(message)
             chatApi.selectRegeneration(messageId, SelectRegenerationRequestDto(regenerationId))
@@ -228,7 +245,11 @@ class ChatRepository @Inject constructor(
             if (!accepted) {
                 markMessageFailed(userMessageId)
             }
-            throw error
+            throw SendMessageFailedException(
+                accepted = accepted,
+                message = error.message ?: "Message send failed.",
+                cause = error
+            )
         } finally {
             clearActiveStream(conversationId)
         }
@@ -319,6 +340,9 @@ class ChatRepository @Inject constructor(
             )
             updateConversationMetadataFromSummary(conversationId, event.conversationSummary, event.conversationVersion)
         }
+        updateActiveStream(conversationId) { stream ->
+            stream?.copy(committedRegenerationId = event.selectedRegenerationId)
+        }
     }
 
     private suspend fun syncConversation(detail: ConversationDetailDto) {
@@ -326,34 +350,38 @@ class ChatRepository @Inject constructor(
 
         database.withTransaction {
             val existingConversation = conversationDao.getById(detail.id)
-            val existingCommittedMessages = if (existingConversation == null) {
-                emptyList()
-            } else {
-                messageDao.getCommittedMessages(detail.id)
-            }
             if (currentActiveStream(detail.id) != null) {
                 return@withTransaction
             }
             if (existingConversation != null && detail.conversationVersion < existingConversation.version) {
                 return@withTransaction
             }
-            if (
-                existingConversation != null &&
-                detail.conversationVersion == existingConversation.version &&
-                detail.messages.size < existingCommittedMessages.size
-            ) {
-                return@withTransaction
+
+            val existingCommittedMessages = messageDao.getCommittedMessages(detail.id)
+            val existingRegenerations = regenerationDao.getConversationRegenerations(detail.id)
+            val remoteMessages = detail.messages
+            val remoteMessageIds = remoteMessages.mapTo(mutableSetOf()) { it.id }
+            val remoteRegenerations = remoteMessages.flatMap { message ->
+                message.regenerations.map { regeneration ->
+                    AssistantRegenerationEntity(
+                        id = regeneration.id,
+                        messageId = regeneration.messageId,
+                        content = regeneration.content,
+                        createdAt = regeneration.createdAt
+                    )
+                }
             }
-            markPendingMessagesFailed(detail.id)
+            val remoteRegenerationIds = remoteRegenerations.mapTo(mutableSetOf()) { it.id }
+
             characterDao.upsert(detail.character.toEntity())
-            val latestMessage = detail.messages.maxByOrNull { it.position }
+            val latestMessage = remoteMessages.maxByOrNull { it.position }
             val preview = latestMessage?.let { message ->
                 message.regenerations.firstOrNull { it.id == message.selectedRegenerationId }?.content ?: message.content
-            } ?: existingConversation?.previewText.orEmpty()
-            val lastMessageAt = latestMessage?.updatedAt ?: latestMessage?.createdAt ?: existingConversation?.lastMessageAt
+            } ?: ""
+            val lastMessageAt = latestMessage?.updatedAt ?: latestMessage?.createdAt
             val updatedAt = lastMessageAt ?: existingConversation?.updatedAt ?: System.currentTimeMillis()
             val startedAt = existingConversation?.startedAt
-                ?: detail.messages.minByOrNull { it.position }?.createdAt
+                ?: remoteMessages.minByOrNull { it.position }?.createdAt
                 ?: System.currentTimeMillis()
 
             conversationDao.upsert(
@@ -369,59 +397,42 @@ class ChatRepository @Inject constructor(
                 )
             )
 
-            messageDao.deleteCommittedByConversation(detail.id)
-            if (detail.messages.isNotEmpty()) {
-                messageDao.insertAll(
-                    detail.messages.map { message ->
-                        MessageEntity(
-                            id = message.id,
-                            conversationId = message.conversationId,
-                            position = message.position,
-                            role = message.role.uppercase(),
-                            content = message.content,
-                            edited = message.edited,
-                            createdAt = message.createdAt,
-                            updatedAt = message.updatedAt,
-                            selectedRegenerationId = message.selectedRegenerationId,
-                            sendState = MessageSendState.SENT.name
-                        )
-                    }
-                )
-                regenerationDao.insertAll(
-                    detail.messages.flatMap { message ->
-                        message.regenerations.map { regeneration ->
-                            AssistantRegenerationEntity(
-                                id = regeneration.id,
-                                messageId = regeneration.messageId,
-                                content = regeneration.content,
-                                createdAt = regeneration.createdAt
-                            )
-                        }
-                    }
-                )
+            remoteMessages.forEach { message ->
+                upsertMessageFromDto(message, sendState = MessageSendState.SENT)
             }
+
+            if (remoteRegenerations.isNotEmpty()) {
+                regenerationDao.insertAll(remoteRegenerations)
+            }
+
+            existingRegenerations
+                .filter { it.id !in remoteRegenerationIds }
+                .forEach { regenerationDao.deleteById(it.id) }
+            existingCommittedMessages
+                .filter { it.id !in remoteMessageIds }
+                .forEach { messageDao.deleteById(it.id) }
         }
+
+        reconcileLocalOnlyMessages(
+            conversationId = detail.id,
+            committedMessageIds = detail.messages.mapTo(mutableSetOf()) { it.id }
+        )
     }
 
-    private suspend fun recoverConversation(conversationId: String) {
-        clearActiveStream(conversationId)
-        markPendingMessagesFailed(conversationId)
-    }
+    private suspend fun reconcileLocalOnlyMessages(
+        conversationId: String,
+        committedMessageIds: Set<String>
+    ) {
+        if (currentActiveStream(conversationId) != null) return
 
-    private suspend fun shouldFetchConversationSnapshot(conversationId: String): Boolean {
-        val conversation = conversationDao.getById(conversationId) ?: return true
-        val committedMessages = messageDao.getCommittedMessages(conversationId)
-        if (committedMessages.isNotEmpty()) return false
-        return conversation.version > 0L
-    }
-
-    private suspend fun markPendingMessagesFailed(conversationId: String) {
-        val pendingMessages = messageDao.getLocalOnlyMessages(conversationId)
-            .filter { it.sendState == MessageSendState.PENDING.name }
-        if (pendingMessages.isEmpty()) return
+        val localOnlyMessages = messageDao.getLocalOnlyMessages(conversationId)
+        if (localOnlyMessages.isEmpty()) return
 
         val now = System.currentTimeMillis()
-        pendingMessages.forEach { message ->
+        localOnlyMessages.forEach { message ->
+            if (message.id in committedMessageIds) return@forEach
+            if (message.sendState != MessageSendState.PENDING.name) return@forEach
+
             messageDao.update(
                 message.copy(
                     sendState = MessageSendState.FAILED.name,

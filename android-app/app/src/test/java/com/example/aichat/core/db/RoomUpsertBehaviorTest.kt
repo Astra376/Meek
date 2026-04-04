@@ -110,4 +110,81 @@ class RoomUpsertBehaviorTest {
 
         assertThat(regenerationDao.getByMessage(message.id)).hasSize(1)
     }
+
+    @Test
+    fun getMessages_ordersCommittedTranscriptBeforeLocalOnlyRows() = runBlocking {
+        val conversation = ConversationEntity(
+            id = "conversation-1",
+            ownerUserId = "user-1",
+            characterId = "character-1",
+            version = 1,
+            updatedAt = 100L,
+            startedAt = 100L,
+            lastMessageAt = 100L,
+            previewText = "hello"
+        )
+        conversationDao.upsert(conversation)
+
+        messageDao.insertAll(
+            listOf(
+                MessageEntity(
+                    id = "local-pending",
+                    conversationId = conversation.id,
+                    position = -2,
+                    role = "USER",
+                    content = "pending",
+                    edited = false,
+                    createdAt = 400L,
+                    updatedAt = 400L,
+                    selectedRegenerationId = null,
+                    sendState = "PENDING"
+                ),
+                MessageEntity(
+                    id = "assistant-1",
+                    conversationId = conversation.id,
+                    position = 2,
+                    role = "ASSISTANT",
+                    content = "hi there",
+                    edited = false,
+                    createdAt = 200L,
+                    updatedAt = 200L,
+                    selectedRegenerationId = null,
+                    sendState = "SENT"
+                ),
+                MessageEntity(
+                    id = "user-1",
+                    conversationId = conversation.id,
+                    position = 1,
+                    role = "USER",
+                    content = "hello",
+                    edited = false,
+                    createdAt = 100L,
+                    updatedAt = 100L,
+                    selectedRegenerationId = null,
+                    sendState = "SENT"
+                ),
+                MessageEntity(
+                    id = "local-failed",
+                    conversationId = conversation.id,
+                    position = -1,
+                    role = "USER",
+                    content = "failed",
+                    edited = false,
+                    createdAt = 500L,
+                    updatedAt = 500L,
+                    selectedRegenerationId = null,
+                    sendState = "FAILED"
+                )
+            )
+        )
+
+        val orderedIds = messageDao.getMessages(conversation.id).map { it.id }
+
+        assertThat(orderedIds).containsExactly(
+            "user-1",
+            "assistant-1",
+            "local-pending",
+            "local-failed"
+        ).inOrder()
+    }
 }

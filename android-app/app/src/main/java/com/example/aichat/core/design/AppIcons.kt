@@ -62,8 +62,8 @@ fun AppIcon(
 object AppIcons {
     val back = AppIconGlyph("\uE98B")
 
-    val homeOutline = AppIconGlyph("\uEF43")
-    val home = AppIconGlyph("\uEF42")
+    val homeOutline = AppIconGlyph("\uEF3F")
+    val home = AppIconGlyph("\uEF3E")
 
     val createOutline = AppIconGlyph("\uE90D")
     val create = AppIconGlyph("\uE90C")
@@ -72,10 +72,11 @@ object AppIcons {
     val chatsOutline = AppIconGlyph("\uEB75")
     val chats = AppIconGlyph("\uEB74")
 
-    val profileOutline = AppIconGlyph("\uF523")
-    val profile = AppIconGlyph("\uF522")
+    val profileOutline = AppIconGlyph("\uF51F")
+    val profile = AppIconGlyph("\uF51E")
 
-    val search = AppIconGlyph("\uF303")
+    val search = AppIconGlyph("\uF30D")
+    val searchFilled = AppIconGlyph("\uF30C")
     val sparkle = AppIconGlyph("\uF3B7")
     val clear = AppIconGlyph("\uEC93")
     val public = AppIconGlyph("\uED15")

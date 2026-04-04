@@ -15,11 +15,13 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -38,11 +40,14 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -56,6 +61,7 @@ import com.example.aichat.core.design.AppIcons
 import com.example.aichat.core.design.AppTextField
 import com.example.aichat.core.design.CharacterPortrait
 import com.example.aichat.core.design.IconCircleButton
+import com.example.aichat.core.design.SecondaryButton
 import com.example.aichat.core.model.ChatMessage
 import com.example.aichat.core.model.ConversationDetail
 import com.example.aichat.core.model.MessageRole
@@ -127,7 +133,13 @@ class ChatViewModel @Inject constructor(
         composerText.value = ""
         viewModelScope.launch {
             chatRepository.sendMessage(conversationId, text)
-                .onFailure { _events.emit(it.message ?: "Message send failed.") }
+                .onFailure { error ->
+                    val shouldRestoreComposer = error !is SendMessageFailedException || !error.accepted
+                    if (shouldRestoreComposer && composerText.value.isBlank()) {
+                        composerText.value = text
+                    }
+                    _events.emit(error.message ?: "Message send failed.")
+                }
         }
     }
 
@@ -169,24 +181,57 @@ fun ChatRoute(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val listState = rememberLazyListState()
+    val coroutineScope = rememberCoroutineScope()
+    val density = LocalDensity.current
     val focusManager = LocalFocusManager.current
     var actionMessage by remember { mutableStateOf<ChatMessage?>(null) }
     var editTarget by remember { mutableStateOf<ChatMessage?>(null) }
     var editText by rememberSaveable { mutableStateOf("") }
+    var followLatest by rememberSaveable { mutableStateOf(true) }
+    var autoScrolling by remember { mutableStateOf(false) }
 
     val messages = state.conversation?.messages.orEmpty()
     val activeStream = state.activeStream
-    val showSendStreamBubble = activeStream?.mode == ActiveStreamMode.SEND
-    val totalItems = messages.size + if (showSendStreamBubble) 1 else 0
-    val shouldFollowBottom by remember(listState, totalItems) {
+    val showSendDraft = activeStream?.mode == ActiveStreamMode.SEND &&
+        messages.none { message ->
+            message.id == activeStream.assistantMessageId &&
+                message.sendState == MessageSendState.SENT
+        }
+    val transcriptItemCount = messages.size + if (showSendDraft) 1 else 0
+    val bottomAnchorIndex = transcriptItemCount
+    val isNearBottom by remember(listState, bottomAnchorIndex) {
         derivedStateOf {
             val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1
-            lastVisible >= totalItems - 2
+            lastVisible >= bottomAnchorIndex - 1
+        }
+    }
+    val showJumpToLatest = transcriptItemCount > 0 && !followLatest && !isNearBottom
+    val imeBottom = WindowInsets.ime.getBottom(density)
+
+    suspend fun scrollToLatest(animated: Boolean) {
+        autoScrolling = true
+        try {
+            if (animated) {
+                listState.animateScrollToItem(bottomAnchorIndex)
+            } else {
+                listState.scrollToItem(bottomAnchorIndex)
+            }
+        } finally {
+            autoScrolling = false
         }
     }
 
     LaunchedEffect(Unit) {
         viewModel.events.collect { snackbarHostState.showSnackbar(it) }
+    }
+
+    LaunchedEffect(listState) {
+        snapshotFlow { listState.isScrollInProgress to isNearBottom }.collect { (isScrolling, atBottom) ->
+            when {
+                atBottom && !followLatest -> followLatest = true
+                isScrolling && !autoScrolling && !atBottom && followLatest -> followLatest = false
+            }
+        }
     }
 
     LaunchedEffect(state.isStreaming) {
@@ -196,9 +241,16 @@ fun ChatRoute(
         }
     }
 
-    LaunchedEffect(totalItems, state.activeStream?.text?.length) {
-        if (totalItems > 0 && shouldFollowBottom) {
-            listState.scrollToItem(totalItems - 1)
+    LaunchedEffect(
+        followLatest,
+        bottomAnchorIndex,
+        activeStream?.text?.length ?: -1,
+        activeStream?.committedRegenerationId,
+        showSendDraft,
+        imeBottom
+    ) {
+        if (followLatest) {
+            scrollToLatest(animated = false)
         }
     }
 
@@ -214,96 +266,59 @@ fun ChatRoute(
             )
         },
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
-    ) { innerPadding ->
+        ) { innerPadding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .clearFocusOnTap()
                 .padding(top = paddingValues.calculateTopPadding())
         ) {
-            LazyColumn(
+            ChatTranscriptPane(
                 modifier = Modifier.weight(1f),
                 state = listState,
+                messages = messages,
+                activeStream = activeStream,
+                isStreaming = state.isStreaming,
+                showSendDraft = showSendDraft,
+                showJumpToLatest = showJumpToLatest,
                 contentPadding = PaddingValues(
                     start = AppChrome.screenHorizontalPadding,
                     top = innerPadding.calculateTopPadding() + AppChrome.compactHeaderVerticalPadding,
                     end = AppChrome.screenHorizontalPadding,
                     bottom = AppChrome.gridSpacing
                 ),
-                verticalArrangement = Arrangement.spacedBy(AppChrome.compactControlGap)
-            ) {
-                val latestAssistantId = messages.lastOrNull {
-                    it.role == MessageRole.ASSISTANT && it.sendState == MessageSendState.SENT
-                }?.id
-
-                items(messages, key = { it.id }) { message ->
-                    val isActiveRegenerate =
-                        activeStream?.mode == ActiveStreamMode.REGENERATE &&
-                            activeStream.targetMessageId == message.id
-                    val displayContent = when {
-                        isActiveRegenerate -> activeStream?.text?.takeIf { it.isNotBlank() } ?: "Thinking..."
-                        else -> message.visibleContent
+                onJumpToLatest = {
+                    followLatest = true
+                    coroutineScope.launch {
+                        scrollToLatest(animated = true)
                     }
-                    MessageBubble(
-                        message = message,
-                        displayContent = displayContent,
-                        isLatestAssistant = message.id == latestAssistantId,
-                        actionsEnabled = !state.isStreaming && message.sendState == MessageSendState.SENT,
-                        variantControlsEnabled = !state.isStreaming,
-                        onTap = { focusManager.clearFocus(force = true) },
-                        onLongPress = { actionMessage = message },
-                        onSelectPreviousVariant = {
-                            val index = message.regenerations.indexOfFirst { it.id == message.selectedRegenerationId }.coerceAtLeast(0)
-                            if (index > 0) {
-                                viewModel.selectRegeneration(message.id, message.regenerations[index - 1].id)
-                            }
-                        },
-                        onSelectNextVariant = {
-                            val index = message.regenerations.indexOfFirst { it.id == message.selectedRegenerationId }.coerceAtLeast(0)
-                            if (index < message.regenerations.lastIndex) {
-                                viewModel.selectRegeneration(message.id, message.regenerations[index + 1].id)
-                            }
-                        }
-                    )
-                }
-
-                if (showSendStreamBubble) {
-                    item(key = activeStream?.assistantMessageId ?: "stream-${activeStream?.userMessageId}") {
-                        DraftBubble(content = activeStream?.text.orEmpty())
+                },
+                onMessageTap = { focusManager.clearFocus(force = true) },
+                onMessageLongPress = { actionMessage = it },
+                onSelectPreviousVariant = { message ->
+                    val index = message.regenerations.indexOfFirst { it.id == message.selectedRegenerationId }.coerceAtLeast(0)
+                    if (index > 0) {
+                        viewModel.selectRegeneration(message.id, message.regenerations[index - 1].id)
+                    }
+                },
+                onSelectNextVariant = { message ->
+                    val index = message.regenerations.indexOfFirst { it.id == message.selectedRegenerationId }.coerceAtLeast(0)
+                    if (index < message.regenerations.lastIndex) {
+                        viewModel.selectRegeneration(message.id, message.regenerations[index + 1].id)
                     }
                 }
-            }
+            )
 
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .imePadding()
-                    .padding(
-                        horizontal = AppChrome.screenHorizontalPadding,
-                        vertical = AppChrome.screenTopPadding
-                    ),
-                horizontalArrangement = Arrangement.spacedBy(AppChrome.compactControlGap),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                AppTextField(
-                    value = state.composerText,
-                    onValueChange = viewModel::onComposerChanged,
-                    placeholder = "Message...",
-                    modifier = Modifier
-                        .weight(1f)
-                        .heightIn(min = 46.dp, max = 160.dp),
-                    minLines = 1,
-                    maxLines = 6,
-                    shape = RoundedCornerShape(999.dp)
-                )
-                IconCircleButton(
-                    selected = state.composerText.isNotBlank() && !state.isStreaming,
-                    enabled = !state.isStreaming && state.composerText.isNotBlank(),
-                    onClick = viewModel::send
-                ) {
-                    AppIcon(AppIcons.send, contentDescription = "Send")
+            ChatComposerBar(
+                composerText = state.composerText,
+                isStreaming = state.isStreaming,
+                onComposerChanged = viewModel::onComposerChanged,
+                onSend = {
+                    followLatest = true
+                    focusManager.clearFocus(force = true)
+                    viewModel.send()
                 }
-            }
+            )
         }
     }
 
@@ -359,6 +374,120 @@ fun ChatRoute(
                 }
             }
         )
+    }
+}
+
+@Composable
+internal fun ChatTranscriptPane(
+    modifier: Modifier = Modifier,
+    state: LazyListState,
+    messages: List<ChatMessage>,
+    activeStream: ActiveAssistantStream?,
+    isStreaming: Boolean,
+    showSendDraft: Boolean,
+    showJumpToLatest: Boolean,
+    contentPadding: PaddingValues,
+    onJumpToLatest: () -> Unit,
+    onMessageTap: () -> Unit,
+    onMessageLongPress: (ChatMessage) -> Unit,
+    onSelectPreviousVariant: (ChatMessage) -> Unit,
+    onSelectNextVariant: (ChatMessage) -> Unit
+) {
+    val latestAssistantId = messages.lastOrNull {
+        it.role == MessageRole.ASSISTANT && it.sendState == MessageSendState.SENT
+    }?.id
+
+    Box(modifier = modifier.fillMaxWidth()) {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            state = state,
+            contentPadding = contentPadding,
+            verticalArrangement = Arrangement.spacedBy(AppChrome.compactControlGap)
+        ) {
+            items(messages, key = { it.id }) { message ->
+                val isActiveRegenerate =
+                    activeStream?.mode == ActiveStreamMode.REGENERATE &&
+                        activeStream.targetMessageId == message.id &&
+                        activeStream.committedRegenerationId == null
+                val displayContent = when {
+                    isActiveRegenerate -> activeStream?.text?.takeIf { it.isNotBlank() } ?: "Thinking..."
+                    else -> message.visibleContent
+                }
+                MessageBubble(
+                    message = message,
+                    displayContent = displayContent,
+                    isLatestAssistant = message.id == latestAssistantId,
+                    actionsEnabled = !isStreaming && message.sendState == MessageSendState.SENT,
+                    variantControlsEnabled = !isStreaming,
+                    onTap = onMessageTap,
+                    onLongPress = { onMessageLongPress(message) },
+                    onSelectPreviousVariant = { onSelectPreviousVariant(message) },
+                    onSelectNextVariant = { onSelectNextVariant(message) }
+                )
+            }
+
+            if (showSendDraft) {
+                item(key = activeStream?.draftKey ?: "send-draft") {
+                    DraftBubble(content = activeStream?.text.orEmpty())
+                }
+            }
+
+            item(key = "bottom-anchor") {
+                Spacer(modifier = Modifier.height(1.dp))
+            }
+        }
+
+        if (showJumpToLatest) {
+            SecondaryButton(
+                text = "Jump to Latest",
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(
+                        end = AppChrome.screenHorizontalPadding,
+                        bottom = AppChrome.screenBottomPadding
+                    ),
+                onClick = onJumpToLatest
+            )
+        }
+    }
+}
+
+@Composable
+private fun ChatComposerBar(
+    composerText: String,
+    isStreaming: Boolean,
+    onComposerChanged: (String) -> Unit,
+    onSend: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .imePadding()
+            .padding(
+                horizontal = AppChrome.screenHorizontalPadding,
+                vertical = AppChrome.screenTopPadding
+            ),
+        horizontalArrangement = Arrangement.spacedBy(AppChrome.compactControlGap),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        AppTextField(
+            value = composerText,
+            onValueChange = onComposerChanged,
+            placeholder = "Message...",
+            modifier = Modifier
+                .weight(1f)
+                .heightIn(min = 46.dp, max = 160.dp),
+            minLines = 1,
+            maxLines = 6,
+            shape = RoundedCornerShape(999.dp)
+        )
+        IconCircleButton(
+            selected = composerText.isNotBlank() && !isStreaming,
+            enabled = !isStreaming && composerText.isNotBlank(),
+            onClick = onSend
+        ) {
+            AppIcon(AppIcons.send, contentDescription = "Send")
+        }
     }
 }
 

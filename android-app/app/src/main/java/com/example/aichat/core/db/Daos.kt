@@ -119,7 +119,12 @@ interface MessageDao {
         """
         SELECT * FROM messages
         WHERE conversationId = :conversationId
-        ORDER BY createdAt ASC, position ASC
+        ORDER BY
+            CASE WHEN sendState = 'SENT' THEN 0 ELSE 1 END ASC,
+            CASE WHEN sendState = 'SENT' THEN position END ASC,
+            CASE WHEN sendState != 'SENT' THEN createdAt END ASC,
+            CASE WHEN sendState != 'SENT' THEN updatedAt END ASC,
+            id ASC
         """
     )
     fun observeMessages(conversationId: String): Flow<List<MessageEntity>>
@@ -128,7 +133,12 @@ interface MessageDao {
         """
         SELECT * FROM messages
         WHERE conversationId = :conversationId
-        ORDER BY createdAt ASC, position ASC
+        ORDER BY
+            CASE WHEN sendState = 'SENT' THEN 0 ELSE 1 END ASC,
+            CASE WHEN sendState = 'SENT' THEN position END ASC,
+            CASE WHEN sendState != 'SENT' THEN createdAt END ASC,
+            CASE WHEN sendState != 'SENT' THEN updatedAt END ASC,
+            id ASC
         """
     )
     suspend fun getMessages(conversationId: String): List<MessageEntity>
@@ -191,6 +201,16 @@ interface AssistantRegenerationDao {
     @Query("SELECT * FROM assistant_regenerations WHERE messageId = :messageId ORDER BY createdAt ASC")
     suspend fun getByMessage(messageId: String): List<AssistantRegenerationEntity>
 
+    @Query(
+        """
+        SELECT assistant_regenerations.* FROM assistant_regenerations
+        INNER JOIN messages ON messages.id = assistant_regenerations.messageId
+        WHERE messages.conversationId = :conversationId
+        ORDER BY assistant_regenerations.createdAt ASC
+        """
+    )
+    suspend fun getConversationRegenerations(conversationId: String): List<AssistantRegenerationEntity>
+
     @Query("SELECT * FROM assistant_regenerations WHERE id = :regenerationId LIMIT 1")
     suspend fun getById(regenerationId: String): AssistantRegenerationEntity?
 
@@ -199,6 +219,9 @@ interface AssistantRegenerationDao {
 
     @Upsert
     suspend fun insertAll(regenerations: List<AssistantRegenerationEntity>)
+
+    @Query("DELETE FROM assistant_regenerations WHERE id = :regenerationId")
+    suspend fun deleteById(regenerationId: String)
 
     @Query("DELETE FROM assistant_regenerations")
     suspend fun clear()

@@ -46,7 +46,7 @@ object AppChrome {
     val bottomBarHorizontalPadding = 14.dp
     val bottomBarVerticalPadding = 0.dp
     val bottomBarItemHorizontalPadding = 0.dp
-    val bottomBarIconSize = 24.dp
+    val bottomBarIconSize = 31.2.dp
     val listRowGap = 20.dp
 }
 

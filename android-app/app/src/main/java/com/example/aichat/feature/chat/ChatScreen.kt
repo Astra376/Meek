@@ -117,13 +117,6 @@ class ChatViewModel @Inject constructor(
         initialValue = ChatUiState()
     )
 
-    init {
-        viewModelScope.launch {
-            chatRepository.refreshConversation(conversationId)
-                .onFailure { _events.emit(it.message ?: "Failed to load conversation.") }
-        }
-    }
-
     fun onComposerChanged(value: String) {
         composerText.value = value
     }

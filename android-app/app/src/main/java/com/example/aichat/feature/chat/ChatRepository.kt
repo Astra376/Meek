@@ -6,10 +6,8 @@ import com.example.aichat.core.db.AssistantRegenerationDao
 import com.example.aichat.core.db.AssistantRegenerationEntity
 import com.example.aichat.core.db.CharacterDao
 import com.example.aichat.core.db.ConversationDao
-import com.example.aichat.core.db.ConversationEntity
 import com.example.aichat.core.db.MessageDao
 import com.example.aichat.core.db.MessageEntity
-import com.example.aichat.core.db.toEntity
 import com.example.aichat.core.db.toModel
 import com.example.aichat.core.model.ConversationDetail
 import com.example.aichat.core.model.MessageRole
@@ -17,8 +15,6 @@ import com.example.aichat.core.model.MessageSendState
 import com.example.aichat.core.network.ChatApi
 import com.example.aichat.core.network.ChatStreamEvent
 import com.example.aichat.core.network.ChatStreamingClient
-import com.example.aichat.core.network.ConversationApi
-import com.example.aichat.core.network.ConversationDetailDto
 import com.example.aichat.core.network.ConversationSummaryDto
 import com.example.aichat.core.network.EditMessageRequestDto
 import com.example.aichat.core.network.MessageDto
@@ -65,7 +61,6 @@ class ChatRepository @Inject constructor(
     private val characterDao: CharacterDao,
     private val messageDao: MessageDao,
     private val regenerationDao: AssistantRegenerationDao,
-    private val conversationApi: ConversationApi,
     private val chatApi: ChatApi,
     private val streamingClient: ChatStreamingClient
 ) {
@@ -94,13 +89,6 @@ class ChatRepository @Inject constructor(
 
     fun observeActiveStream(conversationId: String): Flow<ActiveAssistantStream?> {
         return activeStreams.map { streams -> streams[conversationId] }
-    }
-
-    suspend fun refreshConversation(conversationId: String): Result<Unit> = withContext(Dispatchers.IO) {
-        captureResult {
-            if (currentActiveStream(conversationId) != null) return@captureResult
-            syncConversation(conversationApi.getConversation(conversationId))
-        }
     }
 
     suspend fun sendMessage(conversationId: String, text: String): Result<Unit> = withContext(Dispatchers.IO) {
@@ -342,103 +330,6 @@ class ChatRepository @Inject constructor(
         }
         updateActiveStream(conversationId) { stream ->
             stream?.copy(committedRegenerationId = event.selectedRegenerationId)
-        }
-    }
-
-    private suspend fun syncConversation(detail: ConversationDetailDto) {
-        if (currentActiveStream(detail.id) != null) return
-
-        database.withTransaction {
-            val existingConversation = conversationDao.getById(detail.id)
-            if (currentActiveStream(detail.id) != null) {
-                return@withTransaction
-            }
-            if (existingConversation != null && detail.conversationVersion < existingConversation.version) {
-                return@withTransaction
-            }
-
-            val existingCommittedMessages = messageDao.getCommittedMessages(detail.id)
-            val existingRegenerations = regenerationDao.getConversationRegenerations(detail.id)
-            val remoteMessages = detail.messages
-            val remoteMessageIds = remoteMessages.mapTo(mutableSetOf()) { it.id }
-            val remoteRegenerations = remoteMessages.flatMap { message ->
-                message.regenerations.map { regeneration ->
-                    AssistantRegenerationEntity(
-                        id = regeneration.id,
-                        messageId = regeneration.messageId,
-                        content = regeneration.content,
-                        createdAt = regeneration.createdAt
-                    )
-                }
-            }
-            val remoteRegenerationIds = remoteRegenerations.mapTo(mutableSetOf()) { it.id }
-
-            characterDao.upsert(detail.character.toEntity())
-            val latestMessage = remoteMessages.maxByOrNull { it.position }
-            val preview = latestMessage?.let { message ->
-                message.regenerations.firstOrNull { it.id == message.selectedRegenerationId }?.content ?: message.content
-            } ?: ""
-            val lastMessageAt = latestMessage?.updatedAt ?: latestMessage?.createdAt
-            val updatedAt = lastMessageAt ?: existingConversation?.updatedAt ?: System.currentTimeMillis()
-            val startedAt = existingConversation?.startedAt
-                ?: remoteMessages.minByOrNull { it.position }?.createdAt
-                ?: System.currentTimeMillis()
-
-            conversationDao.upsert(
-                ConversationEntity(
-                    id = detail.id,
-                    ownerUserId = detail.ownerUserId.ifBlank { existingConversation?.ownerUserId.orEmpty() },
-                    characterId = detail.character.id,
-                    version = detail.conversationVersion,
-                    updatedAt = updatedAt,
-                    startedAt = startedAt,
-                    lastMessageAt = lastMessageAt,
-                    previewText = preview
-                )
-            )
-
-            remoteMessages.forEach { message ->
-                upsertMessageFromDto(message, sendState = MessageSendState.SENT)
-            }
-
-            if (remoteRegenerations.isNotEmpty()) {
-                regenerationDao.insertAll(remoteRegenerations)
-            }
-
-            existingRegenerations
-                .filter { it.id !in remoteRegenerationIds }
-                .forEach { regenerationDao.deleteById(it.id) }
-            existingCommittedMessages
-                .filter { it.id !in remoteMessageIds }
-                .forEach { messageDao.deleteById(it.id) }
-        }
-
-        reconcileLocalOnlyMessages(
-            conversationId = detail.id,
-            committedMessageIds = detail.messages.mapTo(mutableSetOf()) { it.id }
-        )
-    }
-
-    private suspend fun reconcileLocalOnlyMessages(
-        conversationId: String,
-        committedMessageIds: Set<String>
-    ) {
-        if (currentActiveStream(conversationId) != null) return
-
-        val localOnlyMessages = messageDao.getLocalOnlyMessages(conversationId)
-        if (localOnlyMessages.isEmpty()) return
-
-        val now = System.currentTimeMillis()
-        localOnlyMessages.forEach { message ->
-            if (message.id in committedMessageIds) return@forEach
-            if (message.sendState != MessageSendState.PENDING.name) return@forEach
-
-            messageDao.update(
-                message.copy(
-                    sendState = MessageSendState.FAILED.name,
-                    updatedAt = now
-                )
-            )
         }
     }
 

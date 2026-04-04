@@ -6,6 +6,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
@@ -358,45 +359,54 @@ private fun BottomIconBar(
 ) {
     Surface(
         modifier = modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.surface,
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.94f),
         tonalElevation = 0.dp,
         shadowElevation = 0.dp
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .navigationBarsPadding()
-                .height(AppChrome.bottomBarHeight)
-                .padding(
-                    horizontal = AppChrome.bottomBarHorizontalPadding,
-                    vertical = AppChrome.bottomBarVerticalPadding
-                ),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            bottomDestinations.forEach { destination ->
-                val selected = currentRoute == destination.route
-                val interactionSource = remember { MutableInteractionSource() }
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(horizontal = AppChrome.bottomBarItemHorizontalPadding),
-                    contentAlignment = Alignment.Center
-                ) {
+        Box(modifier = Modifier.fillMaxWidth()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(1.dp)
+                    .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.16f))
+                    .align(Alignment.TopCenter)
+            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+                    .height(AppChrome.bottomBarHeight)
+                    .padding(
+                        horizontal = AppChrome.bottomBarHorizontalPadding,
+                        vertical = AppChrome.bottomBarVerticalPadding
+                    ),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                bottomDestinations.forEach { destination ->
+                    val selected = currentRoute == destination.route
+                    val interactionSource = remember { MutableInteractionSource() }
                     Box(
                         modifier = Modifier
-                            .height(AppChrome.bottomBarTapHeight)
-                            .clickable(
-                                interactionSource = interactionSource,
-                                indication = null
-                            ) { onNavigate(destination.route) },
+                            .weight(1f)
+                            .padding(horizontal = AppChrome.bottomBarItemHorizontalPadding),
                         contentAlignment = Alignment.Center
                     ) {
-                        AppIcon(
-                            icon = if (selected) destination.filledIcon else destination.outlinedIcon,
-                            contentDescription = destination.contentDescription,
-                            size = AppChrome.bottomBarIconSize,
-                            tint = MaterialTheme.colorScheme.onSurface
-                        )
+                        Box(
+                            modifier = Modifier
+                                .height(AppChrome.bottomBarTapHeight)
+                                .clickable(
+                                    interactionSource = interactionSource,
+                                    indication = null
+                                ) { onNavigate(destination.route) },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            AppIcon(
+                                icon = if (selected) destination.filledIcon else destination.outlinedIcon,
+                                contentDescription = destination.contentDescription,
+                                size = AppChrome.bottomBarIconSize,
+                                tint = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
                     }
                 }
             }

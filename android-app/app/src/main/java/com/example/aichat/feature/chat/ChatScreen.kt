@@ -25,6 +25,11 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.keyframes
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -47,6 +52,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.testTag
@@ -57,9 +63,11 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
+import com.example.aichat.core.auth.AuthRepository
 import com.example.aichat.core.design.AppIcon
 import com.example.aichat.core.design.AppIcons
 import com.example.aichat.core.design.AppTextField
+import com.example.aichat.core.design.CircleAvatar
 import com.example.aichat.core.design.CharacterPortrait
 import com.example.aichat.core.design.IconCircleButton
 import com.example.aichat.core.design.SecondaryButton
@@ -70,9 +78,10 @@ import com.example.aichat.core.model.MessageSendState
 import com.example.aichat.core.ui.AppBackButton
 import com.example.aichat.core.ui.AppChrome
 import com.example.aichat.core.ui.clearFocusOnTap
-import com.example.aichat.core.util.formatRelativeTime
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -86,30 +95,38 @@ import kotlinx.coroutines.launch
 data class ChatUiState(
     val conversation: ConversationDetail? = null,
     val activeStream: ActiveAssistantStream? = null,
-    val composerText: String = ""
+    val composerText: String = "",
+    val currentUserName: String = "You",
+    val currentUserAvatarUrl: String? = null
 ) {
-    val isStreaming: Boolean get() = activeStream != null
+    val isStreaming: Boolean
+        get() = activeStream != null && activeStream.status != ActiveStreamStatus.PAUSED
 }
 
 @HiltViewModel
 class ChatViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
-    private val chatRepository: ChatRepository
+    private val chatRepository: ChatRepository,
+    private val authRepository: AuthRepository
 ) : ViewModel() {
     private val conversationId: String = checkNotNull(savedStateHandle["conversationId"])
     private val composerText = MutableStateFlow("")
     private val _events = MutableSharedFlow<String>()
+    private var activeStreamJob: Job? = null
     val events = _events.asSharedFlow()
 
     val uiState: StateFlow<ChatUiState> = combine(
         chatRepository.observeConversation(conversationId),
         chatRepository.observeActiveStream(conversationId),
-        composerText
-    ) { conversation, activeStream, composer ->
+        composerText,
+        authRepository.sessionState
+    ) { conversation, activeStream, composer, session ->
         ChatUiState(
             conversation = conversation,
             activeStream = activeStream,
-            composerText = composer
+            composerText = composer,
+            currentUserName = session.profile?.displayName ?: "You",
+            currentUserAvatarUrl = session.profile?.avatarUrl
         )
     }.stateIn(
         scope = viewModelScope,
@@ -125,7 +142,7 @@ class ChatViewModel @Inject constructor(
         val text = composerText.value.trim()
         if (text.isBlank()) return
         composerText.value = ""
-        viewModelScope.launch {
+        launchStreamingAction {
             chatRepository.sendMessage(conversationId, text)
                 .onFailure { error ->
                     val shouldRestoreComposer = error !is SendMessageFailedException || !error.accepted
@@ -152,10 +169,39 @@ class ChatViewModel @Inject constructor(
     }
 
     fun regenerateLatestAssistant(messageId: String) {
-        viewModelScope.launch {
+        launchStreamingAction {
             chatRepository.regenerateLatestAssistant(messageId)
                 .onFailure { _events.emit(it.message ?: "Regeneration failed.") }
         }
+    }
+
+    fun pauseStreaming() {
+        val activeStream = uiState.value.activeStream ?: return
+        if (activeStream.status == ActiveStreamStatus.COMPLETED) {
+            chatRepository.dismissSettledStream(conversationId, activeStream.draftKey)
+            return
+        }
+        chatRepository.requestPause(conversationId)
+        activeStreamJob?.cancel()
+        activeStreamJob = null
+    }
+
+    fun dismissSettledStream(draftKey: String) {
+        chatRepository.dismissSettledStream(conversationId, draftKey)
+    }
+
+    private fun launchStreamingAction(block: suspend () -> Unit) {
+        activeStreamJob?.cancel()
+        val job = viewModelScope.launch {
+            try {
+                block()
+            } finally {
+                if (activeStreamJob === this.coroutineContext[Job]) {
+                    activeStreamJob = null
+                }
+            }
+        }
+        activeStreamJob = job
     }
 
     fun selectRegeneration(messageId: String, regenerationId: String) {
@@ -197,6 +243,8 @@ fun ChatRoute(
         snackbarHostState = snackbarHostState,
         onComposerChanged = viewModel::onComposerChanged,
         onSend = viewModel::send,
+        onPause = viewModel::pauseStreaming,
+        onStreamPresentationSettled = viewModel::dismissSettledStream,
         onMessageLongPress = { actionMessage = it },
         onSelectPreviousVariant = { message ->
             val index = message.regenerations.indexOfFirst { it.id == message.selectedRegenerationId }.coerceAtLeast(0)
@@ -275,6 +323,8 @@ internal fun ChatScreenContent(
     snackbarHostState: SnackbarHostState,
     onComposerChanged: (String) -> Unit,
     onSend: () -> Unit,
+    onPause: () -> Unit = {},
+    onStreamPresentationSettled: (String) -> Unit = {},
     onMessageLongPress: (ChatMessage) -> Unit,
     onSelectPreviousVariant: (ChatMessage) -> Unit,
     onSelectNextVariant: (ChatMessage) -> Unit
@@ -288,11 +338,37 @@ internal fun ChatScreenContent(
 
     val messages = state.conversation?.messages.orEmpty()
     val activeStream = state.activeStream
-    val showSendDraft = activeStream?.mode == ActiveStreamMode.SEND &&
-        messages.none { message ->
-            message.id == activeStream.assistantMessageId &&
+    val committedSendMessage = activeStream?.assistantMessageId?.let { assistantMessageId ->
+        messages.firstOrNull { message ->
+            message.id == assistantMessageId &&
+                message.role == MessageRole.ASSISTANT &&
                 message.sendState == MessageSendState.SENT
         }
+    }
+    val committedRegenerateMessage = activeStream?.targetMessageId?.let { messageId ->
+        messages.firstOrNull { it.id == messageId }
+    }
+    val streamSourceText = when {
+        activeStream == null -> ""
+        activeStream.mode == ActiveStreamMode.SEND -> committedSendMessage?.visibleContent ?: activeStream.text
+        activeStream.committedRegenerationId != null -> committedRegenerateMessage?.visibleContent ?: activeStream.text
+        else -> activeStream.text
+    }
+    val committedStreamVisible = when {
+        activeStream == null -> false
+        activeStream.mode == ActiveStreamMode.SEND -> committedSendMessage != null
+        activeStream.committedRegenerationId != null ->
+            committedRegenerateMessage?.selectedRegenerationId == activeStream.committedRegenerationId
+        else -> false
+    }
+    val streamDisplayText = rememberTypedStreamText(
+        streamKey = activeStream?.draftKey,
+        sourceText = streamSourceText,
+        animate = activeStream?.status != ActiveStreamStatus.PAUSED,
+        settleOnFinish = activeStream?.status == ActiveStreamStatus.COMPLETED && committedStreamVisible,
+        onSettled = onStreamPresentationSettled
+    )
+    val showSendDraft = activeStream?.mode == ActiveStreamMode.SEND && committedSendMessage == null
     val transcriptItemCount = messages.size + if (showSendDraft) 1 else 0
     val bottomAnchorIndex = transcriptItemCount
     val isNearBottom by remember(listState, bottomAnchorIndex) {
@@ -329,9 +405,11 @@ internal fun ChatScreenContent(
     LaunchedEffect(
         followLatest,
         bottomAnchorIndex,
-        activeStream?.text?.length ?: -1,
-        activeStream?.committedRegenerationId,
+        streamDisplayText.length,
+        activeStream?.status,
         showSendDraft,
+        messages.lastOrNull()?.id,
+        messages.lastOrNull()?.visibleContent?.length ?: -1,
         imeBottom
     ) {
         if (followLatest) {
@@ -363,14 +441,21 @@ internal fun ChatScreenContent(
                 state = listState,
                 messages = messages,
                 activeStream = activeStream,
+                streamDisplayText = streamDisplayText,
                 isStreaming = state.isStreaming,
                 showSendDraft = showSendDraft,
+                showPausedIndicator = activeStream?.status == ActiveStreamStatus.PAUSED,
+                characterName = state.conversation?.character?.name ?: "Character",
+                characterAvatarUrl = state.conversation?.character?.avatarUrl,
+                currentUserName = state.currentUserName,
+                currentUserAvatarUrl = state.currentUserAvatarUrl,
                 showJumpToLatest = showJumpToLatest,
                 contentPadding = PaddingValues(
                     start = AppChrome.screenHorizontalPadding,
                     top = innerPadding.calculateTopPadding() + AppChrome.compactHeaderVerticalPadding,
                     end = AppChrome.screenHorizontalPadding,
-                    bottom = AppChrome.gridSpacing
+                    bottom = AppChrome.gridSpacing +
+                        if (activeStream?.status == ActiveStreamStatus.PAUSED) 44.dp else 0.dp
                 ),
                 onJumpToLatest = {
                     followLatest = true
@@ -390,9 +475,9 @@ internal fun ChatScreenContent(
                 onComposerChanged = onComposerChanged,
                 onSend = {
                     followLatest = true
-                    focusManager.clearFocus(force = true)
                     onSend()
-                }
+                },
+                onPause = onPause
             )
         }
     }
@@ -404,8 +489,14 @@ internal fun ChatTranscriptPane(
     state: LazyListState,
     messages: List<ChatMessage>,
     activeStream: ActiveAssistantStream?,
+    streamDisplayText: String,
     isStreaming: Boolean,
     showSendDraft: Boolean,
+    showPausedIndicator: Boolean,
+    characterName: String,
+    characterAvatarUrl: String?,
+    currentUserName: String,
+    currentUserAvatarUrl: String?,
     showJumpToLatest: Boolean,
     contentPadding: PaddingValues,
     onJumpToLatest: () -> Unit,
@@ -427,21 +518,42 @@ internal fun ChatTranscriptPane(
             contentPadding = contentPadding,
             verticalArrangement = Arrangement.spacedBy(AppChrome.compactControlGap)
         ) {
-            items(messages, key = { it.id }) { message ->
+            items(
+                items = messages,
+                key = { message ->
+                    if (
+                        activeStream?.mode == ActiveStreamMode.SEND &&
+                        activeStream.assistantMessageId == message.id
+                    ) {
+                        activeStream.draftKey
+                    } else {
+                        message.id
+                    }
+                }
+            ) { message ->
+                val isActiveSendMessage =
+                    activeStream?.mode == ActiveStreamMode.SEND &&
+                        activeStream.assistantMessageId == message.id
                 val isActiveRegenerate =
                     activeStream?.mode == ActiveStreamMode.REGENERATE &&
-                        activeStream.targetMessageId == message.id &&
-                        activeStream.committedRegenerationId == null
+                        activeStream.targetMessageId == message.id
                 val displayContent = when {
-                    isActiveRegenerate -> activeStream?.text?.takeIf { it.isNotBlank() } ?: "Thinking..."
+                    isActiveSendMessage || isActiveRegenerate -> streamDisplayText
                     else -> message.visibleContent
                 }
                 MessageBubble(
                     message = message,
                     displayContent = displayContent,
+                    showTypingIndicator = (isActiveSendMessage || isActiveRegenerate) &&
+                        displayContent.isBlank() &&
+                        activeStream?.status != ActiveStreamStatus.PAUSED,
                     isLatestAssistant = message.id == latestAssistantId,
                     actionsEnabled = !isStreaming && message.sendState == MessageSendState.SENT,
                     variantControlsEnabled = !isStreaming,
+                    characterName = characterName,
+                    characterAvatarUrl = characterAvatarUrl,
+                    currentUserName = currentUserName,
+                    currentUserAvatarUrl = currentUserAvatarUrl,
                     onTap = onMessageTap,
                     onLongPress = { onMessageLongPress(message) },
                     onSelectPreviousVariant = { onSelectPreviousVariant(message) },
@@ -451,7 +563,13 @@ internal fun ChatTranscriptPane(
 
             if (showSendDraft) {
                 item(key = activeStream?.draftKey ?: "send-draft") {
-                    DraftBubble(content = activeStream?.text.orEmpty())
+                    DraftBubble(
+                        content = streamDisplayText,
+                        showTypingIndicator = streamDisplayText.isBlank() &&
+                            activeStream?.status != ActiveStreamStatus.PAUSED,
+                        characterName = characterName,
+                        characterAvatarUrl = characterAvatarUrl
+                    )
                 }
             }
 
@@ -473,6 +591,14 @@ internal fun ChatTranscriptPane(
                 onClick = onJumpToLatest
             )
         }
+
+        if (showPausedIndicator) {
+            PausedIndicator(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = AppChrome.screenBottomPadding)
+            )
+        }
     }
 }
 
@@ -481,7 +607,8 @@ private fun ChatComposerBar(
     composerText: String,
     isStreaming: Boolean,
     onComposerChanged: (String) -> Unit,
-    onSend: () -> Unit
+    onSend: () -> Unit,
+    onPause: () -> Unit
 ) {
     Row(
         modifier = Modifier
@@ -505,12 +632,16 @@ private fun ChatComposerBar(
             maxLines = 6,
             shape = RoundedCornerShape(999.dp)
         )
+        val canSend = composerText.isNotBlank()
         IconCircleButton(
-            selected = composerText.isNotBlank() && !isStreaming,
-            enabled = !isStreaming && composerText.isNotBlank(),
-            onClick = onSend
+            selected = if (isStreaming) true else canSend,
+            enabled = if (isStreaming) true else canSend,
+            onClick = if (isStreaming) onPause else onSend
         ) {
-            AppIcon(AppIcons.send, contentDescription = "Send")
+            AppIcon(
+                if (isStreaming) AppIcons.stop else AppIcons.send,
+                contentDescription = if (isStreaming) "Pause response" else "Send"
+            )
         }
     }
 }
@@ -577,61 +708,80 @@ private fun ChatHeader(
 private fun MessageBubble(
     message: ChatMessage,
     displayContent: String,
+    showTypingIndicator: Boolean,
     isLatestAssistant: Boolean,
     actionsEnabled: Boolean,
     variantControlsEnabled: Boolean,
+    characterName: String,
+    characterAvatarUrl: String?,
+    currentUserName: String,
+    currentUserAvatarUrl: String?,
     onTap: () -> Unit,
     onLongPress: () -> Unit,
     onSelectPreviousVariant: () -> Unit,
     onSelectNextVariant: () -> Unit
 ) {
     val isUser = message.role == MessageRole.USER
-    val statusSuffix = when (message.sendState) {
-        MessageSendState.PENDING -> "Sending..."
-        MessageSendState.FAILED -> "Failed to send"
-        MessageSendState.SENT -> null
+    val background = MaterialTheme.colorScheme.background
+    val bubbleColor = if (isUser) {
+        MaterialTheme.colorScheme.surface.copy(alpha = 0.98f).compositeOver(background)
+    } else {
+        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.96f).compositeOver(background)
     }
+    val avatarName = if (isUser) currentUserName else characterName
+    val avatarUrl = if (isUser) currentUserAvatarUrl else characterAvatarUrl
 
     Column(
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = if (isUser) Alignment.End else Alignment.Start
     ) {
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth(0.88f)
-                .combinedClickable(
-                    onClick = onTap,
-                    onLongClick = {
-                        if (actionsEnabled) {
-                            onLongPress()
-                        }
-                    }
-                ),
-            shape = RoundedCornerShape(24.dp),
-            color = if (isUser) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start,
+            verticalAlignment = Alignment.Bottom
         ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text(
-                    text = displayContent,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = if (isUser) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
+            if (!isUser) {
+                CircleAvatar(
+                    name = avatarName,
+                    avatarUrl = avatarUrl,
+                    modifier = Modifier.size(30.dp)
                 )
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = buildString {
-                        append(formatRelativeTime(message.updatedAt))
-                        if (message.edited) append(" (Edited)")
-                        if (statusSuffix != null) {
-                            append(" • ")
-                            append(statusSuffix)
+                Spacer(modifier = Modifier.size(8.dp))
+            }
+
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth(0.82f)
+                    .combinedClickable(
+                        onClick = onTap,
+                        onLongClick = {
+                            if (actionsEnabled) {
+                                onLongPress()
+                            }
                         }
-                    },
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = if (isUser) {
-                        MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f)
+                    ),
+                shape = RoundedCornerShape(24.dp),
+                color = bubbleColor
+            ) {
+                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
+                    if (showTypingIndicator) {
+                        TypingDotsIndicator()
                     } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant
+                        Text(
+                            text = displayContent,
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
                     }
+                }
+            }
+
+            if (isUser) {
+                Spacer(modifier = Modifier.size(8.dp))
+                CircleAvatar(
+                    name = avatarName,
+                    avatarUrl = avatarUrl,
+                    modifier = Modifier.size(30.dp)
                 )
             }
         }
@@ -662,21 +812,149 @@ private fun MessageBubble(
 }
 
 @Composable
-private fun DraftBubble(content: String) {
+private fun DraftBubble(
+    content: String,
+    showTypingIndicator: Boolean,
+    characterName: String,
+    characterAvatarUrl: String?
+) {
+    val background = MaterialTheme.colorScheme.background
     Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.Start) {
-        Surface(
-            modifier = Modifier.fillMaxWidth(0.88f),
-            shape = RoundedCornerShape(24.dp),
-            color = MaterialTheme.colorScheme.surfaceVariant
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.Start,
+            verticalAlignment = Alignment.Bottom
         ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text(
-                    text = if (content.isBlank()) "Thinking..." else content,
-                    style = MaterialTheme.typography.bodyLarge
-                )
+            CircleAvatar(
+                name = characterName,
+                avatarUrl = characterAvatarUrl,
+                modifier = Modifier.size(30.dp)
+            )
+            Spacer(modifier = Modifier.size(8.dp))
+            Surface(
+                modifier = Modifier.fillMaxWidth(0.82f),
+                shape = RoundedCornerShape(24.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.96f).compositeOver(background)
+            ) {
+                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
+                    if (showTypingIndicator) {
+                        TypingDotsIndicator()
+                    } else {
+                        Text(
+                            text = content,
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                    }
+                }
             }
         }
     }
+}
+
+@Composable
+private fun TypingDotsIndicator(modifier: Modifier = Modifier) {
+    val transition = rememberInfiniteTransition()
+    Row(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        repeat(3) { index ->
+            val scale by transition.animateFloat(
+                initialValue = 0.7f,
+                targetValue = 1.15f,
+                animationSpec = infiniteRepeatable(
+                    animation = keyframes {
+                        durationMillis = 900
+                        0.7f at 0
+                        1.15f at 180 + (index * 120)
+                        0.7f at 420 + (index * 120)
+                        0.7f at 900
+                    },
+                    repeatMode = RepeatMode.Restart
+                )
+            )
+            Box(
+                modifier = Modifier
+                    .size((8.dp * scale))
+                    .background(
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                        shape = RoundedCornerShape(999.dp)
+                    )
+            )
+        }
+    }
+}
+
+@Composable
+private fun PausedIndicator(modifier: Modifier = Modifier) {
+    Surface(
+        modifier = modifier.testTag("chat-paused"),
+        shape = RoundedCornerShape(999.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.96f)
+    ) {
+        Text(
+            text = "Paused",
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
+            style = MaterialTheme.typography.labelLarge
+        )
+    }
+}
+
+@Composable
+private fun rememberTypedStreamText(
+    streamKey: String?,
+    sourceText: String,
+    animate: Boolean,
+    settleOnFinish: Boolean,
+    onSettled: (String) -> Unit
+): String {
+    var displayedText by remember(streamKey) { mutableStateOf("") }
+    var settled by remember(streamKey) { mutableStateOf(false) }
+
+    LaunchedEffect(streamKey, sourceText, animate) {
+        if (streamKey == null) {
+            displayedText = sourceText
+            return@LaunchedEffect
+        }
+
+        if (sourceText.isEmpty()) {
+            displayedText = ""
+            return@LaunchedEffect
+        }
+
+        if (displayedText.length > sourceText.length) {
+            displayedText = sourceText
+        }
+
+        if (!sourceText.startsWith(displayedText)) {
+            displayedText = if (displayedText.isBlank()) {
+                ""
+            } else {
+                sourceText
+            }
+        }
+
+        if (!animate) {
+            displayedText = sourceText
+            return@LaunchedEffect
+        }
+
+        while (displayedText.length < sourceText.length) {
+            delay(18L)
+            displayedText = sourceText.take(displayedText.length + 1)
+        }
+    }
+
+    LaunchedEffect(streamKey, displayedText, sourceText, settleOnFinish) {
+        if (!settleOnFinish || settled) return@LaunchedEffect
+        if (streamKey != null && sourceText.isNotEmpty() && displayedText == sourceText) {
+            settled = true
+            onSettled(streamKey)
+        }
+    }
+
+    return displayedText
 }
 
 @Composable

@@ -1,6 +1,8 @@
 import type { Env } from "../env";
 import { AppError } from "../lib/errors";
 
+const REQUIRED_OPENROUTER_MODEL = "deepseek/deepseek-v3.2";
+
 interface OpenRouterMessage {
   role: "system" | "user" | "assistant";
   content: string;
@@ -24,39 +26,6 @@ async function throwOpenRouterError(response: Response): Promise<never> {
   throw new AppError(502, "OPENROUTER_ERROR", message);
 }
 
-export async function generateChatText(
-  env: Env,
-  messages: OpenRouterMessage[]
-): Promise<string> {
-  const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${env.OPENROUTER_API_KEY}`
-    },
-    body: JSON.stringify({
-      model: env.OPENROUTER_MODEL,
-      messages,
-      temperature: 0.8
-    })
-  });
-
-  if (!response.ok) {
-    await throwOpenRouterError(response);
-  }
-
-  const data = (await response.json()) as {
-    choices?: Array<{ message?: { content?: string } }>;
-  };
-
-  const content = data.choices?.[0]?.message?.content?.trim();
-  if (!content) {
-    throw new AppError(502, "OPENROUTER_EMPTY", "The model returned an empty response.");
-  }
-
-  return content;
-}
-
 export async function* streamChatText(
   env: Env,
   messages: OpenRouterMessage[],
@@ -69,7 +38,7 @@ export async function* streamChatText(
       Authorization: `Bearer ${env.OPENROUTER_API_KEY}`
     },
     body: JSON.stringify({
-      model: env.OPENROUTER_MODEL,
+      model: REQUIRED_OPENROUTER_MODEL,
       messages,
       temperature: 0.8,
       stream: true

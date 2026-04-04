@@ -19,7 +19,7 @@ import {
 } from "../../db/queries/conversations";
 import { AppError, forbidden } from "../../lib/errors";
 import { createId } from "../../lib/ids";
-import { generateChatText, streamChatText } from "../../providers/openrouter";
+import { streamChatText } from "../../providers/openrouter";
 import { editTranscriptMessage, requireLatestAssistant, requireRegenerationSelection, rewindTranscript } from "./rules";
 
 const RUN_LOCK_WINDOW_MS = 2 * 60 * 1000;
@@ -239,22 +239,9 @@ async function streamAssistantReply(
   signal: AbortSignal
 ): Promise<string> {
   let fullText = "";
-  let emittedChunk = false;
-
-  try {
-    for await (const chunk of streamChatText(context.env, messages, signal)) {
-      emittedChunk = true;
-      fullText += chunk;
-      onChunk(chunk);
-    }
-  } catch (error) {
-    if (emittedChunk || signal.aborted) {
-      throw error;
-    }
-
-    const fallbackText = await generateChatText(context.env, messages);
-    fullText = fallbackText;
-    onChunk(fallbackText);
+  for await (const chunk of streamChatText(context.env, messages, signal)) {
+    fullText += chunk;
+    onChunk(chunk);
   }
 
   const finalText = fullText.trim();

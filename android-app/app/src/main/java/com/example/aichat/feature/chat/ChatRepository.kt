@@ -24,6 +24,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
@@ -31,6 +32,7 @@ import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.withContext
+import java.util.concurrent.ConcurrentHashMap
 
 private class StreamFailedException(
     override val message: String
@@ -65,6 +67,7 @@ class ChatRepository @Inject constructor(
     private val streamingClient: ChatStreamingClient
 ) {
     private val activeStreams = MutableStateFlow<Map<String, ActiveAssistantStream>>(emptyMap())
+    private val pauseRequests = ConcurrentHashMap.newKeySet<String>()
 
     fun observeConversation(conversationId: String): Flow<ConversationDetail?> {
         return combine(
@@ -91,10 +94,26 @@ class ChatRepository @Inject constructor(
         return activeStreams.map { streams -> streams[conversationId] }
     }
 
+    fun requestPause(conversationId: String) {
+        if (conversationId.isBlank()) return
+        pauseRequests.add(conversationId)
+    }
+
+    fun dismissSettledStream(conversationId: String, draftKey: String? = null) {
+        updateActiveStream(conversationId) { stream ->
+            if (stream == null) return@updateActiveStream null
+            if (stream.status == ActiveStreamStatus.STREAMING) return@updateActiveStream stream
+            if (draftKey != null && stream.draftKey != draftKey) return@updateActiveStream stream
+            null
+        }
+    }
+
     suspend fun sendMessage(conversationId: String, text: String): Result<Unit> = withContext(Dispatchers.IO) {
         captureResult {
             val normalized = text.trim()
             if (normalized.isBlank()) throw IllegalArgumentException("Message can't be empty.")
+            clearPauseRequest(conversationId)
+            dismissSettledStream(conversationId)
             ensureNotStreaming(conversationId)
 
             val now = System.currentTimeMillis()
@@ -159,6 +178,8 @@ class ChatRepository @Inject constructor(
         captureResult {
             val message = requireMutableMessage(messageId)
             ensureLatestAssistant(message)
+            clearPauseRequest(message.conversationId)
+            dismissSettledStream(message.conversationId)
 
             setActiveStream(
                 message.conversationId,
@@ -195,6 +216,7 @@ class ChatRepository @Inject constructor(
 
     private suspend fun consumeSendStream(conversationId: String, userMessageId: String, content: String) {
         var accepted = false
+        var keepStream = false
 
         try {
             streamingClient.sendMessage(conversationId, userMessageId, content).collect { event ->
@@ -217,6 +239,7 @@ class ChatRepository @Inject constructor(
                         val active = currentActiveStream(conversationId) ?: return@collect
                         if (active.runId != event.runId) return@collect
                         applyCompletedSend(conversationId, event)
+                        keepStream = true
                     }
 
                     is ChatStreamEvent.Failed -> {
@@ -228,8 +251,27 @@ class ChatRepository @Inject constructor(
                     else -> Unit
                 }
             }
+        } catch (error: CancellationException) {
+            if (consumePauseRequest(conversationId)) {
+                withContext(NonCancellable) {
+                    if (!accepted) {
+                        markMessageFailed(userMessageId)
+                    }
+                    updateActiveStream(conversationId) { stream ->
+                        if (stream == null) return@updateActiveStream null
+                        if (!accepted && stream.text.isBlank()) {
+                            null
+                        } else {
+                            stream.copy(status = ActiveStreamStatus.PAUSED)
+                        }
+                    }
+                }
+                keepStream = currentActiveStream(conversationId) != null
+            }
+            throw error
         } catch (error: Throwable) {
             if (error is CancellationException) throw error
+            clearPauseRequest(conversationId)
             if (!accepted) {
                 markMessageFailed(userMessageId)
             }
@@ -239,11 +281,14 @@ class ChatRepository @Inject constructor(
                 cause = error
             )
         } finally {
-            clearActiveStream(conversationId)
+            if (!keepStream) {
+                clearActiveStream(conversationId)
+            }
         }
     }
 
     private suspend fun consumeRegenerateStream(conversationId: String, messageId: String) {
+        var keepStream = false
         try {
             streamingClient.regenerateLatestAssistant(messageId).collect { event ->
                 when (event) {
@@ -271,6 +316,7 @@ class ChatRepository @Inject constructor(
                         val active = currentActiveStream(conversationId) ?: return@collect
                         if (active.runId != event.runId) return@collect
                         applyCompletedRegenerate(conversationId, event)
+                        keepStream = true
                     }
 
                     is ChatStreamEvent.Failed -> {
@@ -282,11 +328,28 @@ class ChatRepository @Inject constructor(
                     else -> Unit
                 }
             }
+        } catch (error: CancellationException) {
+            if (consumePauseRequest(conversationId)) {
+                withContext(NonCancellable) {
+                    updateActiveStream(conversationId) { stream ->
+                        if (stream == null) return@updateActiveStream null
+                        if (!stream.accepted && stream.text.isBlank()) {
+                            null
+                        } else {
+                            stream.copy(status = ActiveStreamStatus.PAUSED)
+                        }
+                    }
+                }
+                keepStream = currentActiveStream(conversationId) != null
+            }
+            throw error
         } catch (error: Throwable) {
-            if (error is CancellationException) throw error
+            clearPauseRequest(conversationId)
             throw error
         } finally {
-            clearActiveStream(conversationId)
+            if (!keepStream) {
+                clearActiveStream(conversationId)
+            }
         }
     }
 
@@ -296,7 +359,8 @@ class ChatRepository @Inject constructor(
             stream?.copy(
                 runId = event.runId,
                 assistantMessageId = event.assistantMessageId,
-                accepted = true
+                accepted = true,
+                status = ActiveStreamStatus.STREAMING
             )
         }
     }
@@ -305,6 +369,13 @@ class ChatRepository @Inject constructor(
         database.withTransaction {
             upsertMessageFromDto(event.assistantMessage, sendState = MessageSendState.SENT)
             updateConversationMetadataFromSummary(conversationId, event.conversationSummary, event.conversationVersion)
+        }
+        updateActiveStream(conversationId) { stream ->
+            stream?.copy(
+                assistantMessageId = event.assistantMessage.id,
+                text = event.assistantMessage.content,
+                status = ActiveStreamStatus.COMPLETED
+            )
         }
     }
 
@@ -329,7 +400,11 @@ class ChatRepository @Inject constructor(
             updateConversationMetadataFromSummary(conversationId, event.conversationSummary, event.conversationVersion)
         }
         updateActiveStream(conversationId) { stream ->
-            stream?.copy(committedRegenerationId = event.selectedRegenerationId)
+            stream?.copy(
+                text = event.regeneration.content,
+                committedRegenerationId = event.selectedRegenerationId,
+                status = ActiveStreamStatus.COMPLETED
+            )
         }
     }
 
@@ -448,11 +523,20 @@ class ChatRepository @Inject constructor(
 
     private fun clearActiveStream(conversationId: String) {
         if (conversationId.isBlank()) return
+        pauseRequests.remove(conversationId)
         activeStreams.update { it - conversationId }
     }
 
     private fun currentActiveStream(conversationId: String): ActiveAssistantStream? {
         return activeStreams.value[conversationId]
+    }
+
+    private fun consumePauseRequest(conversationId: String): Boolean {
+        return pauseRequests.remove(conversationId)
+    }
+
+    private fun clearPauseRequest(conversationId: String) {
+        pauseRequests.remove(conversationId)
     }
 
     private suspend fun requireMutableMessage(messageId: String): MessageEntity {
@@ -471,7 +555,7 @@ class ChatRepository @Inject constructor(
     }
 
     private fun ensureNotStreaming(conversationId: String) {
-        if (activeStreams.value.containsKey(conversationId)) {
+        if (activeStreams.value[conversationId]?.isLive == true) {
             throw ChatRuleViolation("Wait for the current reply to finish before changing the transcript.")
         }
     }

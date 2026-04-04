@@ -4,7 +4,7 @@ compatibility_date = "2026-04-01"
 
 [vars]
 GOOGLE_WEB_CLIENT_ID = "1081775489416-vdlfr5tjuea8l826mqog05ijfp3ltk76.apps.googleusercontent.com"
-OPENROUTER_MODEL = "openrouter/auto"
+OPENROUTER_MODEL = "deepseek/deepseek-v3.2"
 FAL_MODEL = "fal-ai/flux/dev"
 R2_PUBLIC_BASE_URL = "https://pub-295477e9e5cb466c90c9c4df663d67fc.r2.dev"
 
@@ -16,4 +16,3 @@ database_id = "ad611737-fc84-4002-bcfe-0f0ce257f2ae"
 [[r2_buckets]]
 binding = "ASSETS"
 bucket_name = "character-chat-assets"
-

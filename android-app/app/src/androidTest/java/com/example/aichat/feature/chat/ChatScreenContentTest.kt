@@ -82,7 +82,8 @@ class ChatScreenContentTest {
                     draftKey = "send-draft-1",
                     mode = ActiveStreamMode.SEND,
                     userMessageId = "user-new",
-                    text = "Streaming reply"
+                    text = "Streaming reply",
+                    status = ActiveStreamStatus.PAUSED
                 )
             )
         }

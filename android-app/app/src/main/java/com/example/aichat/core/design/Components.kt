@@ -39,6 +39,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.PlatformTextStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
@@ -242,7 +243,10 @@ fun AppTextField(
         singleLine = singleLine,
         minLines = minLines,
         maxLines = maxLines,
-        textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
+        textStyle = MaterialTheme.typography.bodyLarge.copy(
+            color = MaterialTheme.colorScheme.onSurface,
+            platformStyle = PlatformTextStyle(includeFontPadding = false)
+        ),
         cursorBrush = SolidColor(MaterialTheme.colorScheme.onSurface),
         decorationBox = { innerTextField ->
             Row(
@@ -276,7 +280,7 @@ fun AppTextField(
                         }
                     ),
                 horizontalArrangement = Arrangement.spacedBy(DesignMetrics.fieldIconGap),
-                verticalAlignment = if (singleLine) Alignment.CenterVertically else Alignment.Top
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 leadingIcon?.let {
                     CompositionLocalProvider(
@@ -287,7 +291,7 @@ fun AppTextField(
                         }
                     ) {
                         Box(
-                            contentAlignment = if (singleLine) Alignment.Center else Alignment.TopCenter
+                            contentAlignment = Alignment.Center
                         ) {
                             it()
                         }
@@ -295,11 +299,14 @@ fun AppTextField(
                 }
                 Box(
                     modifier = Modifier.weight(1f),
-                    contentAlignment = if (singleLine) Alignment.CenterStart else Alignment.TopStart
+                    contentAlignment = Alignment.CenterStart
                 ) {
                     if (value.isEmpty()) {
                         Text(
                             text = placeholder,
+                            style = MaterialTheme.typography.bodyLarge.copy(
+                                platformStyle = PlatformTextStyle(includeFontPadding = false)
+                            ),
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(
                                 alpha = if (enabled) 0.72f else 0.45f
                             )

@@ -20,11 +20,22 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.aichat.R
 
-@JvmInline
-value class AppIconGlyph(val value: String)
+enum class AppIconWeight {
+    Regular,
+    Fill
+}
 
-private val MingCuteFontFamily = FontFamily(
-    Font(R.font.mingcute, weight = FontWeight.Normal)
+data class AppIconGlyph(
+    val value: String,
+    val weight: AppIconWeight = AppIconWeight.Regular
+)
+
+private val PhosphorRegularFontFamily = FontFamily(
+    Font(R.font.phosphor_regular, weight = FontWeight.Normal)
+)
+
+private val PhosphorFillFontFamily = FontFamily(
+    Font(R.font.phosphor_fill, weight = FontWeight.Normal)
 )
 
 @Composable
@@ -50,7 +61,10 @@ fun AppIcon(
             color = tint,
             textAlign = TextAlign.Center,
             style = TextStyle(
-                fontFamily = MingCuteFontFamily,
+                fontFamily = when (icon.weight) {
+                    AppIconWeight.Regular -> PhosphorRegularFontFamily
+                    AppIconWeight.Fill -> PhosphorFillFontFamily
+                },
                 fontWeight = FontWeight.Normal,
                 fontSize = size.value.sp,
                 lineHeight = size.value.sp
@@ -60,42 +74,45 @@ fun AppIcon(
 }
 
 object AppIcons {
-    val back = AppIconGlyph("\uE98B")
+    private fun regular(value: String) = AppIconGlyph(value = value)
+    private fun fill(value: String) = AppIconGlyph(value = value, weight = AppIconWeight.Fill)
 
-    val homeOutline = AppIconGlyph("\uEF3F")
-    val home = AppIconGlyph("\uEF3E")
+    val back = regular("\uE058")
 
-    val createOutline = AppIconGlyph("\uE90D")
-    val create = AppIconGlyph("\uE90C")
-    val createAction = AppIconGlyph("\uE90D")
+    val homeOutline = regular("\uE2C6")
+    val home = fill("\uE2C6")
 
-    val chatsOutline = AppIconGlyph("\uEB75")
-    val chats = AppIconGlyph("\uEB74")
+    val createOutline = regular("\uE3D6")
+    val create = fill("\uE3D6")
+    val createAction = regular("\uE34C")
 
-    val profileOutline = AppIconGlyph("\uF51F")
-    val profile = AppIconGlyph("\uF51E")
+    val chatsOutline = regular("\uE17E")
+    val chats = fill("\uE17E")
 
-    val search = AppIconGlyph("\uF30D")
-    val searchFilled = AppIconGlyph("\uF30C")
-    val sparkle = AppIconGlyph("\uF3B7")
-    val clear = AppIconGlyph("\uEC93")
-    val public = AppIconGlyph("\uED15")
-    val lock = AppIconGlyph("\uF047")
-    val send = AppIconGlyph("\uF321")
-    val stop = AppIconGlyph("\uF3E5")
-    val previous = AppIconGlyph("\uE98B")
-    val next = AppIconGlyph("\uE997")
+    val profileOutline = regular("\uEE58")
+    val profile = fill("\uEE58")
 
-    val themeSystem = AppIconGlyph("\uEAAD")
-    val themeDark = AppIconGlyph("\uF0E1")
-    val themeLight = AppIconGlyph("\uF40B")
+    val search = regular("\uE30C")
+    val searchFilled = fill("\uE30C")
+    val sparkle = regular("\uE6A2")
+    val clear = regular("\uE4F8")
+    val public = regular("\uE28E")
+    val lock = regular("\uE308")
+    val send = regular("\uE398")
+    val stop = fill("\uE46E")
+    val previous = regular("\uE058")
+    val next = regular("\uE06C")
 
-    val logout = AppIconGlyph("\uED6D")
-    val edit = AppIconGlyph("\uED33")
-    val settings = AppIconGlyph("\uF32D")
+    val themeSystem = regular("\uE560")
+    val themeDark = regular("\uE330")
+    val themeLight = regular("\uE472")
 
-    val owned = AppIconGlyph("\uEEC9")
-    val ownedFilled = AppIconGlyph("\uEEC8")
-    val liked = AppIconGlyph("\uEF13")
-    val likedFilled = AppIconGlyph("\uEF0E")
+    val logout = regular("\uE42A")
+    val edit = regular("\uE3B4")
+    val settings = regular("\uE272")
+
+    val owned = regular("\uE0F8")
+    val ownedFilled = fill("\uE0F8")
+    val liked = regular("\uE2AA")
+    val likedFilled = fill("\uE2AA")
 }

@@ -83,6 +83,7 @@ class ChatRepository @Inject constructor(
     suspend fun refreshConversation(conversationId: String): Result<Unit> = withContext(Dispatchers.IO) {
         runCatching {
             recoverConversation(conversationId)
+            if (!shouldFetchConversationSnapshot(conversationId)) return@runCatching
             syncConversation(conversationApi.getConversation(conversationId))
         }
     }
@@ -405,6 +406,13 @@ class ChatRepository @Inject constructor(
     private suspend fun recoverConversation(conversationId: String) {
         clearActiveStream(conversationId)
         markPendingMessagesFailed(conversationId)
+    }
+
+    private suspend fun shouldFetchConversationSnapshot(conversationId: String): Boolean {
+        val conversation = conversationDao.getById(conversationId) ?: return true
+        val committedMessages = messageDao.getCommittedMessages(conversationId)
+        if (committedMessages.isNotEmpty()) return false
+        return conversation.version > 0L
     }
 
     private suspend fun markPendingMessagesFailed(conversationId: String) {

@@ -1,10 +1,9 @@
 package com.example.aichat.core.db
 
 import androidx.room.Dao
-import androidx.room.Insert
-import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Update
+import androidx.room.Upsert
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -15,7 +14,7 @@ interface ProfileDao {
     @Query("SELECT * FROM profiles LIMIT 1")
     suspend fun getProfile(): ProfileEntity?
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
     suspend fun upsert(profile: ProfileEntity)
 
     @Query("DELETE FROM profiles")
@@ -51,10 +50,10 @@ interface CharacterDao {
     )
     suspend fun searchPublicCharacters(query: String): List<CharacterEntity>
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
     suspend fun upsert(character: CharacterEntity)
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
     suspend fun upsertAll(characters: List<CharacterEntity>)
 
     @Query("DELETE FROM characters")
@@ -104,10 +103,10 @@ interface ConversationDao {
     )
     suspend fun findByOwnerAndCharacter(ownerUserId: String, characterId: String): ConversationEntity?
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
     suspend fun upsert(conversation: ConversationEntity)
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
     suspend fun upsertAll(conversations: List<ConversationEntity>)
 
     @Query("DELETE FROM conversations")
@@ -149,10 +148,10 @@ interface MessageDao {
     @Query("SELECT * FROM messages WHERE conversationId = :conversationId AND sendState != 'SENT' ORDER BY createdAt ASC")
     suspend fun getLocalOnlyMessages(conversationId: String): List<MessageEntity>
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
     suspend fun insert(message: MessageEntity)
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
     suspend fun insertAll(messages: List<MessageEntity>)
 
     @Update
@@ -195,10 +194,10 @@ interface AssistantRegenerationDao {
     @Query("SELECT * FROM assistant_regenerations WHERE id = :regenerationId LIMIT 1")
     suspend fun getById(regenerationId: String): AssistantRegenerationEntity?
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
     suspend fun insert(regeneration: AssistantRegenerationEntity)
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
     suspend fun insertAll(regenerations: List<AssistantRegenerationEntity>)
 
     @Query("DELETE FROM assistant_regenerations")

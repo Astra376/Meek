@@ -45,8 +45,8 @@ object AppIcons {
     val profileOutline = Iconsax.Linear.Profile
     val profile = Iconsax.Bold.Profile
 
-    val search = Iconsax.Linear.SearchNormal1
-    val searchFilled = Iconsax.Bold.SearchNormal1
+    val search = Iconsax.Linear.SearchStatus
+    val searchFilled = Iconsax.Bold.SearchStatus
     val sparkle = Iconsax.Linear.MagicStar
     val clear = Iconsax.Linear.Eraser
     val public = Iconsax.Linear.Global

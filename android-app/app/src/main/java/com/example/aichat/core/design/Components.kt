@@ -238,6 +238,7 @@ fun AppTextField(
     leadingIcon: (@Composable () -> Unit)? = null
 ) {
     val containerColor = controlSurfaceColor(selected = false)
+    val alignTextToTop = !singleLine && minLines > 1
     BasicTextField(
         value = value,
         onValueChange = onValueChange,
@@ -278,7 +279,7 @@ fun AppTextField(
                         }
                     ),
                 horizontalArrangement = Arrangement.spacedBy(DesignMetrics.fieldIconGap),
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = if (alignTextToTop) Alignment.Top else Alignment.CenterVertically
             ) {
                 leadingIcon?.let {
                     CompositionLocalProvider(
@@ -294,8 +295,10 @@ fun AppTextField(
                     }
                 }
                 Box(
-                    modifier = Modifier.weight(1f),
-                    contentAlignment = Alignment.CenterStart
+                    modifier = Modifier
+                        .weight(1f)
+                        .align(if (alignTextToTop) Alignment.Top else Alignment.CenterVertically),
+                    contentAlignment = if (alignTextToTop) Alignment.TopStart else Alignment.CenterStart
                 ) {
                     if (value.isEmpty()) {
                         Text(

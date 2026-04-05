@@ -41,7 +41,6 @@ import com.example.aichat.core.model.CharacterSummary
 import com.example.aichat.core.ui.CharacterSummaryCard
 import com.example.aichat.core.ui.ScreenBackgroundBox
 import com.example.aichat.core.ui.screenContentPadding
-import com.example.aichat.core.util.authorLabel
 import com.example.aichat.feature.chatlist.ConversationRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -192,7 +191,6 @@ fun SearchRoute(
             items(state.results, key = { it.id }) { character ->
                 CharacterSummaryCard(
                     character = character,
-                    authorLabel = authorLabel(character.ownerUserId, state.currentUserId),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     scope.launch {

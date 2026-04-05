@@ -49,6 +49,7 @@ class ConversationRepository @Inject constructor(
             CharacterEntity(
                 id = summary.characterId,
                 ownerUserId = existingCharacter?.ownerUserId ?: "",
+                authorUsername = existingCharacter?.authorUsername ?: "",
                 name = summary.characterName,
                 tagline = existingCharacter?.tagline ?: "",
                 description = existingCharacter?.description ?: "",

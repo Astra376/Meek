@@ -11,6 +11,7 @@ import {
 } from "../../db/queries/conversations";
 import { AppError, forbidden } from "../../lib/errors";
 import { createId } from "../../lib/ids";
+import { toCharacterDto } from "../characters/characterDto";
 
 function toConversationSummary(record: Awaited<ReturnType<typeof listConversationSummaries>>[number]) {
   return {
@@ -106,22 +107,7 @@ export async function getConversationDetail(context: RequestContext, conversatio
     id: conversation.id,
     ownerUserId: conversation.owner_user_id,
     conversationVersion: conversation.version,
-    character: {
-      id: character.id,
-      ownerUserId: character.owner_user_id,
-      name: character.name,
-      tagline: character.tagline,
-      description: character.description,
-      systemPrompt: character.system_prompt,
-      visibility: character.visibility,
-      avatarUrl: character.avatar_url,
-      publicChatCount: character.public_chat_count,
-      likeCount: character.like_count,
-      likedByMe: Boolean(character.liked_by_me),
-      lastActiveAt: character.last_active_at,
-      createdAt: character.created_at,
-      updatedAt: character.updated_at
-    },
+    character: toCharacterDto(character),
     messages: messages.map((message) => ({
       id: message.id,
       conversationId: message.conversation_id,

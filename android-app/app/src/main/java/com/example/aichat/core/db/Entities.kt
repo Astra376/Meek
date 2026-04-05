@@ -22,6 +22,7 @@ data class ProfileEntity(
 data class CharacterEntity(
     @PrimaryKey val id: String,
     val ownerUserId: String,
+    val authorUsername: String,
     val name: String,
     val tagline: String,
     val description: String,

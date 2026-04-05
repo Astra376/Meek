@@ -4,6 +4,7 @@ import { all, first, run } from "../client";
 export interface CharacterRecord {
   id: string;
   owner_user_id: string;
+  owner_display_name: string | null;
   name: string;
   tagline: string;
   description: string;
@@ -92,8 +93,10 @@ export async function getCharacterById(env: Env, userId: string, characterId: st
       `
       SELECT
         characters.*,
+        profiles.display_name AS owner_display_name,
         CASE WHEN character_likes.user_id IS NULL THEN 0 ELSE 1 END AS liked_by_me
       FROM characters
+      LEFT JOIN profiles ON profiles.user_id = characters.owner_user_id
       LEFT JOIN character_likes
         ON character_likes.character_id = characters.id
         AND character_likes.user_id = ?
@@ -108,8 +111,12 @@ export async function getOwnedCharacters(env: Env, userId: string, offset: numbe
   return all<CharacterRecord>(
     env.DB.prepare(
       `
-      SELECT characters.*, 0 AS liked_by_me
+      SELECT
+        characters.*,
+        profiles.display_name AS owner_display_name,
+        0 AS liked_by_me
       FROM characters
+      LEFT JOIN profiles ON profiles.user_id = characters.owner_user_id
       WHERE owner_user_id = ?
       ORDER BY updated_at DESC
       LIMIT ? OFFSET ?
@@ -122,9 +129,13 @@ export async function getLikedCharacters(env: Env, userId: string, offset: numbe
   return all<CharacterRecord>(
     env.DB.prepare(
       `
-      SELECT characters.*, 1 AS liked_by_me
+      SELECT
+        characters.*,
+        profiles.display_name AS owner_display_name,
+        1 AS liked_by_me
       FROM character_likes
       INNER JOIN characters ON characters.id = character_likes.character_id
+      LEFT JOIN profiles ON profiles.user_id = characters.owner_user_id
       WHERE character_likes.user_id = ? AND characters.visibility = 'public'
       ORDER BY characters.updated_at DESC
       LIMIT ? OFFSET ?
@@ -139,8 +150,10 @@ export async function getPublicFeed(env: Env, userId: string, offset: number, li
       `
       SELECT
         characters.*,
+        profiles.display_name AS owner_display_name,
         CASE WHEN character_likes.user_id IS NULL THEN 0 ELSE 1 END AS liked_by_me
       FROM characters
+      LEFT JOIN profiles ON profiles.user_id = characters.owner_user_id
       LEFT JOIN character_likes
         ON character_likes.character_id = characters.id
         AND character_likes.user_id = ?
@@ -165,8 +178,10 @@ export async function searchPublicCharacters(
       `
       SELECT
         characters.*,
+        profiles.display_name AS owner_display_name,
         CASE WHEN character_likes.user_id IS NULL THEN 0 ELSE 1 END AS liked_by_me
       FROM characters
+      LEFT JOIN profiles ON profiles.user_id = characters.owner_user_id
       LEFT JOIN character_likes
         ON character_likes.character_id = characters.id
         AND character_likes.user_id = ?
@@ -229,4 +244,3 @@ export async function incrementCharacterActivity(env: Env, characterId: string, 
     ).bind(now, now, characterId)
   );
 }
-

@@ -8,6 +8,7 @@ enum class CharacterVisibility {
 data class CharacterSummary(
     val id: String,
     val ownerUserId: String,
+    val authorUsername: String = "",
     val name: String,
     val tagline: String,
     val description: String,
@@ -36,4 +37,3 @@ data class CursorPage<T>(
     val items: List<T>,
     val nextCursor: String?
 )
-

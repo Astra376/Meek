@@ -6,19 +6,23 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.windowInsetsBottomHeight
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -64,15 +68,15 @@ private sealed class MainDestination(
     data object Home : MainDestination(
         route = "home",
         contentDescription = "Home",
-        outlinedIcon = AppIcons.homeOutline,
-        filledIcon = AppIcons.home
+        outlinedIcon = AppIcons.homeNavOutline,
+        filledIcon = AppIcons.homeNav
     )
 
     data object Search : MainDestination(
         route = "search",
-        contentDescription = "Search",
-        outlinedIcon = AppIcons.search,
-        filledIcon = AppIcons.searchFilled
+        contentDescription = "Discover",
+        outlinedIcon = AppIcons.discoverOutline,
+        filledIcon = AppIcons.discover
     )
 
     data object Studio : MainDestination(
@@ -374,8 +378,7 @@ private fun BottomIconBar(
 ) {
     Surface(
         modifier = modifier
-            .fillMaxWidth()
-            .navigationBarsPadding(),
+            .fillMaxWidth(),
         color = MaterialTheme.colorScheme.background,
         tonalElevation = 0.dp,
         shadowElevation = 0.dp
@@ -405,9 +408,10 @@ private fun BottomIconBar(
                             .padding(horizontal = AppChrome.bottomBarItemHorizontalPadding)
                     ) {
                         if (destination == MainDestination.Profile) {
-                            CircleAvatar(
+                            BottomBarProfileAvatar(
                                 name = profileName.ifBlank { "User" },
                                 avatarUrl = profileAvatarUrl,
+                                selected = selected,
                                 modifier = Modifier.size(28.dp)
                             )
                         } else {
@@ -425,7 +429,37 @@ private fun BottomIconBar(
                     }
                 }
             }
+            Spacer(
+                modifier = Modifier.windowInsetsBottomHeight(WindowInsets.navigationBars)
+            )
         }
+    }
+}
+
+@Composable
+private fun BottomBarProfileAvatar(
+    name: String,
+    avatarUrl: String?,
+    selected: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val outlineWidth = 1.5.dp
+
+    Box(
+        modifier = modifier
+            .border(
+                width = if (selected) outlineWidth else 0.dp,
+                color = MaterialTheme.colorScheme.onSurface,
+                shape = CircleShape
+            )
+            .padding(if (selected) outlineWidth else 0.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        CircleAvatar(
+            name = name,
+            avatarUrl = avatarUrl,
+            modifier = Modifier.fillMaxSize()
+        )
     }
 }
 

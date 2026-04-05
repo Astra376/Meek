@@ -45,6 +45,7 @@ data class UpdateProfileRequestDto(
 data class CharacterDto(
     val id: String,
     val ownerUserId: String,
+    val authorUsername: String = "",
     val name: String,
     val tagline: String,
     val description: String,

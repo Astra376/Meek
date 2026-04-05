@@ -10,6 +10,7 @@ import {
 } from "../../db/queries/characters";
 import { AppError, assert, forbidden } from "../../lib/errors";
 import { createId } from "../../lib/ids";
+import { toCharacterDto } from "./characterDto";
 
 export interface CharacterWriteInput {
   name: string;
@@ -18,25 +19,6 @@ export interface CharacterWriteInput {
   systemPrompt: string;
   visibility: "public" | "private";
   avatarUrl: string | null;
-}
-
-function toCharacterDto(record: NonNullable<Awaited<ReturnType<typeof getCharacterById>>>) {
-  return {
-    id: record.id,
-    ownerUserId: record.owner_user_id,
-    name: record.name,
-    tagline: record.tagline,
-    description: record.description,
-    systemPrompt: record.system_prompt,
-    visibility: record.visibility,
-    avatarUrl: record.avatar_url,
-    publicChatCount: record.public_chat_count,
-    likeCount: record.like_count,
-    likedByMe: Boolean(record.liked_by_me),
-    lastActiveAt: record.last_active_at,
-    createdAt: record.created_at,
-    updatedAt: record.updated_at
-  };
 }
 
 export async function createOwnedCharacter(context: RequestContext, input: CharacterWriteInput) {

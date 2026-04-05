@@ -42,7 +42,6 @@ import com.example.aichat.core.ui.AppChrome
 import com.example.aichat.core.ui.CharacterSummaryCard
 import com.example.aichat.core.ui.ScreenBackgroundBox
 import com.example.aichat.core.ui.screenContentPadding
-import com.example.aichat.core.util.authorLabel
 import com.example.aichat.feature.character.CharacterRepository
 import com.example.aichat.feature.chatlist.ConversationRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -220,7 +219,6 @@ fun ProfileRoute(
             items(characters, key = { it.id }) { character ->
                 CharacterSummaryCard(
                     character = character,
-                    authorLabel = authorLabel(character.ownerUserId, state.userId),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     scope.launch {

@@ -45,10 +45,10 @@ object AppChrome {
     val compactControlGap = 10.dp
     val compactHeaderVerticalPadding = 8.dp
     val headerActionIconSize = 24.dp
-    val bottomBarHeight = 72.dp
+    val bottomBarHeight = 58.dp
     val bottomBarTapHeight = 44.dp
     val bottomBarHorizontalPadding = 16.dp
-    val bottomBarVerticalPadding = 10.dp
+    val bottomBarVerticalPadding = 7.dp
     val bottomBarItemHorizontalPadding = 4.dp
     val bottomBarIconSize = 24.dp
     val listRowGap = 20.dp

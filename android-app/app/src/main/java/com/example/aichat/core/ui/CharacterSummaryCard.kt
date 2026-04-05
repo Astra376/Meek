@@ -5,9 +5,11 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
@@ -23,15 +25,15 @@ import com.example.aichat.core.design.AppCard
 import com.example.aichat.core.design.AppIcon
 import com.example.aichat.core.design.AppIcons
 import com.example.aichat.core.design.CharacterPortrait
-import com.example.aichat.core.design.PillChip
 import com.example.aichat.core.model.CharacterSummary
 
 private object CharacterCardMetrics {
-    val cardAspectRatio = 0.66f
-    val portraitWeight = 0.62f
-    val contentWeight = 0.38f
+    val cardAspectRatio = 0.7f
+    val portraitWeight = 0.64f
+    val contentWeight = 0.36f
     val contentPadding = 14.dp
-    val contentSpacing = 8.dp
+    val titleGap = 4.dp
+    val authorGap = 10.dp
     val badgeInset = 12.dp
     val badgeGap = 5.dp
     val badgeIconSize = 14.dp
@@ -40,7 +42,6 @@ private object CharacterCardMetrics {
 @Composable
 fun CharacterSummaryCard(
     character: CharacterSummary,
-    authorLabel: String,
     modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
@@ -95,8 +96,7 @@ fun CharacterSummaryCard(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(CharacterCardMetrics.contentWeight)
-                    .padding(CharacterCardMetrics.contentPadding),
-                verticalArrangement = Arrangement.spacedBy(CharacterCardMetrics.contentSpacing)
+                    .padding(CharacterCardMetrics.contentPadding)
             ) {
                 Text(
                     text = character.name,
@@ -107,6 +107,7 @@ fun CharacterSummaryCard(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
+                Spacer(modifier = Modifier.height(CharacterCardMetrics.titleGap))
                 Text(
                     text = character.tagline,
                     style = MaterialTheme.typography.bodyMedium.copy(
@@ -117,7 +118,18 @@ fun CharacterSummaryCard(
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
-                PillChip(text = authorLabel)
+                Spacer(modifier = Modifier.weight(1f))
+                Spacer(modifier = Modifier.height(CharacterCardMetrics.authorGap))
+                Text(
+                    text = "@${character.authorUsername.ifBlank { "creator" }}",
+                    style = MaterialTheme.typography.labelLarge.copy(
+                        fontSize = 12.sp,
+                        lineHeight = 14.sp
+                    ),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
         }
     }

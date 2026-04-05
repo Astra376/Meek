@@ -8,6 +8,7 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
@@ -24,7 +25,6 @@ import androidx.lifecycle.viewModelScope
 import com.example.aichat.core.auth.AuthRepository
 import com.example.aichat.core.design.AppIcon
 import com.example.aichat.core.design.AppIcons
-import com.example.aichat.core.design.IconCircleButton
 import com.example.aichat.core.design.SecondaryButton
 import com.example.aichat.core.model.CharacterSummary
 import com.example.aichat.core.ui.AppChrome
@@ -32,7 +32,6 @@ import com.example.aichat.core.ui.CharacterSummaryCard
 import com.example.aichat.core.ui.ScreenBackgroundBox
 import com.example.aichat.core.ui.SimplePageHeader
 import com.example.aichat.core.ui.screenContentPadding
-import com.example.aichat.core.util.authorLabel
 import com.example.aichat.feature.chatlist.ConversationRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -130,9 +129,7 @@ fun HomeRoute(
         ) {
             item(span = { GridItemSpan(maxLineSpan) }) {
                 SimplePageHeader(title = "Discover") {
-                    IconCircleButton(
-                        onClick = onOpenSearch
-                    ) {
+                    IconButton(onClick = onOpenSearch) {
                         AppIcon(
                             icon = AppIcons.search,
                             contentDescription = "Search",
@@ -154,7 +151,6 @@ fun HomeRoute(
             items(state.feed, key = { it.id }) { character ->
                 CharacterSummaryCard(
                     character = character,
-                    authorLabel = authorLabel(character.ownerUserId, state.currentUserId),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     scope.launch {

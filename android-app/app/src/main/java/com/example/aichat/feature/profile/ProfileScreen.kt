@@ -169,17 +169,17 @@ fun ProfileRoute(
                     horizontalArrangement = Arrangement.spacedBy(AppChrome.compactControlGap)
                 ) {
                     SelectionButton(
-                        text = "Owned",
+                        text = "Created",
                         selected = section == ProfileSection.OWNED,
                         modifier = Modifier.weight(1f),
                         leadingIcon = {
                             AppIcon(
                                 icon = if (section == ProfileSection.OWNED) {
-                                    AppIcons.ownedFilled
+                                    AppIcons.createdFilled
                                 } else {
-                                    AppIcons.owned
+                                    AppIcons.created
                                 },
-                                contentDescription = "Your Characters"
+                                contentDescription = "Created Characters"
                             )
                         },
                         onClick = { section = ProfileSection.OWNED }

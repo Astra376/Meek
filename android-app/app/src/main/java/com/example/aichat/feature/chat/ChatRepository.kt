@@ -478,8 +478,9 @@ class ChatRepository @Inject constructor(
     private suspend fun updateConversationMetadataFromTranscript(conversationId: String) {
         val conversation = conversationDao.getById(conversationId) ?: return
         val latestMessage = messageDao.getLatestMessage(conversationId)
+        val latestAssistantMessage = messageDao.getLatestAssistantMessage(conversationId)
         val now = System.currentTimeMillis()
-        val preview = if (latestMessage == null) "" else visibleContent(latestMessage)
+        val preview = if (latestAssistantMessage == null) "" else visibleContent(latestAssistantMessage)
         conversationDao.upsert(
             conversation.copy(
                 version = conversation.version + 1,

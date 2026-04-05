@@ -83,9 +83,21 @@ interface ConversationDao {
             conversations.updatedAt AS updatedAt,
             conversations.startedAt AS startedAt,
             conversations.lastMessageAt AS lastMessageAt,
-            conversations.previewText AS lastPreview
+            COALESCE(selectedRegenerations.content, latestAssistantMessages.content, conversations.previewText, '') AS lastPreview
         FROM conversations
         INNER JOIN characters ON characters.id = conversations.characterId
+        LEFT JOIN messages AS latestAssistantMessages
+            ON latestAssistantMessages.id = (
+                SELECT messages.id
+                FROM messages
+                WHERE messages.conversationId = conversations.id
+                    AND messages.sendState = 'SENT'
+                    AND messages.role = 'ASSISTANT'
+                ORDER BY messages.position DESC, messages.createdAt DESC, messages.updatedAt DESC, messages.id DESC
+                LIMIT 1
+            )
+        LEFT JOIN assistant_regenerations AS selectedRegenerations
+            ON selectedRegenerations.id = latestAssistantMessages.selectedRegenerationId
         WHERE conversations.ownerUserId = :ownerUserId
         ORDER BY conversations.updatedAt DESC
         """
@@ -151,6 +163,16 @@ interface MessageDao {
 
     @Query("SELECT * FROM messages WHERE conversationId = :conversationId AND sendState = 'SENT' ORDER BY position DESC LIMIT 1")
     suspend fun getLatestMessage(conversationId: String): MessageEntity?
+
+    @Query(
+        """
+        SELECT * FROM messages
+        WHERE conversationId = :conversationId AND sendState = 'SENT' AND role = 'ASSISTANT'
+        ORDER BY position DESC, createdAt DESC, updatedAt DESC, id DESC
+        LIMIT 1
+        """
+    )
+    suspend fun getLatestAssistantMessage(conversationId: String): MessageEntity?
 
     @Query("SELECT COALESCE(MIN(position), 0) FROM messages WHERE conversationId = :conversationId")
     suspend fun getMinimumPosition(conversationId: String): Int

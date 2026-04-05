@@ -60,18 +60,20 @@ export async function listConversationSummaries(
         conversations.updated_at,
         conversations.started_at,
         conversations.last_message_at,
-        COALESCE(selected_regenerations.content, latest_messages.content, '') AS last_preview
+        COALESCE(selected_regenerations.content, latest_assistant_messages.content, '') AS last_preview
       FROM conversations
       INNER JOIN characters ON characters.id = conversations.character_id
-      LEFT JOIN messages AS latest_messages
-        ON latest_messages.conversation_id = conversations.id
-        AND latest_messages.position = (
-          SELECT MAX(messages.position)
+      LEFT JOIN messages AS latest_assistant_messages
+        ON latest_assistant_messages.id = (
+          SELECT messages.id
           FROM messages
           WHERE messages.conversation_id = conversations.id
+            AND messages.role = 'assistant'
+          ORDER BY messages.position DESC, messages.created_at DESC, messages.updated_at DESC, messages.id DESC
+          LIMIT 1
         )
       LEFT JOIN assistant_regenerations AS selected_regenerations
-        ON selected_regenerations.id = latest_messages.selected_regeneration_id
+        ON selected_regenerations.id = latest_assistant_messages.selected_regeneration_id
       WHERE conversations.owner_user_id = ?
       ORDER BY conversations.updated_at DESC
       LIMIT ? OFFSET ?
@@ -96,18 +98,20 @@ export async function getConversationSummaryById(
         conversations.updated_at,
         conversations.started_at,
         conversations.last_message_at,
-        COALESCE(selected_regenerations.content, latest_messages.content, '') AS last_preview
+        COALESCE(selected_regenerations.content, latest_assistant_messages.content, '') AS last_preview
       FROM conversations
       INNER JOIN characters ON characters.id = conversations.character_id
-      LEFT JOIN messages AS latest_messages
-        ON latest_messages.conversation_id = conversations.id
-        AND latest_messages.position = (
-          SELECT MAX(messages.position)
+      LEFT JOIN messages AS latest_assistant_messages
+        ON latest_assistant_messages.id = (
+          SELECT messages.id
           FROM messages
           WHERE messages.conversation_id = conversations.id
+            AND messages.role = 'assistant'
+          ORDER BY messages.position DESC, messages.created_at DESC, messages.updated_at DESC, messages.id DESC
+          LIMIT 1
         )
       LEFT JOIN assistant_regenerations AS selected_regenerations
-        ON selected_regenerations.id = latest_messages.selected_regeneration_id
+        ON selected_regenerations.id = latest_assistant_messages.selected_regeneration_id
       WHERE conversations.owner_user_id = ? AND conversations.id = ?
       LIMIT 1
       `

@@ -5,7 +5,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -26,11 +25,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.example.aichat.core.auth.AuthRepository
-import com.example.aichat.core.design.AppCard
 import com.example.aichat.core.design.CharacterPortrait
-import com.example.aichat.core.ui.AppChrome
 import com.example.aichat.core.ui.screenContentPadding
 import com.example.aichat.core.model.ConversationSummary
+import com.example.aichat.core.ui.AppChrome
 import com.example.aichat.core.util.formatRelativeTime
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -38,6 +36,12 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+
+private val previewWhitespace = "\\s+".toRegex()
+
+private fun formatConversationPreview(preview: String): String {
+    return previewWhitespace.replace(preview.trim(), " ")
+}
 
 @HiltViewModel
 class ChatListViewModel @Inject constructor(
@@ -89,61 +93,55 @@ fun ChatListRoute(
             }
         }
         items(conversations, key = { it.id }) { conversation ->
-            AppCard(
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable { onOpenConversation(conversation.id) }
+                    .padding(vertical = 4.dp)
+                    .clickable { onOpenConversation(conversation.id) },
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(
+                CharacterPortrait(
+                    name = conversation.characterName,
+                    avatarUrl = conversation.characterAvatarUrl,
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                        .size(64.dp)
+                )
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(start = 12.dp, end = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    CharacterPortrait(
-                        name = conversation.characterName,
-                        avatarUrl = conversation.characterAvatarUrl,
-                        modifier = Modifier
-                            .size(72.dp)
-                            .aspectRatio(1f)
+                    Text(
+                        text = conversation.characterName,
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontSize = 18.sp,
+                            lineHeight = 21.sp
+                        ),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
-                    Column(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = conversation.characterName,
-                                style = MaterialTheme.typography.titleMedium.copy(
-                                    fontSize = 18.sp,
-                                    lineHeight = 21.sp
-                                ),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            Text(
-                                text = formatRelativeTime(conversation.lastMessageAt ?: conversation.updatedAt),
-                                style = MaterialTheme.typography.labelLarge.copy(
-                                    fontSize = 11.sp,
-                                    lineHeight = 13.sp
-                                ),
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        Text(
-                            text = conversation.lastPreview.ifBlank { "Conversation ready." },
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
+                    Text(
+                        text = formatConversationPreview(conversation.lastPreview)
+                            .ifBlank { "Conversation ready." },
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            fontSize = 14.sp,
+                            lineHeight = 18.sp
+                        ),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 }
+                Text(
+                    text = formatRelativeTime(conversation.lastMessageAt ?: conversation.updatedAt),
+                    style = MaterialTheme.typography.labelLarge.copy(
+                        fontSize = 11.sp,
+                        lineHeight = 13.sp
+                    ),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1
+                )
             }
         }
     }

@@ -4,6 +4,7 @@ import { getCharacterById } from "../../db/queries/characters";
 import {
   findConversationByOwnerAndCharacter,
   getConversationById,
+  getConversationSummaryById,
   insertConversation,
   listConversationSummaries,
   listMessages,
@@ -47,6 +48,11 @@ export async function createConversation(context: RequestContext, characterId: s
 
   const existing = await findConversationByOwnerAndCharacter(context.env, context.user!.userId, characterId);
   if (existing) {
+    const summary = await getConversationSummaryById(context.env, context.user!.userId, existing.id);
+    if (summary) {
+      return toConversationSummary(summary);
+    }
+
     return {
       id: existing.id,
       characterId: character.id,

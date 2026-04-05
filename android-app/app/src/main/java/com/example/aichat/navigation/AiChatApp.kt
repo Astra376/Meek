@@ -43,10 +43,9 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import com.example.aichat.core.design.AppIcon
 import com.example.aichat.core.design.AppIconGlyph
+import com.example.aichat.core.design.AppIcon
 import com.example.aichat.core.design.AppIcons
-import com.example.aichat.core.design.CircleAvatar
 import com.example.aichat.core.ui.AppChrome
 import com.example.aichat.core.ui.LoadingScreen
 import com.example.aichat.feature.character.CharacterStudioRoute
@@ -119,24 +118,16 @@ private val subpageRoutes = setOf(
 @Composable
 fun AiChatApp(appViewModel: AppViewModel) {
     val session by appViewModel.sessionState.collectAsStateWithLifecycle()
-    val profile by appViewModel.profile.collectAsStateWithLifecycle()
-    val activeProfile = profile ?: session.profile
 
     when {
         session.isLoading -> LoadingScreen()
         !session.isSignedIn -> SignInRoute()
-        else -> MainShell(
-            profileName = activeProfile?.displayName.orEmpty(),
-            profileAvatarUrl = activeProfile?.avatarUrl
-        )
+        else -> MainShell()
     }
 }
 
 @Composable
-private fun MainShell(
-    profileName: String,
-    profileAvatarUrl: String?
-) {
+private fun MainShell() {
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = backStackEntry?.destination
@@ -160,8 +151,6 @@ private fun MainShell(
             BottomIconBar(
                 modifier = Modifier.graphicsLayer { translationY = bottomBarOffset },
                 currentRoute = currentDestination?.route,
-                profileName = profileName,
-                profileAvatarUrl = profileAvatarUrl,
                 onNavigate = { route ->
                     navController.navigate(route) {
                         popUpTo(navController.graph.findStartDestination().id) {
@@ -372,8 +361,6 @@ private fun MainShell(
 private fun BottomIconBar(
     modifier: Modifier = Modifier,
     currentRoute: String?,
-    profileName: String,
-    profileAvatarUrl: String?,
     onNavigate: (String) -> Unit
 ) {
     Surface(
@@ -408,9 +395,7 @@ private fun BottomIconBar(
                             .padding(horizontal = AppChrome.bottomBarItemHorizontalPadding)
                     ) {
                         if (destination == MainDestination.Profile) {
-                            BottomBarProfileAvatar(
-                                name = profileName.ifBlank { "User" },
-                                avatarUrl = profileAvatarUrl,
+                            BottomBarProfileIcon(
                                 selected = selected,
                                 modifier = Modifier.size(28.dp)
                             )
@@ -437,9 +422,7 @@ private fun BottomIconBar(
 }
 
 @Composable
-private fun BottomBarProfileAvatar(
-    name: String,
-    avatarUrl: String?,
+private fun BottomBarProfileIcon(
     selected: Boolean,
     modifier: Modifier = Modifier
 ) {
@@ -455,10 +438,15 @@ private fun BottomBarProfileAvatar(
             .padding(if (selected) outlineWidth else 0.dp),
         contentAlignment = Alignment.Center
     ) {
-        CircleAvatar(
-            name = name,
-            avatarUrl = avatarUrl,
-            modifier = Modifier.fillMaxSize()
+        AppIcon(
+            icon = if (selected) AppIcons.profile else AppIcons.profileOutline,
+            contentDescription = null,
+            modifier = Modifier.fillMaxSize(),
+            tint = if (selected) {
+                MaterialTheme.colorScheme.onSurface
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            }
         )
     }
 }

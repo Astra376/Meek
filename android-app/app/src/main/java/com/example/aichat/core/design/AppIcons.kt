@@ -39,7 +39,7 @@ object AppIcons {
 
     val createOutline = Iconsax.Linear.AddCircle
     val create = Iconsax.Bold.AddCircle
-    val createAction = Iconsax.Linear.AddCircle
+    val createAction = Iconsax.Linear.Add
 
     val chatsOutline = Iconsax.Linear.MessagesTwo
     val chats = Iconsax.Bold.MessagesTwo
@@ -52,7 +52,7 @@ object AppIcons {
     val discoverOutline = Iconsax.Linear.Discover
     val discover = Iconsax.Bold.Discover
     val sparkle = Iconsax.Linear.MagicStar
-    val clear = Iconsax.Linear.Trash
+    val clear = Iconsax.Linear.Eraser
     val public = Iconsax.Linear.Global
     val lock = Iconsax.Linear.LockOne
     val send = Iconsax.Linear.Send
@@ -68,8 +68,8 @@ object AppIcons {
     val edit = Iconsax.Linear.Edit
     val settings = Iconsax.Linear.SettingTwo
 
-    val owned = Iconsax.Linear.GridFour
-    val ownedFilled = Iconsax.Bold.GridFour
+    val created = Iconsax.Linear.GridFour
+    val createdFilled = Iconsax.Bold.GridFour
     val liked = Iconsax.Linear.Heart
     val likedFilled = Iconsax.Bold.Heart
 }

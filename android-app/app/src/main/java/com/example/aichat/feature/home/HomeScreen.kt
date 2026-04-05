@@ -1,8 +1,5 @@
 package com.example.aichat.feature.home
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
@@ -17,7 +14,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -27,6 +23,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.aichat.core.auth.AuthRepository
 import com.example.aichat.core.design.AppIcon
 import com.example.aichat.core.design.AppIcons
+import com.example.aichat.core.design.IconCircleButton
 import com.example.aichat.core.design.SecondaryButton
 import com.example.aichat.core.model.CharacterSummary
 import com.example.aichat.core.ui.AppChrome
@@ -116,8 +113,6 @@ fun HomeRoute(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
-    val searchInteractionSource = remember { MutableInteractionSource() }
-
     LaunchedEffect(Unit) {
         viewModel.events.collect { snackbarHostState.showSnackbar(it) }
     }
@@ -134,18 +129,16 @@ fun HomeRoute(
         ) {
             item(span = { GridItemSpan(maxLineSpan) }) {
                 SimplePageHeader(title = "Discover") {
-                    AppIcon(
-                        icon = AppIcons.search,
-                        contentDescription = "Search",
-                        modifier = Modifier
-                            .clickable(
-                                interactionSource = searchInteractionSource,
-                                indication = null,
-                                onClick = onOpenSearch
-                            ),
-                        size = AppChrome.headerActionIconSize,
-                        tint = MaterialTheme.colorScheme.onSurface
-                    )
+                    IconCircleButton(
+                        onClick = onOpenSearch
+                    ) {
+                        AppIcon(
+                            icon = AppIcons.search,
+                            contentDescription = "Search",
+                            size = AppChrome.headerActionIconSize,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             }
             if (state.errorMessage != null && state.feed.isEmpty()) {

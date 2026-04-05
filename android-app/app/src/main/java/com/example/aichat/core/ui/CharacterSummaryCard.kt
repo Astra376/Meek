@@ -2,15 +2,19 @@ package com.example.aichat.core.ui
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -19,18 +23,18 @@ import com.example.aichat.core.design.AppCard
 import com.example.aichat.core.design.AppIcon
 import com.example.aichat.core.design.AppIcons
 import com.example.aichat.core.design.CharacterPortrait
+import com.example.aichat.core.design.PillChip
 import com.example.aichat.core.model.CharacterSummary
 
 private object CharacterCardMetrics {
-    val cardAspectRatio = 0.64f
-    val cardSpacing = 3.dp
-    val contentHorizontalPadding = 12.dp
-    val contentVerticalPadding = 8.dp
-    val nameToTaglineSpacing = 1.dp
-    val chatMetaGap = 5.dp
-    val chatIconTopPadding = 1.dp
-    val chatIconSize = 13.dp
-    val authorInset = 2.dp
+    val cardAspectRatio = 0.66f
+    val portraitWeight = 0.62f
+    val contentWeight = 0.38f
+    val contentPadding = 14.dp
+    val contentSpacing = 8.dp
+    val badgeInset = 12.dp
+    val badgeGap = 5.dp
+    val badgeIconSize = 14.dp
 }
 
 @Composable
@@ -40,89 +44,81 @@ fun CharacterSummaryCard(
     modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
-    Column(
-        modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(CharacterCardMetrics.cardSpacing)
+    AppCard(
+        modifier = modifier
+            .fillMaxWidth()
+            .aspectRatio(CharacterCardMetrics.cardAspectRatio)
+            .clickable(onClick = onClick)
     ) {
-        AppCard(
-            modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(CharacterCardMetrics.cardAspectRatio)
-                .clickable(onClick = onClick)
-        ) {
-            Column(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(CharacterCardMetrics.portraitWeight)
+            ) {
                 CharacterPortrait(
                     name = character.name,
                     avatarUrl = character.avatarUrl,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(0.60f)
+                    modifier = Modifier.fillMaxSize()
                 )
-                Column(
+                Surface(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(0.40f)
-                        .padding(
-                            horizontal = CharacterCardMetrics.contentHorizontalPadding,
-                            vertical = CharacterCardMetrics.contentVerticalPadding
-                        ),
-                    verticalArrangement = Arrangement.SpaceBetween
+                        .align(Alignment.BottomStart)
+                        .padding(CharacterCardMetrics.badgeInset),
+                    shape = RoundedCornerShape(999.dp),
+                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.84f)
                 ) {
-                    Column(verticalArrangement = Arrangement.spacedBy(CharacterCardMetrics.nameToTaglineSpacing)) {
-                        Text(
-                            text = character.name,
-                            style = MaterialTheme.typography.titleLarge.copy(
-                                fontSize = 22.sp,
-                                lineHeight = 24.sp
-                            ),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Text(
-                            text = character.tagline,
-                            style = MaterialTheme.typography.bodyMedium.copy(
-                                fontSize = 11.sp,
-                                lineHeight = 14.sp
-                            ),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.78f),
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(CharacterCardMetrics.chatMetaGap)
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                        horizontalArrangement = Arrangement.spacedBy(CharacterCardMetrics.badgeGap),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         AppIcon(
                             icon = AppIcons.chats,
                             contentDescription = null,
-                            modifier = Modifier.padding(top = CharacterCardMetrics.chatIconTopPadding),
-                            size = CharacterCardMetrics.chatIconSize,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.58f)
+                            size = CharacterCardMetrics.badgeIconSize,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Text(
                             text = character.publicChatCount.toString(),
-                            style = MaterialTheme.typography.bodyMedium.copy(
-                                fontSize = 10.sp,
-                                lineHeight = 12.sp
+                            style = MaterialTheme.typography.labelLarge.copy(
+                                fontSize = 12.sp,
+                                lineHeight = 14.sp
                             ),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.58f)
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                        Spacer(modifier = Modifier.weight(1f))
                     }
                 }
             }
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(CharacterCardMetrics.contentWeight)
+                    .padding(CharacterCardMetrics.contentPadding),
+                verticalArrangement = Arrangement.spacedBy(CharacterCardMetrics.contentSpacing)
+            ) {
+                Text(
+                    text = character.name,
+                    style = MaterialTheme.typography.titleLarge.copy(
+                        fontSize = 20.sp,
+                        lineHeight = 22.sp
+                    ),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = character.tagline,
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontSize = 12.sp,
+                        lineHeight = 16.sp
+                    ),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.94f),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+                PillChip(text = authorLabel)
+            }
         }
-        Text(
-            text = authorLabel,
-            modifier = Modifier.padding(start = CharacterCardMetrics.authorInset),
-            style = MaterialTheme.typography.bodyMedium.copy(
-                fontSize = 10.sp,
-                lineHeight = 12.sp
-            ),
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.76f),
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
     }
 }

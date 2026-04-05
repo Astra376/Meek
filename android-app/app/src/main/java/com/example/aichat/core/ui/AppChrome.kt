@@ -14,9 +14,11 @@ import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.matchParentSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -26,10 +28,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.composed
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.unit.dp
 import com.example.aichat.core.design.AppIcon
 import com.example.aichat.core.design.AppIcons
+import com.example.aichat.core.design.appOutlineSurface
 
 object AppChrome {
     val screenHorizontalPadding = 20.dp
@@ -37,16 +42,16 @@ object AppChrome {
     val screenBottomPadding = 24.dp
     val sectionSpacing = 14.dp
     val gridSpacing = 12.dp
-    val compactControlSize = 32.dp
+    val compactControlSize = 42.dp
     val compactControlGap = 10.dp
     val compactHeaderVerticalPadding = 8.dp
     val headerActionIconSize = 24.dp
-    val bottomBarHeight = 47.3.dp
-    val bottomBarTapHeight = 36.4.dp
-    val bottomBarHorizontalPadding = 14.dp
-    val bottomBarVerticalPadding = 0.dp
-    val bottomBarItemHorizontalPadding = 0.dp
-    val bottomBarIconSize = 31.2.dp
+    val bottomBarHeight = 72.dp
+    val bottomBarTapHeight = 44.dp
+    val bottomBarHorizontalPadding = 16.dp
+    val bottomBarVerticalPadding = 10.dp
+    val bottomBarItemHorizontalPadding = 4.dp
+    val bottomBarIconSize = 24.dp
     val listRowGap = 20.dp
 }
 
@@ -99,12 +104,27 @@ fun ScreenBackgroundBox(
     modifier: Modifier = Modifier,
     content: @Composable BoxScope.() -> Unit
 ) {
+    val background = MaterialTheme.colorScheme.background
+    val topGlow = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.52f).compositeOver(background)
     Box(
         modifier = modifier
             .fillMaxSize()
             .clearFocusOnTap(enabled = clearFocusOnTap)
-            .background(MaterialTheme.colorScheme.background)
+            .background(background)
     ) {
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            topGlow,
+                            background,
+                            background
+                        )
+                    )
+                )
+        )
         snackbarHostState?.let {
             SnackbarHost(hostState = it)
         }
@@ -121,6 +141,7 @@ fun AppBackButton(
     Box(
         modifier = modifier
             .size(AppChrome.compactControlSize)
+            .appOutlineSurface(shape = CircleShape)
             .clickable(
                 interactionSource = interactionSource,
                 indication = null,

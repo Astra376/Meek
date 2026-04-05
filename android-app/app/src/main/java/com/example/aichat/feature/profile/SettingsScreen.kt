@@ -1,6 +1,5 @@
 package com.example.aichat.feature.profile
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -10,10 +9,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
-import androidx.compose.foundation.border
-import androidx.compose.ui.graphics.Color
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -44,7 +40,7 @@ class SettingsViewModel @Inject constructor(
     val themeMode: StateFlow<ThemeMode> = settingsRepository.themeMode.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
-        initialValue = ThemeMode.SYSTEM
+        initialValue = ThemeMode.DARK
     )
 
     fun setTheme(themeMode: ThemeMode) {
@@ -87,16 +83,16 @@ fun SettingsRoute(
 
             Text("App Theme", style = MaterialTheme.typography.titleLarge)
             ThemeOptionRow(
-                text = "System",
-                selected = themeMode == ThemeMode.SYSTEM,
-                icon = { AppIcon(AppIcons.themeSystem, contentDescription = null) },
-                onClick = { viewModel.setTheme(ThemeMode.SYSTEM) }
-            )
-            ThemeOptionRow(
                 text = "Dark",
                 selected = themeMode == ThemeMode.DARK,
                 icon = { AppIcon(AppIcons.themeDark, contentDescription = null) },
                 onClick = { viewModel.setTheme(ThemeMode.DARK) }
+            )
+            ThemeOptionRow(
+                text = "System",
+                selected = themeMode == ThemeMode.SYSTEM,
+                icon = { AppIcon(AppIcons.themeSystem, contentDescription = null) },
+                onClick = { viewModel.setTheme(ThemeMode.SYSTEM) }
             )
             ThemeOptionRow(
                 text = "Light",
@@ -127,7 +123,7 @@ private fun ThemeOptionRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .appOutlineSurface(shape = RoundedCornerShape(24.dp))
+            .appOutlineSurface(shape = RoundedCornerShape(24.dp), selected = selected)
             .clickable(onClick = onClick)
             .padding(
                 horizontal = AppChrome.bottomBarHorizontalPadding,
@@ -140,7 +136,12 @@ private fun ThemeOptionRow(
         Text(
             text = text,
             modifier = Modifier.weight(1f),
-            style = MaterialTheme.typography.bodyLarge
+            style = MaterialTheme.typography.bodyLarge,
+            color = if (selected) {
+                MaterialTheme.colorScheme.onSurface
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            }
         )
         SelectionDot(selected = selected)
     }

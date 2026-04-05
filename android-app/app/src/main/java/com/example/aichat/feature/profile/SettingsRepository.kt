@@ -19,7 +19,7 @@ class SettingsRepository @Inject constructor(
     @ApplicationContext private val context: Context
 ) {
     val themeMode: Flow<ThemeMode> = context.dataStore.data.map { preferences ->
-        preferences[THEME_MODE]?.let(ThemeMode::valueOf) ?: ThemeMode.SYSTEM
+        preferences[THEME_MODE]?.let(ThemeMode::valueOf) ?: ThemeMode.DARK
     }
 
     suspend fun setThemeMode(themeMode: ThemeMode) {
@@ -32,4 +32,3 @@ class SettingsRepository @Inject constructor(
         val THEME_MODE: Preferences.Key<String> = stringPreferencesKey("theme_mode")
     }
 }
-

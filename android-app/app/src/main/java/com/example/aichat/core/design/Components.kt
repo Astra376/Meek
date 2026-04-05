@@ -1,16 +1,15 @@
 package com.example.aichat.core.design
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.defaultMinSize
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -30,41 +29,41 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.composed
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.composed
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.PlatformTextStyle
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.example.aichat.core.util.avatarPalette
 
 private object DesignMetrics {
-    val cardCorner = 24.dp
-    val buttonCorner = 18.dp
+    val cardCorner = 22.dp
+    val buttonCorner = 999.dp
     val primaryButtonHeight = 54.dp
     val secondaryButtonHeight = 50.dp
     val iconGap = 8.dp
-    val fieldCorner = 26.dp
-    val fieldSingleLineHeight = 46.dp
-    val fieldMultiLineHeight = 54.dp
-    val fieldHorizontalPadding = 12.dp
-    val fieldSingleLineVerticalPadding = 7.dp
-    val fieldMultiLineVerticalPadding = 11.dp
+    val fieldCorner = 22.dp
+    val fieldSingleLineHeight = 50.dp
+    val fieldMultiLineHeight = 58.dp
+    val fieldHorizontalPadding = 16.dp
+    val fieldSingleLineVerticalPadding = 10.dp
+    val fieldMultiLineVerticalPadding = 12.dp
     val fieldIconGap = 10.dp
-    val iconCircleSize = 48.dp
-    val iconPillHeight = 48.dp
+    val iconCircleSize = 50.dp
+    val iconPillHeight = 50.dp
     val iconPillHorizontalPadding = 16.dp
-    val outlineStrokeWidth = 1.dp
-    val outlineStrokeAlpha = 0.25f
-    val squareIconButtonSize = 54.dp
-    val squareButtonCorner = 18.dp
+    val squareIconButtonSize = 50.dp
+    val squareButtonCorner = 22.dp
     val selectionDotSize = 20.dp
     val selectionDotInnerSize = 8.dp
     val portraitCorner = 22.dp
@@ -73,24 +72,31 @@ private object DesignMetrics {
     val portraitBadgeGap = 12.dp
 }
 
+@Composable
+private fun elevatedSurfaceColor(): Color {
+    val scheme = MaterialTheme.colorScheme
+    return scheme.surface.copy(alpha = 0.98f).compositeOver(scheme.background)
+}
+
+@Composable
+private fun controlSurfaceColor(selected: Boolean): Color {
+    val scheme = MaterialTheme.colorScheme
+    return if (selected) {
+        scheme.onSurface.copy(alpha = 0.09f).compositeOver(scheme.surface)
+    } else {
+        scheme.surfaceVariant.copy(alpha = 0.9f).compositeOver(scheme.background)
+    }
+}
+
 fun Modifier.appOutlineSurface(
     shape: Shape,
     enabled: Boolean = true,
     selected: Boolean = false
 ): Modifier = composed {
     this
-        .alpha(if (enabled) 1f else 0.45f)
+        .alpha(if (enabled) 1f else 0.52f)
         .clip(shape)
-        .background(if (selected) MaterialTheme.colorScheme.onSurface else Color.Transparent)
-        .border(
-            width = DesignMetrics.outlineStrokeWidth,
-            color = if (selected) {
-                MaterialTheme.colorScheme.onSurface
-            } else {
-                MaterialTheme.colorScheme.outline.copy(alpha = DesignMetrics.outlineStrokeAlpha)
-            },
-            shape = shape
-        )
+        .background(controlSurfaceColor(selected = selected))
 }
 
 @Composable
@@ -99,8 +105,8 @@ private fun OutlineTextButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     shape: RoundedCornerShape = RoundedCornerShape(DesignMetrics.buttonCorner),
-    height: androidx.compose.ui.unit.Dp = DesignMetrics.secondaryButtonHeight,
-    contentPadding: androidx.compose.foundation.layout.PaddingValues = androidx.compose.foundation.layout.PaddingValues(
+    height: Dp = DesignMetrics.secondaryButtonHeight,
+    contentPadding: PaddingValues = PaddingValues(
         horizontal = DesignMetrics.iconPillHorizontalPadding
     ),
     selected: Boolean = false,
@@ -122,9 +128,9 @@ private fun OutlineTextButton(
     ) {
         CompositionLocalProvider(
             LocalContentColor provides if (selected) {
-                MaterialTheme.colorScheme.surface
-            } else {
                 MaterialTheme.colorScheme.onSurface
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant
             }
         ) {
             leadingIcon?.let {
@@ -144,8 +150,8 @@ fun AppCard(
     Card(
         modifier = modifier,
         shape = RoundedCornerShape(DesignMetrics.cardCorner),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        colors = CardDefaults.cardColors(containerColor = elevatedSurfaceColor()),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         content()
     }
@@ -164,7 +170,12 @@ fun PrimaryButton(
         enabled = enabled,
         onClick = onClick,
         shape = RoundedCornerShape(DesignMetrics.buttonCorner),
-        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+        colors = ButtonDefaults.buttonColors(
+            containerColor = MaterialTheme.colorScheme.primary,
+            contentColor = MaterialTheme.colorScheme.onPrimary,
+            disabledContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.42f),
+            disabledContentColor = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
+        )
     ) {
         Row(
             horizontalArrangement = Arrangement.Center,
@@ -204,22 +215,13 @@ fun SelectionButton(
     leadingIcon: (@Composable () -> Unit)? = null,
     onClick: () -> Unit
 ) {
-    if (selected) {
-        OutlineTextButton(
-            text = text,
-            modifier = modifier,
-            selected = true,
-            leadingIcon = leadingIcon,
-            onClick = onClick
-        )
-    } else {
-        OutlineTextButton(
-            text = text,
-            modifier = modifier,
-            leadingIcon = leadingIcon,
-            onClick = onClick
-        )
-    }
+    OutlineTextButton(
+        text = text,
+        modifier = modifier,
+        selected = selected,
+        leadingIcon = leadingIcon,
+        onClick = onClick
+    )
 }
 
 @Composable
@@ -235,6 +237,7 @@ fun AppTextField(
     shape: RoundedCornerShape = RoundedCornerShape(DesignMetrics.fieldCorner),
     leadingIcon: (@Composable () -> Unit)? = null
 ) {
+    val containerColor = controlSurfaceColor(selected = false)
     BasicTextField(
         value = value,
         onValueChange = onValueChange,
@@ -254,15 +257,10 @@ fun AppTextField(
                     .clip(shape)
                     .background(
                         if (enabled) {
-                            MaterialTheme.colorScheme.surfaceVariant
+                            containerColor
                         } else {
-                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.74f)
+                            containerColor.copy(alpha = 0.64f)
                         }
-                    )
-                    .border(
-                        1.dp,
-                        MaterialTheme.colorScheme.outline.copy(alpha = 0.18f),
-                        shape
                     )
                     .defaultMinSize(
                         minHeight = if (singleLine) {
@@ -287,12 +285,10 @@ fun AppTextField(
                         LocalContentColor provides if (enabled) {
                             MaterialTheme.colorScheme.onSurfaceVariant
                         } else {
-                            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f)
+                            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.48f)
                         }
                     ) {
-                        Box(
-                            contentAlignment = Alignment.Center
-                        ) {
+                        Box(contentAlignment = Alignment.Center) {
                             it()
                         }
                     }
@@ -308,7 +304,7 @@ fun AppTextField(
                                 platformStyle = PlatformTextStyle(includeFontPadding = false)
                             ),
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(
-                                alpha = if (enabled) 0.72f else 0.45f
+                                alpha = if (enabled) 0.84f else 0.48f
                             )
                         )
                     }
@@ -340,7 +336,7 @@ fun IconCircleButton(
     ) {
         CompositionLocalProvider(
             LocalContentColor provides if (selected) {
-                MaterialTheme.colorScheme.surface
+                MaterialTheme.colorScheme.onSurface
             } else {
                 MaterialTheme.colorScheme.onSurfaceVariant
             }
@@ -364,7 +360,7 @@ fun IconPillButton(
         enabled = enabled,
         shape = RoundedCornerShape(999.dp),
         height = DesignMetrics.iconPillHeight,
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(
+        contentPadding = PaddingValues(
             horizontal = DesignMetrics.iconPillHorizontalPadding
         ),
         leadingIcon = leadingIcon,
@@ -389,7 +385,7 @@ fun SquareIconButton(
             .clickable(enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
-        CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.onSurface) {
+        CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.onSurfaceVariant) {
             icon()
         }
     }
@@ -404,17 +400,21 @@ fun SelectionDot(
         modifier = modifier
             .size(DesignMetrics.selectionDotSize)
             .clip(CircleShape)
-            .border(2.dp, MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f), CircleShape),
+            .background(controlSurfaceColor(selected = selected)),
         contentAlignment = Alignment.Center
     ) {
-        if (selected) {
-            Box(
-                modifier = Modifier
-                    .size(DesignMetrics.selectionDotInnerSize)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.onSurface)
-            )
-        }
+        Box(
+            modifier = Modifier
+                .size(if (selected) DesignMetrics.selectionDotInnerSize else 6.dp)
+                .clip(CircleShape)
+                .background(
+                    if (selected) {
+                        MaterialTheme.colorScheme.onSurface
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                    }
+                )
+        )
     }
 }
 
@@ -434,9 +434,10 @@ fun CharacterPortrait(
                 contentScale = ContentScale.Crop,
                 modifier = modifier
                     .clip(shape)
-                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                    .background(controlSurfaceColor(selected = false))
             )
         }
+
         else -> {
             Box(
                 modifier = modifier
@@ -470,7 +471,7 @@ fun CircleAvatar(
                 contentScale = ContentScale.Crop,
                 modifier = modifier
                     .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                    .background(controlSurfaceColor(selected = false))
             )
         }
 
@@ -500,7 +501,7 @@ fun PillChip(
     Surface(
         modifier = modifier,
         shape = RoundedCornerShape(999.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant
+        color = controlSurfaceColor(selected = false)
     ) {
         Text(
             text = text,
@@ -508,7 +509,8 @@ fun PillChip(
                 horizontal = DesignMetrics.chipHorizontalPadding,
                 vertical = DesignMetrics.chipVerticalPadding
             ),
-            style = MaterialTheme.typography.labelLarge
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
 }

@@ -67,7 +67,8 @@ fun SignInRoute(viewModel: SignInViewModel = hiltViewModel()) {
             .background(
                 brush = Brush.verticalGradient(
                     colors = listOf(
-                        MaterialTheme.colorScheme.primary.copy(alpha = 0.95f),
+                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.94f),
+                        MaterialTheme.colorScheme.background,
                         MaterialTheme.colorScheme.background
                     )
                 )

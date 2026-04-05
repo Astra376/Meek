@@ -32,7 +32,7 @@ class AppViewModel @Inject constructor(
     val themeMode: StateFlow<ThemeMode> = settingsRepository.themeMode.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
-        initialValue = ThemeMode.SYSTEM
+        initialValue = ThemeMode.DARK
     )
 
     init {

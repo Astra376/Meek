@@ -1,42 +1,17 @@
 package com.example.aichat.core.design
 
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.size
+import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalContentColor
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.semantics.clearAndSetSemantics
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.Font
-import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import com.example.aichat.R
+import androidx.compose.ui.unit.Dp
+import androidx.compose.foundation.layout.size
+import com.github.yohannestz.iconsax_compose.iconsax.Iconsax
 
-enum class AppIconWeight {
-    Regular,
-    Fill
-}
-
-data class AppIconGlyph(
-    val value: String,
-    val weight: AppIconWeight = AppIconWeight.Regular
-)
-
-private val PhosphorRegularFontFamily = FontFamily(
-    Font(R.font.phosphor_regular, weight = FontWeight.Normal)
-)
-
-private val PhosphorFillFontFamily = FontFamily(
-    Font(R.font.phosphor_fill, weight = FontWeight.Normal)
-)
+typealias AppIconGlyph = ImageVector
 
 @Composable
 fun AppIcon(
@@ -46,73 +21,51 @@ fun AppIcon(
     tint: Color = LocalContentColor.current,
     size: Dp = 24.dp
 ) {
-    Box(
-        modifier = modifier
-            .size(size)
-            .clearAndSetSemantics {
-                if (contentDescription != null) {
-                    this.contentDescription = contentDescription
-                }
-            },
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = icon.value,
-            color = tint,
-            textAlign = TextAlign.Center,
-            style = TextStyle(
-                fontFamily = when (icon.weight) {
-                    AppIconWeight.Regular -> PhosphorRegularFontFamily
-                    AppIconWeight.Fill -> PhosphorFillFontFamily
-                },
-                fontWeight = FontWeight.Normal,
-                fontSize = size.value.sp,
-                lineHeight = size.value.sp
-            )
-        )
-    }
+    Icon(
+        imageVector = icon,
+        contentDescription = contentDescription,
+        modifier = modifier.size(size),
+        tint = tint
+    )
 }
 
 object AppIcons {
-    private fun regular(value: String) = AppIconGlyph(value = value)
-    private fun fill(value: String) = AppIconGlyph(value = value, weight = AppIconWeight.Fill)
+    val back = Iconsax.Linear.ArrowLeft
 
-    val back = regular("\uE058")
+    val homeOutline = Iconsax.Linear.Home
+    val home = Iconsax.Bold.Home
 
-    val homeOutline = regular("\uE2C2")
-    val home = fill("\uE2C2")
+    val createOutline = Iconsax.Linear.AddSquare
+    val create = Iconsax.Bold.AddSquare
+    val createAction = Iconsax.Linear.Add
 
-    val createOutline = regular("\uE3D6")
-    val create = fill("\uE3D6")
-    val createAction = regular("\uE34C")
+    val chatsOutline = Iconsax.Linear.Messages
+    val chats = Iconsax.Bold.Messages
 
-    val chatsOutline = regular("\uE168")
-    val chats = fill("\uE168")
+    val profileOutline = Iconsax.Linear.Profile
+    val profile = Iconsax.Bold.Profile
 
-    val profileOutline = regular("\uEE58")
-    val profile = fill("\uEE58")
+    val search = Iconsax.Linear.SearchNormal
+    val searchFilled = Iconsax.Bold.SearchNormal
+    val sparkle = Iconsax.Linear.MagicStar
+    val clear = Iconsax.Linear.Eraser
+    val public = Iconsax.Linear.Global
+    val lock = Iconsax.Linear.Lock
+    val send = Iconsax.Linear.Send
+    val stop = Iconsax.Bold.Stop
+    val previous = Iconsax.Linear.ArrowLeft
+    val next = Iconsax.Linear.ArrowRight
 
-    val search = regular("\uE30C")
-    val searchFilled = fill("\uE30C")
-    val sparkle = regular("\uE6A2")
-    val clear = regular("\uE4F8")
-    val public = regular("\uE28E")
-    val lock = regular("\uE308")
-    val send = regular("\uE398")
-    val stop = fill("\uE46E")
-    val previous = regular("\uE058")
-    val next = regular("\uE06C")
+    val themeSystem = Iconsax.Linear.Monitor
+    val themeDark = Iconsax.Linear.Moon
+    val themeLight = Iconsax.Linear.SunOne
 
-    val themeSystem = regular("\uE560")
-    val themeDark = regular("\uE330")
-    val themeLight = regular("\uE472")
+    val logout = Iconsax.Linear.LogoutCurve
+    val edit = Iconsax.Linear.Edit
+    val settings = Iconsax.Linear.SettingTwo
 
-    val logout = regular("\uE42A")
-    val edit = regular("\uE3B4")
-    val settings = regular("\uE272")
-
-    val owned = regular("\uE0F8")
-    val ownedFilled = fill("\uE0F8")
-    val liked = regular("\uE2A8")
-    val likedFilled = fill("\uE2A8")
+    val owned = Iconsax.Linear.UserOctagon
+    val ownedFilled = Iconsax.Bold.UserOctagon
+    val liked = Iconsax.Linear.Heart
+    val likedFilled = Iconsax.Bold.Heart
 }

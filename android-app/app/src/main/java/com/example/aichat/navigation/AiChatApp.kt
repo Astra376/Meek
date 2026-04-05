@@ -47,7 +47,6 @@ import com.example.aichat.core.design.AppIcon
 import com.example.aichat.core.design.AppIconGlyph
 import com.example.aichat.core.design.AppIcons
 import com.example.aichat.core.design.CircleAvatar
-import com.example.aichat.core.design.RoundedAvatar
 import com.example.aichat.core.ui.AppChrome
 import com.example.aichat.core.ui.LoadingScreen
 import com.example.aichat.feature.character.CharacterStudioRoute
@@ -445,30 +444,27 @@ private fun BottomBarProfileAvatar(
     modifier: Modifier = Modifier
 ) {
     val outlineWidth = 1.5.dp
-
-    Box(
-        modifier = modifier
+    val avatarModifier = if (selected) {
+        Modifier
             .border(
-                width = if (selected) outlineWidth else 0.dp,
+                width = outlineWidth,
                 color = MaterialTheme.colorScheme.onSurface,
                 shape = CircleShape
             )
-            .padding(if (selected) outlineWidth else 0.dp),
+            .padding(outlineWidth)
+    } else {
+        Modifier
+    }
+
+    Box(
+        modifier = modifier.then(avatarModifier),
         contentAlignment = Alignment.Center
     ) {
-        if (selected) {
-            CircleAvatar(
-                name = name,
-                avatarUrl = avatarUrl,
-                modifier = Modifier.fillMaxSize()
-            )
-        } else {
-            RoundedAvatar(
-                name = name,
-                avatarUrl = avatarUrl,
-                modifier = Modifier.fillMaxSize()
-            )
-        }
+        CircleAvatar(
+            name = name,
+            avatarUrl = avatarUrl,
+            modifier = Modifier.fillMaxSize()
+        )
     }
 }
 

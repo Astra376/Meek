@@ -428,22 +428,8 @@ fun CharacterPortrait(
     avatarUrl: String?,
     modifier: Modifier = Modifier
 ) {
-    AvatarArtwork(
-        name = name,
-        avatarUrl = avatarUrl,
-        shape = RoundedCornerShape(DesignMetrics.portraitCorner),
-        modifier = modifier
-    )
-}
-
-@Composable
-private fun AvatarArtwork(
-    name: String,
-    avatarUrl: String?,
-    shape: Shape,
-    modifier: Modifier = Modifier
-) {
     val palette = avatarPalette(avatarUrl ?: name)
+    val shape = RoundedCornerShape(DesignMetrics.portraitCorner)
     when {
         avatarUrl?.startsWith("http") == true -> {
             AsyncImage(
@@ -480,26 +466,35 @@ fun CircleAvatar(
     avatarUrl: String?,
     modifier: Modifier = Modifier
 ) {
-    AvatarArtwork(
-        name = name,
-        avatarUrl = avatarUrl,
-        shape = CircleShape,
-        modifier = modifier
-    )
-}
+    val palette = avatarPalette(avatarUrl ?: name)
+    when {
+        avatarUrl?.startsWith("http") == true -> {
+            AsyncImage(
+                model = avatarUrl,
+                contentDescription = name,
+                contentScale = ContentScale.Crop,
+                modifier = modifier
+                    .clip(CircleShape)
+                    .background(controlSurfaceColor(selected = false))
+            )
+        }
 
-@Composable
-fun RoundedAvatar(
-    name: String,
-    avatarUrl: String?,
-    modifier: Modifier = Modifier
-) {
-    AvatarArtwork(
-        name = name,
-        avatarUrl = avatarUrl,
-        shape = RoundedCornerShape(9.dp),
-        modifier = modifier
-    )
+        else -> {
+            Box(
+                modifier = modifier
+                    .clip(CircleShape)
+                    .background(brush = Brush.linearGradient(palette)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = name.take(2).uppercase(),
+                    style = MaterialTheme.typography.titleLarge,
+                    color = Color.White,
+                    textAlign = TextAlign.Center
+                )
+            }
+        }
+    }
 }
 
 @Composable

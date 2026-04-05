@@ -39,14 +39,14 @@ object AppIcons {
     val create = Iconsax.Bold.AddSquare
     val createAction = Iconsax.Linear.Add
 
-    val chatsOutline = Iconsax.Linear.Messages
-    val chats = Iconsax.Bold.Messages
+    val chatsOutline = Iconsax.Linear.MessageCircle
+    val chats = Iconsax.Bold.MessageCircle
 
     val profileOutline = Iconsax.Linear.Profile
     val profile = Iconsax.Bold.Profile
 
-    val search = Iconsax.Linear.SearchNormal
-    val searchFilled = Iconsax.Bold.SearchNormal
+    val search = Iconsax.Linear.SearchNormal1
+    val searchFilled = Iconsax.Bold.SearchNormal1
     val sparkle = Iconsax.Linear.MagicStar
     val clear = Iconsax.Linear.Eraser
     val public = Iconsax.Linear.Global

@@ -3,14 +3,13 @@ package com.example.aichat.navigation
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.animateIntAsState
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
@@ -20,8 +19,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -30,7 +28,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.contentDescription
@@ -375,58 +372,56 @@ private fun BottomIconBar(
     profileAvatarUrl: String?,
     onNavigate: (String) -> Unit
 ) {
-    val barColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.98f)
-        .compositeOver(MaterialTheme.colorScheme.background)
     Surface(
         modifier = modifier
             .fillMaxWidth()
-            .padding(
-                horizontal = AppChrome.screenHorizontalPadding,
-                vertical = 8.dp
-            )
             .navigationBarsPadding(),
-        color = barColor,
-        shape = RoundedCornerShape(28.dp),
+        color = MaterialTheme.colorScheme.background,
         tonalElevation = 0.dp,
         shadowElevation = 0.dp
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(AppChrome.bottomBarHeight)
-                .padding(
-                    horizontal = AppChrome.bottomBarHorizontalPadding,
-                    vertical = AppChrome.bottomBarVerticalPadding
-                ),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            bottomDestinations.forEach { destination ->
-                val selected = currentRoute == destination.route
-                BottomBarItem(
-                    selected = selected,
-                    contentDescription = destination.contentDescription,
-                    onClick = { onNavigate(destination.route) },
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(horizontal = AppChrome.bottomBarItemHorizontalPadding)
-                ) {
-                    if (destination == MainDestination.Profile) {
-                        CircleAvatar(
-                            name = profileName.ifBlank { "User" },
-                            avatarUrl = profileAvatarUrl,
-                            modifier = Modifier.size(28.dp)
-                        )
-                    } else {
-                        AppIcon(
-                            icon = if (selected) destination.filledIcon else destination.outlinedIcon,
-                            contentDescription = null,
-                            size = AppChrome.bottomBarIconSize,
-                            tint = if (selected) {
-                                MaterialTheme.colorScheme.onSurface
-                            } else {
-                                MaterialTheme.colorScheme.onSurfaceVariant
-                            }
-                        )
+        Column {
+            HorizontalDivider(
+                thickness = 0.5.dp,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)
+            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(AppChrome.bottomBarHeight)
+                    .padding(
+                        horizontal = AppChrome.bottomBarHorizontalPadding,
+                        vertical = AppChrome.bottomBarVerticalPadding
+                    ),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                bottomDestinations.forEach { destination ->
+                    val selected = currentRoute == destination.route
+                    BottomBarItem(
+                        contentDescription = destination.contentDescription,
+                        onClick = { onNavigate(destination.route) },
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(horizontal = AppChrome.bottomBarItemHorizontalPadding)
+                    ) {
+                        if (destination == MainDestination.Profile) {
+                            CircleAvatar(
+                                name = profileName.ifBlank { "User" },
+                                avatarUrl = profileAvatarUrl,
+                                modifier = Modifier.size(28.dp)
+                            )
+                        } else {
+                            AppIcon(
+                                icon = if (selected) destination.filledIcon else destination.outlinedIcon,
+                                contentDescription = null,
+                                size = AppChrome.bottomBarIconSize,
+                                tint = if (selected) {
+                                    MaterialTheme.colorScheme.onSurface
+                                } else {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                }
+                            )
+                        }
                     }
                 }
             }
@@ -436,28 +431,12 @@ private fun BottomIconBar(
 
 @Composable
 private fun BottomBarItem(
-    selected: Boolean,
     contentDescription: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit
 ) {
     val interactionSource = remember { MutableInteractionSource() }
-    val itemScale by animateFloatAsState(
-        targetValue = if (selected) 1f else 0.92f,
-        animationSpec = tween(durationMillis = 180),
-        label = "bottomBarItemScale"
-    )
-    val itemAlpha by animateFloatAsState(
-        targetValue = if (selected) 1f else 0.88f,
-        animationSpec = tween(durationMillis = 180),
-        label = "bottomBarItemAlpha"
-    )
-    val containerSize by animateIntAsState(
-        targetValue = if (selected) 44 else 40,
-        animationSpec = tween(durationMillis = 180),
-        label = "bottomBarItemSize"
-    )
 
     Box(
         modifier = modifier,
@@ -465,12 +444,7 @@ private fun BottomBarItem(
     ) {
         Box(
             modifier = Modifier
-                .size(containerSize.dp)
-                .graphicsLayer {
-                    scaleX = itemScale
-                    scaleY = itemScale
-                    alpha = itemAlpha
-                }
+                .size(AppChrome.bottomBarTapHeight)
                 .semantics(mergeDescendants = true) {
                     this.contentDescription = contentDescription
                 }
@@ -480,16 +454,6 @@ private fun BottomBarItem(
                 ) { onClick() },
             contentAlignment = Alignment.Center
         ) {
-            if (selected) {
-                Box(
-                    modifier = Modifier
-                        .matchParentSize()
-                        .background(
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
-                            shape = CircleShape
-                        )
-                )
-            }
             content()
         }
     }

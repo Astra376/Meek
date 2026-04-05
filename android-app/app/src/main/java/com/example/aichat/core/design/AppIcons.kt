@@ -68,8 +68,8 @@ object AppIcons {
     val edit = Iconsax.Linear.Edit
     val settings = Iconsax.Linear.SettingTwo
 
-    val created = Iconsax.Linear.GridsFour
-    val createdFilled = Iconsax.Bold.GridsFour
+    val created = Iconsax.Linear.GridFour
+    val createdFilled = Iconsax.Bold.GridFour
     val liked = Iconsax.Linear.Heart
     val likedFilled = Iconsax.Bold.Heart
 }

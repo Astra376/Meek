@@ -79,15 +79,15 @@ object AppIcons {
 
     val back = regular("\uE058")
 
-    val homeOutline = regular("\uE2C6")
-    val home = fill("\uE2C6")
+    val homeOutline = regular("\uE2C2")
+    val home = fill("\uE2C2")
 
     val createOutline = regular("\uE3D6")
     val create = fill("\uE3D6")
     val createAction = regular("\uE34C")
 
-    val chatsOutline = regular("\uE17E")
-    val chats = fill("\uE17E")
+    val chatsOutline = regular("\uE168")
+    val chats = fill("\uE168")
 
     val profileOutline = regular("\uEE58")
     val profile = fill("\uEE58")
@@ -113,6 +113,6 @@ object AppIcons {
 
     val owned = regular("\uE0F8")
     val ownedFilled = fill("\uE0F8")
-    val liked = regular("\uE2AA")
-    val likedFilled = fill("\uE2AA")
+    val liked = regular("\uE2A8")
+    val likedFilled = fill("\uE2A8")
 }

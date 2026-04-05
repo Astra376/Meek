@@ -7,6 +7,7 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
@@ -18,6 +19,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -26,10 +29,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
@@ -39,6 +45,7 @@ import androidx.navigation.compose.rememberNavController
 import com.example.aichat.core.design.AppIcon
 import com.example.aichat.core.design.AppIconGlyph
 import com.example.aichat.core.design.AppIcons
+import com.example.aichat.core.design.CircleAvatar
 import com.example.aichat.core.ui.AppChrome
 import com.example.aichat.core.ui.LoadingScreen
 import com.example.aichat.feature.character.CharacterStudioRoute
@@ -111,16 +118,24 @@ private val subpageRoutes = setOf(
 @Composable
 fun AiChatApp(appViewModel: AppViewModel) {
     val session by appViewModel.sessionState.collectAsStateWithLifecycle()
+    val profile by appViewModel.profile.collectAsStateWithLifecycle()
+    val activeProfile = profile ?: session.profile
 
     when {
         session.isLoading -> LoadingScreen()
         !session.isSignedIn -> SignInRoute()
-        else -> MainShell()
+        else -> MainShell(
+            profileName = activeProfile?.displayName.orEmpty(),
+            profileAvatarUrl = activeProfile?.avatarUrl
+        )
     }
 }
 
 @Composable
-private fun MainShell() {
+private fun MainShell(
+    profileName: String,
+    profileAvatarUrl: String?
+) {
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = backStackEntry?.destination
@@ -145,6 +160,8 @@ private fun MainShell() {
             BottomIconBar(
                 modifier = Modifier.graphicsLayer { translationX = bottomBarOffset },
                 currentRoute = currentDestination?.route,
+                profileName = profileName,
+                profileAvatarUrl = profileAvatarUrl,
                 onNavigate = { route ->
                     navController.navigate(route) {
                         popUpTo(navController.graph.findStartDestination().id) {
@@ -355,6 +372,8 @@ private fun MainShell() {
 private fun BottomIconBar(
     modifier: Modifier = Modifier,
     currentRoute: String?,
+    profileName: String,
+    profileAvatarUrl: String?,
     onNavigate: (String) -> Unit
 ) {
     Surface(
@@ -400,16 +419,61 @@ private fun BottomIconBar(
                                 ) { onNavigate(destination.route) },
                             contentAlignment = Alignment.Center
                         ) {
-                            AppIcon(
-                                icon = if (selected) destination.filledIcon else destination.outlinedIcon,
-                                contentDescription = destination.contentDescription,
-                                size = AppChrome.bottomBarIconSize,
-                                tint = MaterialTheme.colorScheme.onSurface
-                            )
+                            if (destination == MainDestination.Profile) {
+                                BottomBarProfileAvatar(
+                                    selected = selected,
+                                    name = profileName.ifBlank { "User" },
+                                    avatarUrl = profileAvatarUrl,
+                                    contentDescription = destination.contentDescription
+                                )
+                            } else {
+                                AppIcon(
+                                    icon = if (selected) destination.filledIcon else destination.outlinedIcon,
+                                    contentDescription = destination.contentDescription,
+                                    size = AppChrome.bottomBarIconSize,
+                                    tint = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
                         }
                     }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun BottomBarProfileAvatar(
+    selected: Boolean,
+    name: String,
+    avatarUrl: String?,
+    contentDescription: String
+) {
+    Box(
+        modifier = Modifier
+            .size(AppChrome.bottomBarIconSize)
+            .semantics(mergeDescendants = true) {
+                this.contentDescription = contentDescription
+            },
+        contentAlignment = Alignment.Center
+    ) {
+        if (selected) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
+                    .border(
+                        width = 1.dp,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.18f),
+                        shape = CircleShape
+                    )
+            )
+        }
+        CircleAvatar(
+            name = name,
+            avatarUrl = avatarUrl,
+            modifier = Modifier.size(24.dp)
+        )
     }
 }

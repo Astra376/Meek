@@ -31,14 +31,12 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.keyframes
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -70,6 +68,7 @@ import com.example.aichat.core.design.AppTextField
 import com.example.aichat.core.design.CircleAvatar
 import com.example.aichat.core.design.CharacterPortrait
 import com.example.aichat.core.design.IconCircleButton
+import com.example.aichat.core.design.PrimaryButton
 import com.example.aichat.core.design.SecondaryButton
 import com.example.aichat.core.model.ChatMessage
 import com.example.aichat.core.model.ConversationDetail
@@ -284,6 +283,8 @@ fun ChatRoute(
     editTarget?.let { message ->
         AlertDialog(
             onDismissRequest = { editTarget = null },
+            shape = RoundedCornerShape(28.dp),
+            containerColor = MaterialTheme.colorScheme.surface,
             title = { Text("Edit Message") },
             text = {
                 AppTextField(
@@ -297,19 +298,16 @@ fun ChatRoute(
                 )
             },
             confirmButton = {
-                TextButton(
+                PrimaryButton(
+                    text = "Save",
                     onClick = {
                         viewModel.editMessage(message.id, editText)
                         editTarget = null
                     }
-                ) {
-                    Text("Save")
-                }
+                )
             },
             dismissButton = {
-                TextButton(onClick = { editTarget = null }) {
-                    Text("Cancel")
-                }
+                SecondaryButton(text = "Cancel", onClick = { editTarget = null })
             }
         )
     }
@@ -790,21 +788,27 @@ private fun MessageBubble(
             val currentIndex = message.regenerations.indexOfFirst { it.id == message.selectedRegenerationId }.coerceAtLeast(0)
             Row(
                 modifier = Modifier.padding(top = 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = onSelectPreviousVariant, enabled = variantControlsEnabled && currentIndex > 0) {
-                    AppIcon(AppIcons.previous, contentDescription = "Previous variant")
+                IconCircleButton(
+                    containerSize = 36.dp,
+                    enabled = variantControlsEnabled && currentIndex > 0,
+                    onClick = onSelectPreviousVariant
+                ) {
+                    AppIcon(AppIcons.previous, contentDescription = "Previous variant", size = 20.dp)
                 }
                 Text(
                     text = "Variant ${currentIndex + 1}/${message.regenerations.size}",
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Medium
                 )
-                IconButton(
-                    onClick = onSelectNextVariant,
-                    enabled = variantControlsEnabled && currentIndex < message.regenerations.lastIndex
+                IconCircleButton(
+                    containerSize = 36.dp,
+                    enabled = variantControlsEnabled && currentIndex < message.regenerations.lastIndex,
+                    onClick = onSelectNextVariant
                 ) {
-                    AppIcon(AppIcons.next, contentDescription = "Next variant")
+                    AppIcon(AppIcons.next, contentDescription = "Next variant", size = 20.dp)
                 }
             }
         }
@@ -967,23 +971,37 @@ private fun MessageActionsDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
+        shape = RoundedCornerShape(28.dp),
+        containerColor = MaterialTheme.colorScheme.surface,
         title = { Text("Message Actions") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Long-press actions are destructive where noted.")
-            }
-        },
-        confirmButton = {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TextButton(onClick = onEdit) { Text("Edit") }
-                TextButton(onClick = onRewind) { Text("Rewind") }
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    text = "Choose how you want to adjust this message.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                SecondaryButton(
+                    text = "Edit",
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = onEdit
+                )
+                SecondaryButton(
+                    text = "Rewind",
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = onRewind
+                )
                 if (canRegenerate) {
-                    TextButton(onClick = onRegenerate) { Text("Regenerate") }
+                    SecondaryButton(
+                        text = "Regenerate",
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = onRegenerate
+                    )
                 }
             }
         },
+        confirmButton = {},
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Close") }
+            SecondaryButton(text = "Close", onClick = onDismiss)
         }
     )
 }

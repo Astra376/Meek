@@ -28,9 +28,9 @@ import com.example.aichat.core.design.AppIcon
 import com.example.aichat.core.design.AppIcons
 import com.example.aichat.core.design.AppTextField
 import com.example.aichat.core.design.CharacterPortrait
+import com.example.aichat.core.design.IconPillButton
 import com.example.aichat.core.design.PrimaryButton
 import com.example.aichat.core.design.SelectionButton
-import com.example.aichat.core.design.SquareIconButton
 import com.example.aichat.core.ui.AppChrome
 import com.example.aichat.core.ui.ScreenBackgroundBox
 import com.example.aichat.core.ui.screenContentPadding
@@ -147,11 +147,13 @@ fun CharacterStudioRoute(
                             },
                             onClick = viewModel::generatePortrait
                         )
-                        SquareIconButton(
-                            onClick = { viewModel.updateDraft { CharacterDraft() } }
-                        ) {
-                            AppIcon(AppIcons.clear, contentDescription = "Clear")
-                        }
+                        IconPillButton(
+                            text = "Clear",
+                            onClick = { viewModel.updateDraft { CharacterDraft() } },
+                            leadingIcon = {
+                                AppIcon(AppIcons.clear, contentDescription = "Clear")
+                            }
+                        )
                     }
                     AppTextField(
                         value = state.draft.name,

@@ -320,12 +320,13 @@ fun IconCircleButton(
     modifier: Modifier = Modifier,
     selected: Boolean = false,
     enabled: Boolean = true,
+    containerSize: Dp = DesignMetrics.iconCircleSize,
     onClick: () -> Unit,
     icon: @Composable () -> Unit
 ) {
     Box(
         modifier = modifier
-            .size(DesignMetrics.iconCircleSize)
+            .size(containerSize)
             .appOutlineSurface(
                 shape = CircleShape,
                 enabled = enabled,

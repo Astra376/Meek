@@ -9,6 +9,11 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.Dp
 import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Comment
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.outlined.Comment
+import androidx.compose.material.icons.outlined.Search
 import com.github.yohannestz.iconsax_compose.iconsax.Iconsax
 
 typealias AppIconGlyph = ImageVector
@@ -39,14 +44,14 @@ object AppIcons {
     val create = Iconsax.Bold.AddSquare
     val createAction = Iconsax.Linear.Add
 
-    val chatsOutline = Iconsax.Linear.Message
-    val chats = Iconsax.Bold.Message
+    val chatsOutline = Icons.Outlined.Comment
+    val chats = Icons.Filled.Comment
 
     val profileOutline = Iconsax.Linear.Profile
     val profile = Iconsax.Bold.Profile
 
-    val search = Iconsax.Linear.SearchNormal
-    val searchFilled = Iconsax.Bold.SearchNormal
+    val search = Icons.Outlined.Search
+    val searchFilled = Icons.Filled.Search
     val sparkle = Iconsax.Linear.MagicStar
     val clear = Iconsax.Linear.Eraser
     val public = Iconsax.Linear.Global

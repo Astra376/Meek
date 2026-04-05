@@ -83,16 +83,16 @@ fun SettingsRoute(
 
             Text("App Theme", style = MaterialTheme.typography.titleLarge)
             ThemeOptionRow(
-                text = "Dark",
-                selected = themeMode == ThemeMode.DARK,
-                icon = { AppIcon(AppIcons.themeDark, contentDescription = null) },
-                onClick = { viewModel.setTheme(ThemeMode.DARK) }
-            )
-            ThemeOptionRow(
                 text = "System",
                 selected = themeMode == ThemeMode.SYSTEM,
                 icon = { AppIcon(AppIcons.themeSystem, contentDescription = null) },
                 onClick = { viewModel.setTheme(ThemeMode.SYSTEM) }
+            )
+            ThemeOptionRow(
+                text = "Dark",
+                selected = themeMode == ThemeMode.DARK,
+                icon = { AppIcon(AppIcons.themeDark, contentDescription = null) },
+                onClick = { viewModel.setTheme(ThemeMode.DARK) }
             )
             ThemeOptionRow(
                 text = "Light",

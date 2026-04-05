@@ -98,7 +98,8 @@ fun ChatListRoute(
                     .fillMaxWidth()
                     .padding(vertical = 4.dp)
                     .clickable { onOpenConversation(conversation.id) },
-                verticalAlignment = Alignment.CenterVertically
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.Top
             ) {
                 CharacterPortrait(
                     name = conversation.characterName,
@@ -108,19 +109,34 @@ fun ChatListRoute(
                 )
                 Column(
                     modifier = Modifier
-                        .weight(1f)
-                        .padding(start = 12.dp, end = 12.dp),
+                        .weight(1f),
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    Text(
-                        text = conversation.characterName,
-                        style = MaterialTheme.typography.titleMedium.copy(
-                            fontSize = 18.sp,
-                            lineHeight = 21.sp
-                        ),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.Top
+                    ) {
+                        Text(
+                            text = conversation.characterName,
+                            modifier = Modifier.weight(1f),
+                            style = MaterialTheme.typography.titleMedium.copy(
+                                fontSize = 18.sp,
+                                lineHeight = 21.sp
+                            ),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            text = formatRelativeTime(conversation.lastMessageAt ?: conversation.updatedAt),
+                            style = MaterialTheme.typography.labelLarge.copy(
+                                fontSize = 11.sp,
+                                lineHeight = 13.sp
+                            ),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1
+                        )
+                    }
                     Text(
                         text = formatConversationPreview(conversation.lastPreview)
                             .ifBlank { "Conversation ready." },
@@ -133,15 +149,6 @@ fun ChatListRoute(
                         overflow = TextOverflow.Ellipsis
                     )
                 }
-                Text(
-                    text = formatRelativeTime(conversation.lastMessageAt ?: conversation.updatedAt),
-                    style = MaterialTheme.typography.labelLarge.copy(
-                        fontSize = 11.sp,
-                        lineHeight = 13.sp
-                    ),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1
-                )
             }
         }
     }

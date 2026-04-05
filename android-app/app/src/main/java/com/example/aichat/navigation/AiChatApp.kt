@@ -412,7 +412,7 @@ private fun BottomIconBar(
                                 name = profileName.ifBlank { "User" },
                                 avatarUrl = profileAvatarUrl,
                                 selected = selected,
-                                modifier = Modifier.size(28.dp)
+                                modifier = Modifier.size(AppChrome.bottomBarIconSize)
                             )
                         } else {
                             AppIcon(

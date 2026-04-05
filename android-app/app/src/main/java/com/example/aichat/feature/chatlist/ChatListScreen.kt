@@ -73,11 +73,14 @@ fun ChatListRoute(
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = screenContentPadding(paddingValues),
-        verticalArrangement = Arrangement.spacedBy(AppChrome.sectionSpacing)
+        contentPadding = screenContentPadding(paddingValues)
     ) {
         item {
-            Text("Chats", style = MaterialTheme.typography.headlineMedium)
+            Text(
+                text = "Chats",
+                style = MaterialTheme.typography.headlineMedium,
+                modifier = Modifier.padding(bottom = AppChrome.sectionSpacing)
+            )
         }
         if (conversations.isEmpty()) {
             item {
@@ -99,7 +102,7 @@ fun ChatListRoute(
                     .padding(vertical = 4.dp)
                     .clickable { onOpenConversation(conversation.id) },
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalAlignment = Alignment.Top
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 CharacterPortrait(
                     name = conversation.characterName,
@@ -115,7 +118,7 @@ fun ChatListRoute(
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        verticalAlignment = Alignment.Top
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
                             text = conversation.characterName,

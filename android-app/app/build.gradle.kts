@@ -63,12 +63,27 @@ android {
 }
 
 dependencies {
+    constraints {
+        implementation("androidx.core:core") {
+            version {
+                strictly("1.15.0")
+            }
+            because("androidx.core 1.17.0 requires compileSdk 36 and AGP 8.9.1, while this project builds against compileSdk 35")
+        }
+        implementation("androidx.core:core-ktx") {
+            version {
+                strictly("1.15.0")
+            }
+            because("androidx.core 1.17.0 requires compileSdk 36 and AGP 8.9.1, while this project builds against compileSdk 35")
+        }
+    }
+
     val composeBom = platform("androidx.compose:compose-bom:2024.09.03")
 
     implementation(composeBom)
     androidTestImplementation(composeBom)
 
-    implementation("androidx.core:core-ktx:1.15.0")
+    implementation("androidx.core:core-ktx")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")

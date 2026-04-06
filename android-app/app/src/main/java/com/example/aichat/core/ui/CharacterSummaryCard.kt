@@ -18,7 +18,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.PlatformTextStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -92,8 +91,7 @@ fun CharacterSummaryCard(
                             text = character.publicChatCount.toString(),
                             style = MaterialTheme.typography.labelLarge.copy(
                                 fontSize = 12.sp,
-                                lineHeight = 14.sp,
-                                platformStyle = PlatformTextStyle(includeFontPadding = false)
+                                lineHeight = 14.sp
                             ),
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -111,8 +109,7 @@ fun CharacterSummaryCard(
                     text = character.name,
                     style = MaterialTheme.typography.titleLarge.copy(
                         fontSize = 20.sp,
-                        lineHeight = 22.sp,
-                        platformStyle = PlatformTextStyle(includeFontPadding = false)
+                        lineHeight = 22.sp
                     ),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
@@ -122,8 +119,7 @@ fun CharacterSummaryCard(
                     text = character.tagline,
                     style = MaterialTheme.typography.bodyMedium.copy(
                         fontSize = 12.sp,
-                        lineHeight = 16.sp,
-                        platformStyle = PlatformTextStyle(includeFontPadding = false)
+                        lineHeight = 16.sp
                     ),
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.94f),
                     maxLines = 2,
@@ -135,8 +131,7 @@ fun CharacterSummaryCard(
                     text = "@${character.authorUsername.ifBlank { "creator" }}",
                     style = MaterialTheme.typography.labelLarge.copy(
                         fontSize = 12.sp,
-                        lineHeight = 14.sp,
-                        platformStyle = PlatformTextStyle(includeFontPadding = false)
+                        lineHeight = 14.sp
                     ),
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
                     maxLines = 1,

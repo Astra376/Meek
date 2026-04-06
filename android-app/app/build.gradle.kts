@@ -27,7 +27,19 @@ android {
         buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"${googleWebClientId.get()}\"")
     }
 
+    signingConfigs {
+        create("sharedDebug") {
+            storeFile = file("debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
     buildTypes {
+        debug {
+            signingConfig = signingConfigs.getByName("sharedDebug")
+        }
         release {
             isMinifyEnabled = false
             proguardFiles(
@@ -59,29 +71,6 @@ android {
 
     testOptions {
         unitTests.isIncludeAndroidResources = true
-    }
-
-    signingConfigs {
-        create("sharedDebug") {
-            // Point to the file you just moved into the app folder
-            storeFile = file("debug.keystore")
-            // Default passwords/alias for debug keystores
-            storePassword = "android"
-            keyAlias = "androiddebugkey"
-            keyPassword = "android"
-        }
-    }
-    buildTypes {
-        debug {
-            signingConfig = signingConfigs.getByName("sharedDebug")
-        }
-        release {
-            isMinifyEnabled = false
-            proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
-            )
-        }
     }
 }
 

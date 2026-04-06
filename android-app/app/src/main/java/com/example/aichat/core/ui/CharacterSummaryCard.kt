@@ -29,13 +29,12 @@ import com.example.aichat.core.design.DesignMetrics
 import com.example.aichat.core.model.CharacterSummary
 
 private object CharacterCardMetrics {
-    val cardAspectRatio = 0.7f
-    val portraitWeight = 0.55f
-    val contentWeight = 0.45f
-    val contentPadding = 14.dp
-    val titleGap = 4.dp
-    val authorGap = 10.dp
-    val badgeInset = 12.dp
+    val cardAspectRatio = 0.82f
+    val portraitWeight = 0.60f
+    val contentWeight = 0.40f
+    val contentPadding = 12.dp
+    val gapSmall = 2.dp
+    val gapStandard = 6.dp
     val badgeGap = 5.dp
     val badgeIconSize = 14.dp
 }
@@ -69,34 +68,6 @@ fun CharacterSummaryCard(
                         bottomEnd = 0.dp
                     )
                 )
-                Surface(
-                    modifier = Modifier
-                        .align(Alignment.BottomStart)
-                        .padding(CharacterCardMetrics.badgeInset),
-                    shape = RoundedCornerShape(999.dp),
-                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.84f)
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                        horizontalArrangement = Arrangement.spacedBy(CharacterCardMetrics.badgeGap),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        AppIcon(
-                            icon = AppIcons.chats,
-                            contentDescription = null,
-                            size = CharacterCardMetrics.badgeIconSize,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Text(
-                            text = character.publicChatCount.toString(),
-                            style = MaterialTheme.typography.labelLarge.copy(
-                                fontSize = 12.sp,
-                                lineHeight = 14.sp
-                            ),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
             }
 
             Column(
@@ -108,35 +79,57 @@ fun CharacterSummaryCard(
                 Text(
                     text = character.name,
                     style = MaterialTheme.typography.titleLarge.copy(
-                        fontSize = 20.sp,
-                        lineHeight = 22.sp
+                        fontSize = 18.sp,
+                        lineHeight = 20.sp
                     ),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                Spacer(modifier = Modifier.height(CharacterCardMetrics.titleGap))
+                Text(
+                    text = "@${character.authorUsername.ifBlank { "creator" }}",
+                    style = MaterialTheme.typography.labelLarge.copy(
+                        fontSize = 11.sp,
+                        lineHeight = 13.sp
+                    ),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.64f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                
+                Spacer(modifier = Modifier.height(CharacterCardMetrics.gapStandard))
+                
                 Text(
                     text = character.tagline,
                     style = MaterialTheme.typography.bodyMedium.copy(
                         fontSize = 12.sp,
-                        lineHeight = 16.sp
+                        lineHeight = 15.sp
                     ),
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.94f),
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Spacer(modifier = Modifier.weight(1f))
-                Spacer(modifier = Modifier.height(CharacterCardMetrics.authorGap))
-                Text(
-                    text = "@${character.authorUsername.ifBlank { "creator" }}",
-                    style = MaterialTheme.typography.labelLarge.copy(
-                        fontSize = 12.sp,
-                        lineHeight = 14.sp
-                    ),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
+                
+                Spacer(modifier = Modifier.weight(1f))
+                
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(CharacterCardMetrics.badgeGap),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    AppIcon(
+                        icon = AppIcons.chats,
+                        contentDescription = null,
+                        size = CharacterCardMetrics.badgeIconSize,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f)
+                    )
+                    Text(
+                        text = character.publicChatCount.toString(),
+                        style = MaterialTheme.typography.labelLarge.copy(
+                            fontSize = 11.sp,
+                            lineHeight = 13.sp
+                        ),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f)
+                    )
+                }
             }
         }
     }

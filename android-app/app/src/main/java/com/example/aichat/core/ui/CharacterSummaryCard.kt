@@ -25,6 +25,7 @@ import com.example.aichat.core.design.AppCard
 import com.example.aichat.core.design.AppIcon
 import com.example.aichat.core.design.AppIcons
 import com.example.aichat.core.design.CharacterPortrait
+import com.example.aichat.core.design.DesignMetrics
 import com.example.aichat.core.model.CharacterSummary
 
 private object CharacterCardMetrics {
@@ -60,7 +61,13 @@ fun CharacterSummaryCard(
                 CharacterPortrait(
                     name = character.name,
                     avatarUrl = character.avatarUrl,
-                    modifier = Modifier.fillMaxSize()
+                    modifier = Modifier.fillMaxSize(),
+                    shape = RoundedCornerShape(
+                        topStart = DesignMetrics.portraitCorner,
+                        topEnd = DesignMetrics.portraitCorner,
+                        bottomStart = 0.dp,
+                        bottomEnd = 0.dp
+                    )
                 )
                 Surface(
                     modifier = Modifier

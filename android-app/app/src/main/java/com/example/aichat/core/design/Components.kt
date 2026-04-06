@@ -46,7 +46,7 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.example.aichat.core.util.avatarPalette
 
-private object DesignMetrics {
+internal object DesignMetrics {
     val cardCorner = 22.dp
     val buttonCorner = 999.dp
     val primaryButtonHeight = 54.dp
@@ -426,10 +426,10 @@ fun SelectionDot(
 fun CharacterPortrait(
     name: String,
     avatarUrl: String?,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    shape: Shape = RoundedCornerShape(DesignMetrics.portraitCorner)
 ) {
     val palette = avatarPalette(avatarUrl ?: name)
-    val shape = RoundedCornerShape(DesignMetrics.portraitCorner)
     when {
         avatarUrl?.startsWith("http") == true -> {
             AsyncImage(

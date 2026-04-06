@@ -30,8 +30,8 @@ import com.example.aichat.core.model.CharacterSummary
 
 private object CharacterCardMetrics {
     val cardAspectRatio = 0.7f
-    val portraitWeight = 0.64f
-    val contentWeight = 0.36f
+    val portraitWeight = 0.55f
+    val contentWeight = 0.45f
     val contentPadding = 14.dp
     val titleGap = 4.dp
     val authorGap = 10.dp

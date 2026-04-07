@@ -15,11 +15,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.GridItemSpan
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -178,22 +175,29 @@ fun NewHomeRoute(
     ScreenBackgroundBox(
         snackbarHostState = snackbarHostState
     ) {
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(2),
+        val gridPadding = screenContentPadding(paddingValues)
+        LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = screenContentPadding(paddingValues),
-            verticalArrangement = Arrangement.spacedBy(AppChrome.sectionSpacing),
-            horizontalArrangement = Arrangement.spacedBy(AppChrome.gridSpacing)
+            contentPadding = PaddingValues(
+                top = gridPadding.calculateTopPadding(),
+                bottom = gridPadding.calculateBottomPadding()
+            ),
+            verticalArrangement = Arrangement.spacedBy(AppChrome.sectionSpacing)
         ) {
-            item(span = { GridItemSpan(maxLineSpan) }) {
+            item {
                 Column {
                     // Unread Header
-                    SectionHeader("Unread (${state.totalUnreadCount})", onClick = onOpenChats)
+                    SectionHeader(
+                        title = "Unread (${state.totalUnreadCount})",
+                        modifier = Modifier.padding(horizontal = AppChrome.screenHorizontalPadding),
+                        onClick = onOpenChats
+                    )
                     
                     Spacer(modifier = Modifier.height(12.dp))
                     
                     LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        contentPadding = PaddingValues(horizontal = AppChrome.screenHorizontalPadding)
                     ) {
                         item {
                             CreateStoryNode(onClick = onOpenStudio)
@@ -208,15 +212,15 @@ fun NewHomeRoute(
 
                     if (state.topPicks.isNotEmpty()) {
                         Spacer(modifier = Modifier.height(24.dp))
-                        SectionHeader("Top Picks", onClick = null)
+                        SectionHeader(
+                            title = "Top Picks",
+                            modifier = Modifier.padding(horizontal = AppChrome.screenHorizontalPadding),
+                            onClick = null
+                        )
                         Spacer(modifier = Modifier.height(12.dp))
-                        val screenWidth = LocalConfiguration.current.screenWidthDp.dp
                         LazyRow(
                             horizontalArrangement = Arrangement.spacedBy(16.dp),
-                            contentPadding = PaddingValues(horizontal = AppChrome.screenHorizontalPadding),
-                            modifier = Modifier
-                                .requiredWidth(screenWidth)
-                                .offset(x = -AppChrome.screenHorizontalPadding)
+                            contentPadding = PaddingValues(horizontal = AppChrome.screenHorizontalPadding)
                         ) {
                             items(state.topPicks, key = { it.id }) { character ->
                                 TopPickCard(
@@ -235,10 +239,15 @@ fun NewHomeRoute(
 
                     if (state.recentChats.isNotEmpty()) {
                         Spacer(modifier = Modifier.height(24.dp))
-                        SectionHeader("Continue", onClick = onOpenChats)
+                        SectionHeader(
+                            title = "Continue",
+                            modifier = Modifier.padding(horizontal = AppChrome.screenHorizontalPadding),
+                            onClick = onOpenChats
+                        )
                         Spacer(modifier = Modifier.height(12.dp))
                         LazyRow(
-                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                            horizontalArrangement = Arrangement.spacedBy(16.dp),
+                            contentPadding = PaddingValues(horizontal = AppChrome.screenHorizontalPadding)
                         ) {
                             items(state.recentChats, key = { "continue_${it.id}" }) { chat ->
                                 ContinueNode(
@@ -250,39 +259,67 @@ fun NewHomeRoute(
                     }
 
                     Spacer(modifier = Modifier.height(24.dp))
-                    SectionHeader("Recommended", onClick = null)
+                    SectionHeader(
+                        title = "Recommended",
+                        modifier = Modifier.padding(horizontal = AppChrome.screenHorizontalPadding),
+                        onClick = null
+                    )
                 }
             }
 
             val errorMessage = state.errorMessage
             if (errorMessage != null && state.recommendedFeed.isEmpty()) {
-                item(span = { GridItemSpan(maxLineSpan) }) {
+                item {
                     Text(
                         text = errorMessage,
                         style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.error
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(horizontal = AppChrome.screenHorizontalPadding)
                     )
                 }
             }
 
-            items(state.recommendedFeed, key = { it.id }) { character ->
-                CharacterSummaryCard(
-                    character = character,
-                    modifier = Modifier.fillMaxWidth()
+            items(state.recommendedFeed.chunked(2), key = { it.first().id }) { pair ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = AppChrome.screenHorizontalPadding),
+                    horizontalArrangement = Arrangement.spacedBy(AppChrome.gridSpacing)
                 ) {
-                    scope.launch {
-                        viewModel.ensureConversation(character.id)
-                            .onSuccess(onOpenConversation)
-                            .onFailure { snackbarHostState.showSnackbar(it.message ?: "Couldn't open chat.") }
+                    CharacterSummaryCard(
+                        character = pair[0],
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        scope.launch {
+                            viewModel.ensureConversation(pair[0].id)
+                                .onSuccess(onOpenConversation)
+                                .onFailure { snackbarHostState.showSnackbar(it.message ?: "Couldn't open chat.") }
+                        }
+                    }
+                    if (pair.size > 1) {
+                        CharacterSummaryCard(
+                            character = pair[1],
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            scope.launch {
+                                viewModel.ensureConversation(pair[1].id)
+                                    .onSuccess(onOpenConversation)
+                                    .onFailure { snackbarHostState.showSnackbar(it.message ?: "Couldn't open chat.") }
+                            }
+                        }
+                    } else {
+                        Spacer(modifier = Modifier.weight(1f))
                     }
                 }
             }
 
             if (state.recommendedCursor != null) {
-                item(span = { GridItemSpan(maxLineSpan) }) {
+                item {
                     SecondaryButton(
                         text = if (state.isFeedLoading) "Loading..." else "Load More",
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = AppChrome.screenHorizontalPadding),
                         enabled = !state.isFeedLoading,
                         onClick = viewModel::loadMore
                     )
@@ -293,9 +330,9 @@ fun NewHomeRoute(
 }
 
 @Composable
-fun SectionHeader(title: String, onClick: (() -> Unit)?) {
+fun SectionHeader(title: String, modifier: Modifier = Modifier, onClick: (() -> Unit)?) {
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .then(if (onClick != null) Modifier.clickable { onClick() } else Modifier)
             .padding(vertical = 4.dp),

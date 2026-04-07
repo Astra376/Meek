@@ -246,8 +246,8 @@ fun ProfileRoute(
                     listOf(
                         ProfileSection.OWNED to (if (section == ProfileSection.OWNED) AppIcons.createdFilled else AppIcons.created),
                         ProfileSection.LIKED to (if (section == ProfileSection.LIKED) AppIcons.likedFilled else AppIcons.liked),
-                        ProfileSection.RECENT to (if (section == ProfileSection.RECENT) AppIcons.recentFilled else AppIcons.recent),
-                        ProfileSection.INTERACTED to (if (section == ProfileSection.INTERACTED) AppIcons.interactedFilled else AppIcons.interacted)
+                        ProfileSection.RECENT to (if (section == ProfileSection.RECENT) AppIcons.activity else AppIcons.activity),
+                        ProfileSection.INTERACTED to (if (section == ProfileSection.INTERACTED) AppIcons.chats else AppIcons.chatsOutline)
                     ).forEach { (s, icon) ->
                         IconCircleButton(
                             selected = section == s,

@@ -408,8 +408,7 @@ private fun BottomIconBar(
                     bottomDestinations.forEachIndexed { index, _ ->
                         Box(
                             modifier = Modifier
-                                .weight(1f)
-                                .padding(horizontal = AppChrome.bottomBarItemHorizontalPadding),
+                                .weight(1f),
                             contentAlignment = Alignment.Center
                         ) {
                             val anim = clickAnims[index]
@@ -456,7 +455,6 @@ private fun BottomIconBar(
                         },
                         modifier = Modifier
                             .weight(1f)
-                            .padding(horizontal = AppChrome.bottomBarItemHorizontalPadding)
                     ) {
                         if (destination == MainDestination.Profile) {
                             BottomBarProfileAvatar(

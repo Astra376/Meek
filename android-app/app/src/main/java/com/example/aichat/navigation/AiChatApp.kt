@@ -61,6 +61,7 @@ import com.example.aichat.core.design.AppIcons
 import com.example.aichat.core.design.CircleAvatar
 import com.example.aichat.core.ui.AppChrome
 import com.example.aichat.core.ui.LoadingScreen
+import com.example.aichat.feature.activity.ActivityRoute
 import com.example.aichat.feature.character.CharacterStudioRoute
 import com.example.aichat.feature.chat.ChatRoute
 import com.example.aichat.feature.chatlist.ChatListRoute
@@ -130,7 +131,8 @@ private val subpageRoutes = setOf(
     "chat/{conversationId}",
     "edit-profile",
     "search",
-    "settings"
+    "settings",
+    "activity"
 )
 
 @Composable
@@ -314,6 +316,39 @@ private fun MainShell(
             }
         ) {
             SettingsRoute(
+                paddingValues = androidx.compose.foundation.layout.PaddingValues(),
+                onBack = { rootNavController.popBackStack() }
+            )
+        }
+
+        composable(
+            route = "activity",
+            enterTransition = {
+                slideInHorizontally(
+                    initialOffsetX = { it },
+                    animationSpec = tween(durationMillis = 220)
+                )
+            },
+            exitTransition = {
+                slideOutHorizontally(
+                    targetOffsetX = { -it },
+                    animationSpec = tween(durationMillis = 220)
+                )
+            },
+            popEnterTransition = {
+                slideInHorizontally(
+                    initialOffsetX = { -it },
+                    animationSpec = tween(durationMillis = 220)
+                )
+            },
+            popExitTransition = {
+                slideOutHorizontally(
+                    targetOffsetX = { it },
+                    animationSpec = tween(durationMillis = 220)
+                )
+            }
+        ) {
+            ActivityRoute(
                 paddingValues = androidx.compose.foundation.layout.PaddingValues(),
                 onBack = { rootNavController.popBackStack() }
             )

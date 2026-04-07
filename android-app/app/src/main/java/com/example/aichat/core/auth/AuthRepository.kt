@@ -41,6 +41,7 @@ class AuthRepository @Inject constructor(
                         email = remoteProfile.email,
                         displayName = remoteProfile.displayName,
                         avatarUrl = remoteProfile.avatarUrl,
+                        description = remoteProfile.description ?: "",
                         createdAt = remoteProfile.createdAt,
                         updatedAt = remoteProfile.updatedAt
                     )
@@ -76,6 +77,7 @@ class AuthRepository @Inject constructor(
                         email = remoteProfile.email,
                         displayName = remoteProfile.displayName,
                         avatarUrl = remoteProfile.avatarUrl,
+                        description = remoteProfile.description ?: "",
                         createdAt = remoteProfile.createdAt,
                         updatedAt = remoteProfile.updatedAt
                     )

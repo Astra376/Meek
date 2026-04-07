@@ -18,6 +18,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHostState
@@ -123,11 +125,11 @@ fun NewHomeRoute(
                     color = MaterialTheme.colorScheme.onBackground
                 )
                 Spacer(modifier = Modifier.width(4.dp))
-                AppIcon(
-                    icon = AppIcons.chevronRight,
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                     contentDescription = "View all chats",
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    size = 20.dp
+                    modifier = Modifier.size(20.dp)
                 )
             }
 

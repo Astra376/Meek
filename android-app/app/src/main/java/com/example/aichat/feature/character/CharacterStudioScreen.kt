@@ -106,8 +106,7 @@ class CharacterStudioViewModel @Inject constructor(
 @Composable
 fun CharacterStudioRoute(
     paddingValues: PaddingValues,
-    onOpenSearch: () -> Unit,
-    onOpenActivity: () -> Unit,
+    onOpenActivity: () -> Unit = {},
     viewModel: CharacterStudioViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -130,8 +129,7 @@ fun CharacterStudioRoute(
         ) {
             item {
                 MainPageHeader(
-                    title = "Create",
-                    onOpenSearch = onOpenSearch,
+                    title = "Studio",
                     onOpenActivity = onOpenActivity
                 )
             }

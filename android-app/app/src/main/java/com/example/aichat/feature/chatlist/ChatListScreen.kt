@@ -20,6 +20,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.text.font.FontWeight
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -76,7 +82,7 @@ fun ChatListRoute(
     ScreenBackgroundBox {
         LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = screenContentPadding(paddingValues)
+        contentPadding = AppChrome.screenContentPadding(paddingValues)
     ) {
         item {
             val totalUnread = conversations.sumOf { it.unreadCount }
@@ -86,11 +92,11 @@ fun ChatListRoute(
                 modifier = Modifier.padding(bottom = AppChrome.sectionSpacing),
                 titlePrefix = if (totalUnread > 0) {
                     {
-                        androidx.compose.foundation.layout.Box(
+                        Box(
                             modifier = Modifier
-                                .androidx.compose.foundation.background(
+                                .background(
                                     MaterialTheme.colorScheme.error,
-                                    androidx.compose.foundation.shape.CircleShape
+                                    CircleShape
                                 )
                                 .padding(horizontal = 8.dp, vertical = 2.dp),
                             contentAlignment = Alignment.Center
@@ -99,7 +105,7 @@ fun ChatListRoute(
                                 text = totalUnread.toString(),
                                 style = MaterialTheme.typography.labelMedium.copy(
                                     color = MaterialTheme.colorScheme.onError,
-                                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                                    fontWeight = FontWeight.Bold
                                 )
                             )
                         }
@@ -129,7 +135,7 @@ fun ChatListRoute(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                androidx.compose.foundation.layout.Box {
+                Box {
                     CharacterPortrait(
                         name = conversation.characterName,
                         avatarUrl = conversation.characterAvatarUrl,
@@ -137,18 +143,18 @@ fun ChatListRoute(
                     )
                     
                     if (conversation.unreadCount > 0) {
-                        androidx.compose.foundation.layout.Box(
+                        Box(
                             modifier = Modifier
                                 .align(Alignment.TopEnd)
-                                .androidx.compose.foundation.layout.offset(x = 4.dp, y = (-4).dp)
-                                .androidx.compose.foundation.background(
+                                .offset(x = 4.dp, y = (-4).dp)
+                                .background(
                                     MaterialTheme.colorScheme.error,
-                                    androidx.compose.foundation.shape.CircleShape
+                                    CircleShape
                                 )
-                                .androidx.compose.foundation.border(
+                                .border(
                                     2.dp,
                                     MaterialTheme.colorScheme.background,
-                                    androidx.compose.foundation.shape.CircleShape
+                                    CircleShape
                                 )
                                 .padding(horizontal = 6.dp, vertical = 2.dp),
                             contentAlignment = Alignment.Center
@@ -157,7 +163,7 @@ fun ChatListRoute(
                                 text = conversation.unreadCount.toString(),
                                 style = MaterialTheme.typography.labelSmall.copy(
                                     color = MaterialTheme.colorScheme.onError,
-                                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                                    fontWeight = FontWeight.Bold
                                 )
                             )
                         }

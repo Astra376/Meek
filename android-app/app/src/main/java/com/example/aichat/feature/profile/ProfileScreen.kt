@@ -110,7 +110,6 @@ class ProfileViewModel @Inject constructor(
 @Composable
 fun ProfileRoute(
     paddingValues: PaddingValues,
-    onOpenSearch: () -> Unit,
     onOpenActivity: () -> Unit,
     onOpenConversation: (String) -> Unit,
     onOpenEditProfile: () -> Unit,
@@ -133,7 +132,6 @@ fun ProfileRoute(
             item(span = { GridItemSpan(maxLineSpan) }) {
                 MainPageHeader(
                     title = "Profile",
-                    onOpenSearch = onOpenSearch,
                     onOpenActivity = onOpenActivity
                 )
             }
@@ -175,10 +173,10 @@ fun ProfileRoute(
                     )
                 }
             }
-            if (!state.description.isNullOrBlank()) {
+            state.description?.takeIf { it.isNotBlank() }?.let { desc ->
                 item(span = { GridItemSpan(maxLineSpan) }) {
                     Text(
-                        text = state.description,
+                        text = desc,
                         style = MaterialTheme.typography.bodyMedium
                     )
                 }

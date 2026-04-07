@@ -425,12 +425,11 @@ private fun BottomIconBar(
                                     val alpha = when {
                                         progress < (1f / 3f) -> {
                                             val t = progress * 3f
-                                            val invT = 1f - t
-                                            (1f - (invT * invT)) * 0.2f
+                                            (kotlin.math.sin(t * kotlin.math.PI / 2).toFloat()) * 0.2f
                                         }
                                         else -> {
                                             val t = (progress - (1f / 3f)) / (2f / 3f)
-                                            (1f - (t * t)) * 0.2f
+                                            (kotlin.math.cos(t * kotlin.math.PI / 2).toFloat()) * 0.2f
                                         }
                                     }
                                     Box(

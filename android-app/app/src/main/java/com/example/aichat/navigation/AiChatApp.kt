@@ -454,7 +454,7 @@ private fun BottomIconBar(
                         onClick = {
                             coroutineScope.launch {
                                 clickAnims[index].snapTo(0f)
-                                clickAnims[index].animateTo(1f, tween(250))
+                                clickAnims[index].animateTo(1f, tween(400))
                             }
                             onNavigate(destination.route)
                         },

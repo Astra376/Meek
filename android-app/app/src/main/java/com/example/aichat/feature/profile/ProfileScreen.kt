@@ -270,7 +270,6 @@ fun ProfileRoute(
                         androidx.compose.foundation.layout.Box(
                             modifier = Modifier
                                 .height(48.dp)
-                                .weight(1f) // Ensure tabs are spaced properly inside TabRow
                                 .selectable(
                                     selected = isSelected,
                                     onClick = { section = s },

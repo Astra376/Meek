@@ -14,6 +14,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.PressInteraction
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.width
@@ -378,8 +380,8 @@ private fun MainShell(
     }
 }
 
-private class LineAnimState(val tabIndex: Int) {
-    val expand = Animatable(0.5f)
+private class LineAnimState(val tabIndex: Int, val startX: Float) {
+    val expand = Animatable(0f)
     val alpha = Animatable(0f)
 }
 
@@ -393,6 +395,32 @@ private fun BottomIconBar(
 ) {
     val coroutineScope = rememberCoroutineScope()
     val activeClicks = remember { mutableStateListOf<LineAnimState>() }
+    val interactionSources = remember { bottomDestinations.map { MutableInteractionSource() } }
+
+    bottomDestinations.forEachIndexed { index, _ ->
+        val source = interactionSources[index]
+        androidx.compose.runtime.LaunchedEffect(source) {
+            source.interactions.collect { interaction ->
+                if (interaction is PressInteraction.Press) {
+                    val animState = LineAnimState(index, interaction.pressPosition.x)
+                    activeClicks.add(animState)
+                    launch {
+                        launch {
+                            animState.expand.snapTo(0f)
+                            animState.expand.animateTo(1f, tween(300, easing = LinearOutSlowInEasing))
+                        }
+                        launch {
+                            animState.alpha.snapTo(0.2f)
+                            delay(120)
+                            animState.alpha.animateTo(0f, tween(150, easing = LinearEasing))
+                        }
+                        delay(300)
+                        activeClicks.remove(animState)
+                    }
+                }
+            }
+        }
+    }
 
     Surface(
         modifier = modifier
@@ -423,8 +451,13 @@ private fun BottomIconBar(
                             activeClicks.filter { it.tabIndex == index }.forEach { activeClick ->
                                 Box(
                                     modifier = Modifier
-                                        .fillMaxWidth(activeClick.expand.value)
+                                        .fillMaxWidth()
                                         .height(0.5.dp)
+                                        .graphicsLayer {
+                                            val tapFraction = if (size.width > 0) activeClick.startX / size.width else 0.5f
+                                            transformOrigin = TransformOrigin(tapFraction, 0.5f)
+                                            scaleX = activeClick.expand.value
+                                        }
                                         .background(
                                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = activeClick.alpha.value),
                                             shape = CircleShape
@@ -446,21 +479,8 @@ private fun BottomIconBar(
                     val selected = currentRoute == destination.route
                     BottomBarItem(
                         contentDescription = destination.contentDescription,
+                        interactionSource = interactionSources[index],
                         onClick = {
-                            val anim = LineAnimState(index)
-                            activeClicks.add(anim)
-                            coroutineScope.launch {
-                                launch {
-                                    anim.expand.animateTo(1f, tween(300, easing = LinearOutSlowInEasing))
-                                }
-                                launch {
-                                    anim.alpha.animateTo(0.2f, tween(30))
-                                    delay(120) // Fade out kicks in dynamically over timeline
-                                    anim.alpha.animateTo(0f, tween(150, easing = LinearEasing))
-                                }
-                                delay(300)
-                                activeClicks.remove(anim)
-                            }
                             onNavigate(destination.route)
                         },
                         modifier = Modifier
@@ -530,12 +550,11 @@ private fun BottomBarProfileAvatar(
 @Composable
 private fun BottomBarItem(
     contentDescription: String,
+    interactionSource: MutableInteractionSource,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit
 ) {
-    val interactionSource = remember { MutableInteractionSource() }
-
     Box(
         modifier = modifier,
         contentAlignment = Alignment.Center

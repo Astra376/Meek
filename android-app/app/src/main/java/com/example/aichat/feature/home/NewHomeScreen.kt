@@ -393,7 +393,7 @@ fun StoryNode(chat: ConversationSummary, onClick: () -> Unit) {
 fun TopPickCard(character: CharacterSummary, onClick: () -> Unit) {
     AppCard(
         modifier = Modifier
-            .width(260.dp)
+            .width(200.dp)
             .height(240.dp)
             .clickable(onClick = onClick)
     ) {
@@ -406,7 +406,13 @@ fun TopPickCard(character: CharacterSummary, onClick: () -> Unit) {
                 CharacterPortrait(
                     name = character.name,
                     avatarUrl = character.avatarUrl,
-                    modifier = Modifier.fillMaxSize()
+                    modifier = Modifier.fillMaxSize(),
+                    shape = RoundedCornerShape(
+                        topStart = 22.dp,
+                        topEnd = 22.dp,
+                        bottomStart = 0.dp,
+                        bottomEnd = 0.dp
+                    )
                 )
                 Surface(
                     modifier = Modifier

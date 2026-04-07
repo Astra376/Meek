@@ -60,7 +60,8 @@ fun CharacterSummaryCard(
                 CharacterPortrait(
                     name = character.name,
                     avatarUrl = character.avatarUrl,
-                    modifier = Modifier.fillMaxSize()
+                    modifier = Modifier.fillMaxSize(),
+                    shape = RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp, bottomStart = 0.dp, bottomEnd = 0.dp)
                 )
                 Surface(
                     modifier = Modifier

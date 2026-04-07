@@ -482,11 +482,8 @@ private fun BottomIconBar(
                         contentDescription = destination.contentDescription,
                         interactionSource = interactionSources[index],
                         onClick = {
-                            // Micro-delay protects the UI thread immediately following the tap,
-                            // allowing the animation's critical burst phase to render at max FPS
-                            // before the Navigation controller locks the thread constructing the new screen.
                             coroutineScope.launch {
-                                delay(120)
+                                delay(75) // Grants rendering dispatcher uncontested UI priority for initial ripple frames
                                 onNavigate(destination.route)
                             }
                         },

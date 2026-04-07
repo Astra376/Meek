@@ -21,6 +21,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -115,11 +116,11 @@ fun ScreenBackgroundBox(
 ) {
     val background = MaterialTheme.colorScheme.background
     val topGlow = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.52f).compositeOver(background)
-    Box(
+    Surface(
         modifier = modifier
             .fillMaxSize()
-            .clearFocusOnTap(enabled = clearFocusOnTap)
-            .background(background)
+            .clearFocusOnTap(enabled = clearFocusOnTap),
+        color = background
     ) {
         Box(
             modifier = Modifier

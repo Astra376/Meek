@@ -404,7 +404,6 @@ private fun BottomIconBar(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = AppChrome.bottomBarHorizontalPadding)
                 ) {
                     bottomDestinations.forEachIndexed { index, _ ->
                         Box(
@@ -416,12 +415,12 @@ private fun BottomIconBar(
                             val anim = clickAnims[index]
                             if (anim.value > 0f) {
                                 val progress = anim.value
-                                val expandProgress = (progress / 0.6f).coerceIn(0f, 1f)
-                                val fraction = 0.7f + (expandProgress * 0.3f)
+                                val expandProgress = (progress / 0.75f).coerceIn(0f, 1f)
+                                val fraction = 0.5f + (expandProgress * 0.5f)
                                 val alpha = when {
                                     progress < 0.1f -> (progress / 0.1f) * 0.2f
-                                    progress < 0.6f -> 0.2f
-                                    else -> (1f - (progress - 0.6f) / 0.4f) * 0.2f
+                                    progress < 0.75f -> 0.2f
+                                    else -> (1f - (progress - 0.75f) / 0.25f) * 0.2f
                                 }
                                 Box(
                                     modifier = Modifier
@@ -441,10 +440,7 @@ private fun BottomIconBar(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(AppChrome.bottomBarHeight)
-                    .padding(
-                        horizontal = AppChrome.bottomBarHorizontalPadding,
-                        vertical = AppChrome.bottomBarVerticalPadding
-                    ),
+                    .padding(vertical = AppChrome.bottomBarVerticalPadding),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 bottomDestinations.forEachIndexed { index, destination ->
@@ -454,7 +450,7 @@ private fun BottomIconBar(
                         onClick = {
                             coroutineScope.launch {
                                 clickAnims[index].snapTo(0f)
-                                clickAnims[index].animateTo(1f, tween(500))
+                                clickAnims[index].animateTo(1f, tween(400))
                             }
                             onNavigate(destination.route)
                         },

@@ -418,8 +418,8 @@ private fun BottomIconBar(
                                 val fraction = 0.5f + (expandProgress * 0.5f)
                                 val alpha = when {
                                     progress < 0.1f -> (progress / 0.1f) * 0.2f
-                                    progress < 0.75f -> 0.2f
-                                    else -> (1f - (progress - 0.75f) / 0.25f) * 0.2f
+                                    progress < 0.625f -> 0.2f
+                                    else -> (1f - (progress - 0.625f) / 0.375f) * 0.2f
                                 }
                                 Box(
                                     modifier = Modifier

@@ -418,14 +418,14 @@ private fun BottomIconBar(
                             activeClicks.filter { it.first == index }.forEach { activeClick ->
                                 val progress = activeClick.second.value
                                 if (progress > 0f) {
-                                    val linearExpand = (progress / 0.75f).coerceAtMost(1f)
+                                    val linearExpand = (progress / (6f / 7f)).coerceAtMost(1f)
                                     val inv = 1f - linearExpand
                                     val expandProgress = 1f - (inv * inv * inv * inv)
                                     val fraction = 0.5f + (expandProgress * 0.5f)
                                     val alpha = when {
                                         progress < 0.1f -> progress * 2f
-                                        progress <= 0.625f -> 0.2f
-                                        else -> (1f - (progress - 0.625f) / 0.375f) * 0.2f
+                                        progress <= (4f / 7f) -> 0.2f
+                                        else -> (1f - (progress - (4f / 7f)) / (3f / 7f)) * 0.2f
                                     }
                                     Box(
                                         modifier = Modifier
@@ -458,7 +458,7 @@ private fun BottomIconBar(
                             val clickPair = index to anim
                             activeClicks.add(clickPair)
                             coroutineScope.launch {
-                                anim.animateTo(1f, tween(400, easing = LinearEasing))
+                                anim.animateTo(1f, tween(350, easing = LinearEasing))
                                 activeClicks.remove(clickPair)
                             }
                             onNavigate(destination.route)

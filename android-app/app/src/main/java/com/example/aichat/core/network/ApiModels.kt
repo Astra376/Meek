@@ -79,7 +79,9 @@ data class ConversationSummaryDto(
     val updatedAt: Long,
     val startedAt: Long,
     val lastMessageAt: Long? = null,
-    val lastPreview: String
+    val lastPreview: String,
+    val unreadCount: Int = 0,
+    val hasUnreadBadge: Boolean = false
 )
 
 @Serializable

@@ -1,4 +1,4 @@
-import { createConversation, getConversationDetail, listConversations } from "../services/conversations";
+import { createConversation, getConversationDetail, listConversations, markConversationRead } from "../services/conversations";
 import { json } from "../lib/response";
 import { clampPageSize, parseCursor, parseJson, requireString } from "../lib/validation";
 import type { RouteDefinition } from "./types";
@@ -32,6 +32,14 @@ export const conversationRoutes: RouteDefinition[] = [
     path: "/v1/conversations/:conversationId",
     auth: true,
     handler: async (context) => json(await getConversationDetail(context, context.params.conversationId))
+  },
+  {
+    method: "POST",
+    path: "/v1/conversations/:conversationId/read",
+    auth: true,
+    handler: async (context) => {
+      await markConversationRead(context, context.params.conversationId);
+      return json({}, { status: 200 });
+    }
   }
 ];
-

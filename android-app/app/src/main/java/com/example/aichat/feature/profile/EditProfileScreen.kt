@@ -46,9 +46,17 @@ class EditProfileViewModel @Inject constructor(
             initialValue = ""
         )
 
-    fun save(name: String, onSaved: () -> Unit) {
+    val description: StateFlow<String> = profileRepository.profile
+        .map { it?.description.orEmpty() }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = ""
+        )
+
+    fun save(name: String, desc: String, onSaved: () -> Unit) {
         viewModelScope.launch {
-            profileRepository.updateDisplayName(name)
+            profileRepository.updateProfile(name, desc)
                 .onSuccess { onSaved() }
         }
     }
@@ -61,8 +69,13 @@ fun EditProfileRoute(
     viewModel: EditProfileViewModel = hiltViewModel()
 ) {
     val currentName by viewModel.displayName.collectAsStateWithLifecycle()
+    val currentDescription by viewModel.description.collectAsStateWithLifecycle()
+    
     var editedName by remember(currentName) { mutableStateOf(currentName) }
-    val hasChanged = editedName.trim() != currentName.trim() && editedName.isNotBlank()
+    var editedDescription by remember(currentDescription) { mutableStateOf(currentDescription) }
+    
+    val hasChanged = (editedName.trim() != currentName.trim() && editedName.isNotBlank()) ||
+                     (editedDescription.trim() != currentDescription.trim())
 
     ScreenBackgroundBox(clearFocusOnTap = true) {
         Column(
@@ -91,6 +104,17 @@ fun EditProfileRoute(
                 singleLine = true
             )
 
+            Text("Description", style = MaterialTheme.typography.titleLarge)
+
+            AppTextField(
+                value = editedDescription,
+                onValueChange = { editedDescription = it },
+                placeholder = "Tell others about yourself",
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = false,
+                minLines = 3
+            )
+
             Spacer(modifier = Modifier.weight(1f))
 
             if (hasChanged) {
@@ -98,7 +122,7 @@ fun EditProfileRoute(
                     text = "Save Changes",
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    viewModel.save(editedName, onSaved = onBack)
+                    viewModel.save(editedName, editedDescription, onSaved = onBack)
                 }
             }
         }

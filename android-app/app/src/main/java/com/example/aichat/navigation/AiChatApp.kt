@@ -2,33 +2,24 @@ package com.example.aichat.navigation
 
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.LinearOutSlowInEasing
-import kotlinx.coroutines.delay
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.PressInteraction
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
-import androidx.compose.ui.input.pointer.pointerInput
-import kotlin.math.absoluteValue
-import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
@@ -41,19 +32,22 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import kotlinx.coroutines.launch
+import androidx.navigation.NavController
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -69,11 +63,14 @@ import com.example.aichat.feature.character.CharacterStudioRoute
 import com.example.aichat.feature.chat.ChatRoute
 import com.example.aichat.feature.chatlist.ChatListRoute
 import com.example.aichat.feature.home.HomeRoute
-import com.example.aichat.feature.home.SearchRoute
+import com.example.aichat.feature.home.NewHomeRoute
 import com.example.aichat.feature.profile.EditProfileRoute
 import com.example.aichat.feature.profile.ProfileRoute
 import com.example.aichat.feature.profile.SettingsRoute
 import com.example.aichat.feature.signin.SignInRoute
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlin.math.absoluteValue
 
 private sealed class MainDestination(
     val route: String,
@@ -88,8 +85,8 @@ private sealed class MainDestination(
         filledIcon = AppIcons.homeNav
     )
 
-    data object Search : MainDestination(
-        route = "search",
+    data object Discover : MainDestination(
+        route = "discover",
         contentDescription = "Discover",
         outlinedIcon = AppIcons.discoverOutline,
         filledIcon = AppIcons.discover
@@ -119,7 +116,7 @@ private sealed class MainDestination(
 
 private val bottomDestinations = listOf(
     MainDestination.Home,
-    MainDestination.Search,
+    MainDestination.Discover,
     MainDestination.Studio,
     MainDestination.Chats,
     MainDestination.Profile
@@ -127,7 +124,6 @@ private val bottomDestinations = listOf(
 
 private val subpageRoutes = setOf(
     "chat/{conversationId}",
-    "search",
     "edit-profile",
     "settings"
 )
@@ -153,66 +149,192 @@ private fun MainShell(
     profileName: String,
     profileAvatarUrl: String?
 ) {
-    val navController = rememberNavController()
-    val backStackEntry by navController.currentBackStackEntryAsState()
-    val currentDestination = backStackEntry?.destination
-    val showBottomBar = currentDestination?.route !in subpageRoutes
-    val density = LocalDensity.current
-    val bottomBarOffset by animateFloatAsState(
-        targetValue = if (showBottomBar) {
-            0f
-        } else {
-            with(density) { (AppChrome.bottomBarHeight + 20.dp).toPx() }
-        },
-        animationSpec = tween(durationMillis = 220),
-        label = "bottomBarOffset"
-    )
+    val rootNavController = rememberNavController()
 
+    NavHost(
+        navController = rootNavController,
+        startDestination = "main_tabs",
+        enterTransition = { EnterTransition.None },
+        exitTransition = {
+            if (targetState.destination.route in subpageRoutes) {
+                slideOutHorizontally(
+                    targetOffsetX = { -it },
+                    animationSpec = tween(durationMillis = 220)
+                )
+            } else {
+                ExitTransition.None
+            }
+        },
+        popEnterTransition = {
+            if (initialState.destination.route in subpageRoutes) {
+                slideInHorizontally(
+                    initialOffsetX = { -it },
+                    animationSpec = tween(durationMillis = 220)
+                )
+            } else {
+                EnterTransition.None
+            }
+        },
+        popExitTransition = { ExitTransition.None }
+    ) {
+        composable("main_tabs") {
+            MainTabs(profileName, profileAvatarUrl, rootNavController)
+        }
+        
+        composable(
+            route = "chat/{conversationId}",
+            enterTransition = {
+                slideInHorizontally(
+                    initialOffsetX = { it },
+                    animationSpec = tween(durationMillis = 220)
+                )
+            },
+            exitTransition = {
+                slideOutHorizontally(
+                    targetOffsetX = { -it },
+                    animationSpec = tween(durationMillis = 220)
+                )
+            },
+            popEnterTransition = {
+                slideInHorizontally(
+                    initialOffsetX = { -it },
+                    animationSpec = tween(durationMillis = 220)
+                )
+            },
+            popExitTransition = {
+                slideOutHorizontally(
+                    targetOffsetX = { it },
+                    animationSpec = tween(durationMillis = 220)
+                )
+            }
+        ) {
+            ChatRoute(
+                paddingValues = androidx.compose.foundation.layout.PaddingValues(),
+                onBack = { rootNavController.popBackStack() }
+            )
+        }
+
+        composable(
+            route = "edit-profile",
+            enterTransition = {
+                slideInHorizontally(
+                    initialOffsetX = { it },
+                    animationSpec = tween(durationMillis = 220)
+                )
+            },
+            exitTransition = {
+                slideOutHorizontally(
+                    targetOffsetX = { -it },
+                    animationSpec = tween(durationMillis = 220)
+                )
+            },
+            popEnterTransition = {
+                slideInHorizontally(
+                    initialOffsetX = { -it },
+                    animationSpec = tween(durationMillis = 220)
+                )
+            },
+            popExitTransition = {
+                slideOutHorizontally(
+                    targetOffsetX = { it },
+                    animationSpec = tween(durationMillis = 220)
+                )
+            }
+        ) {
+            EditProfileRoute(
+                paddingValues = androidx.compose.foundation.layout.PaddingValues(),
+                onBack = { rootNavController.popBackStack() }
+            )
+        }
+
+        composable(
+            route = "settings",
+            enterTransition = {
+                slideInHorizontally(
+                    initialOffsetX = { it },
+                    animationSpec = tween(durationMillis = 220)
+                )
+            },
+            exitTransition = {
+                slideOutHorizontally(
+                    targetOffsetX = { -it },
+                    animationSpec = tween(durationMillis = 220)
+                )
+            },
+            popEnterTransition = {
+                slideInHorizontally(
+                    initialOffsetX = { -it },
+                    animationSpec = tween(durationMillis = 220)
+                )
+            },
+            popExitTransition = {
+                slideOutHorizontally(
+                    targetOffsetX = { it },
+                    animationSpec = tween(durationMillis = 220)
+                )
+            }
+        ) {
+            SettingsRoute(
+                paddingValues = androidx.compose.foundation.layout.PaddingValues(),
+                onBack = { rootNavController.popBackStack() }
+            )
+        }
+    }
+}
+
+@Composable
+private fun MainTabs(
+    profileName: String,
+    profileAvatarUrl: String?,
+    rootNavController: NavController
+) {
+    val bottomNavController = rememberNavController()
+    val backStackEntry by bottomNavController.currentBackStackEntryAsState()
+    val currentDestination = backStackEntry?.destination
+
+    val density = LocalDensity.current
     val minDragDistance = with(density) { 50.dp.toPx() }
 
     Scaffold(
         modifier = Modifier
             .fillMaxSize()
-            .pointerInput(currentDestination?.route, showBottomBar) {
-                if (showBottomBar) {
-                    var swipeDistance = 0f
-                    detectHorizontalDragGestures(
-                        onDragStart = { swipeDistance = 0f },
-                        onDragEnd = {
-                            if (swipeDistance.absoluteValue > minDragDistance) {
-                                val currentIndex = bottomDestinations.indexOfFirst { it.route == currentDestination?.route }
-                                if (currentIndex != -1) {
-                                    val nextIndex = if (swipeDistance < 0) currentIndex + 1 else currentIndex - 1
-                                    if (nextIndex in bottomDestinations.indices) {
-                                        val nextRoute = bottomDestinations[nextIndex].route
-                                        navController.navigate(nextRoute) {
-                                            popUpTo(navController.graph.findStartDestination().id) {
-                                                saveState = true
-                                            }
-                                            launchSingleTop = true
-                                            restoreState = true
+            .pointerInput(currentDestination?.route) {
+                var swipeDistance = 0f
+                detectHorizontalDragGestures(
+                    onDragStart = { swipeDistance = 0f },
+                    onDragEnd = {
+                        if (swipeDistance.absoluteValue > minDragDistance) {
+                            val currentIndex = bottomDestinations.indexOfFirst { it.route == currentDestination?.route }
+                            if (currentIndex != -1) {
+                                val nextIndex = if (swipeDistance < 0) currentIndex + 1 else currentIndex - 1
+                                if (nextIndex in bottomDestinations.indices) {
+                                    val nextRoute = bottomDestinations[nextIndex].route
+                                    bottomNavController.navigate(nextRoute) {
+                                        popUpTo(bottomNavController.graph.findStartDestination().id) {
+                                            saveState = true
                                         }
+                                        launchSingleTop = true
+                                        restoreState = true
                                     }
                                 }
                             }
-                        },
-                        onHorizontalDrag = { _, dragAmount ->
-                            swipeDistance += dragAmount
                         }
-                    )
-                }
+                    },
+                    onHorizontalDrag = { _, dragAmount ->
+                        swipeDistance += dragAmount
+                    }
+                )
             },
         containerColor = MaterialTheme.colorScheme.background,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         bottomBar = {
             BottomIconBar(
-                modifier = Modifier.graphicsLayer { translationY = bottomBarOffset },
                 currentRoute = currentDestination?.route,
                 profileName = profileName,
                 profileAvatarUrl = profileAvatarUrl,
                 onNavigate = { route ->
-                    navController.navigate(route) {
-                        popUpTo(navController.graph.findStartDestination().id) {
+                    bottomNavController.navigate(route) {
+                        popUpTo(bottomNavController.graph.findStartDestination().id) {
                             saveState = true
                         }
                         launchSingleTop = true
@@ -221,41 +343,46 @@ private fun MainShell(
                 }
             )
         }
-    ) { paddingValues ->
-        val routePaddingValues = if (showBottomBar) paddingValues else PaddingValues()
+    ) { routePaddingValues ->
         NavHost(
-            navController = navController,
+            navController = bottomNavController,
             startDestination = MainDestination.Home.route,
             enterTransition = { EnterTransition.None },
-            exitTransition = {
-                if (targetState.destination.route in subpageRoutes) {
-                    slideOutHorizontally(
-                        targetOffsetX = { -it },
-                        animationSpec = tween(durationMillis = 220)
-                    )
-                } else {
-                    ExitTransition.None
-                }
-            },
-            popEnterTransition = {
-                if (initialState.destination.route in subpageRoutes) {
-                    slideInHorizontally(
-                        initialOffsetX = { -it },
-                        animationSpec = tween(durationMillis = 220)
-                    )
-                } else {
-                    EnterTransition.None
-                }
-            },
+            exitTransition = { ExitTransition.None },
+            popEnterTransition = { EnterTransition.None },
             popExitTransition = { ExitTransition.None }
         ) {
             composable(MainDestination.Home.route) {
+                NewHomeRoute(
+                    paddingValues = routePaddingValues,
+                    onOpenConversation = { id -> rootNavController.navigate("chat/$id") },
+                    onOpenStudio = { 
+                        bottomNavController.navigate(MainDestination.Studio.route) {
+                            popUpTo(bottomNavController.graph.findStartDestination().id) {
+                                saveState = true
+                            }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    },
+                    onOpenChats = {
+                        bottomNavController.navigate(MainDestination.Chats.route) {
+                            popUpTo(bottomNavController.graph.findStartDestination().id) {
+                                saveState = true
+                            }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    }
+                )
+            }
+            composable(MainDestination.Discover.route) {
+                // The old Home feed becomes Discover
                 HomeRoute(
                     paddingValues = routePaddingValues,
-                    onOpenSearch = { navController.navigate("search") },
-                    onOpenConversation = { conversationId ->
-                        navController.navigate("chat/$conversationId")
-                    }
+                    onOpenSearch = { /* No-op, search sub-page deleted */ },
+                    onOpenActivity = { /* No-op, not used in old Home */ },
+                    onOpenConversation = { id -> rootNavController.navigate("chat/$id") }
                 )
             }
             composable(MainDestination.Studio.route) {
@@ -266,150 +393,15 @@ private fun MainShell(
             composable(MainDestination.Chats.route) {
                 ChatListRoute(
                     paddingValues = routePaddingValues,
-                    onOpenConversation = { conversationId ->
-                        navController.navigate("chat/$conversationId")
-                    }
+                    onOpenConversation = { id -> rootNavController.navigate("chat/$id") }
                 )
             }
             composable(MainDestination.Profile.route) {
                 ProfileRoute(
                     paddingValues = routePaddingValues,
-                    onOpenConversation = { conversationId ->
-                        navController.navigate("chat/$conversationId")
-                    },
-                    onOpenEditProfile = { navController.navigate("edit-profile") },
-                    onOpenSettings = { navController.navigate("settings") }
-                )
-            }
-            composable(
-                route = "chat/{conversationId}",
-                enterTransition = {
-                    slideInHorizontally(
-                        initialOffsetX = { it },
-                        animationSpec = tween(durationMillis = 220)
-                    )
-                },
-                exitTransition = {
-                    slideOutHorizontally(
-                        targetOffsetX = { -it },
-                        animationSpec = tween(durationMillis = 220)
-                    )
-                },
-                popEnterTransition = {
-                    slideInHorizontally(
-                        initialOffsetX = { -it },
-                        animationSpec = tween(durationMillis = 220)
-                    )
-                },
-                popExitTransition = {
-                    slideOutHorizontally(
-                        targetOffsetX = { it },
-                        animationSpec = tween(durationMillis = 220)
-                    )
-                }
-            ) {
-                ChatRoute(
-                    paddingValues = routePaddingValues,
-                    onBack = { navController.popBackStack() }
-                )
-            }
-            composable(
-                route = "search",
-                enterTransition = {
-                    slideInHorizontally(
-                        initialOffsetX = { it },
-                        animationSpec = tween(durationMillis = 220)
-                    )
-                },
-                exitTransition = {
-                    slideOutHorizontally(
-                        targetOffsetX = { -it },
-                        animationSpec = tween(durationMillis = 220)
-                    )
-                },
-                popEnterTransition = {
-                    slideInHorizontally(
-                        initialOffsetX = { -it },
-                        animationSpec = tween(durationMillis = 220)
-                    )
-                },
-                popExitTransition = {
-                    slideOutHorizontally(
-                        targetOffsetX = { it },
-                        animationSpec = tween(durationMillis = 220)
-                    )
-                }
-            ) {
-                SearchRoute(
-                    paddingValues = routePaddingValues,
-                    onBack = { navController.popBackStack() },
-                    onOpenConversation = { conversationId ->
-                        navController.navigate("chat/$conversationId")
-                    }
-                )
-            }
-            composable(
-                route = "edit-profile",
-                enterTransition = {
-                    slideInHorizontally(
-                        initialOffsetX = { it },
-                        animationSpec = tween(durationMillis = 220)
-                    )
-                },
-                exitTransition = {
-                    slideOutHorizontally(
-                        targetOffsetX = { -it },
-                        animationSpec = tween(durationMillis = 220)
-                    )
-                },
-                popEnterTransition = {
-                    slideInHorizontally(
-                        initialOffsetX = { -it },
-                        animationSpec = tween(durationMillis = 220)
-                    )
-                },
-                popExitTransition = {
-                    slideOutHorizontally(
-                        targetOffsetX = { it },
-                        animationSpec = tween(durationMillis = 220)
-                    )
-                }
-            ) {
-                EditProfileRoute(
-                    paddingValues = routePaddingValues,
-                    onBack = { navController.popBackStack() }
-                )
-            }
-            composable(
-                route = "settings",
-                enterTransition = {
-                    slideInHorizontally(
-                        initialOffsetX = { it },
-                        animationSpec = tween(durationMillis = 220)
-                    )
-                },
-                exitTransition = {
-                    slideOutHorizontally(
-                        targetOffsetX = { -it },
-                        animationSpec = tween(durationMillis = 220)
-                    )
-                },
-                popEnterTransition = {
-                    slideInHorizontally(
-                        initialOffsetX = { -it },
-                        animationSpec = tween(durationMillis = 220)
-                    )
-                },
-                popExitTransition = {
-                    slideOutHorizontally(
-                        targetOffsetX = { it },
-                        animationSpec = tween(durationMillis = 220)
-                    )
-                }
-            ) {
-                SettingsRoute(
-                    paddingValues = routePaddingValues,
-                    onBack = { navController.popBackStack() }
+                    onOpenConversation = { id -> rootNavController.navigate("chat/$id") },
+                    onOpenEditProfile = { rootNavController.navigate("edit-profile") },
+                    onOpenSettings = { rootNavController.navigate("settings") }
                 )
             }
         }
@@ -435,7 +427,7 @@ private fun BottomIconBar(
 
     bottomDestinations.forEachIndexed { index, _ ->
         val source = interactionSources[index]
-        androidx.compose.runtime.LaunchedEffect(source) {
+        LaunchedEffect(source) {
             source.interactions.collect { interaction ->
                 if (interaction is PressInteraction.Press) {
                     val animState = LineAnimState(index, interaction.pressPosition.x)
@@ -569,21 +561,16 @@ private fun BottomBarProfileAvatar(
                 color = MaterialTheme.colorScheme.onSurface,
                 shape = CircleShape
             )
-            .padding(outlineWidth)
+            .padding(outlineWidth + 1.dp)
     } else {
         Modifier
     }
 
-    Box(
-        modifier = modifier.then(avatarModifier),
-        contentAlignment = Alignment.Center
-    ) {
-        CircleAvatar(
-            name = name,
-            avatarUrl = avatarUrl,
-            modifier = Modifier.fillMaxSize()
-        )
-    }
+    CircleAvatar(
+        name = name,
+        avatarUrl = avatarUrl,
+        modifier = modifier.then(avatarModifier)
+    )
 }
 
 @Composable
@@ -597,13 +584,14 @@ private fun BottomBarItem(
     Box(
         modifier = modifier
             .fillMaxHeight()
-            .semantics(mergeDescendants = true) {
-                this.contentDescription = contentDescription
-            }
             .clickable(
+                onClick = onClick,
                 interactionSource = interactionSource,
                 indication = null
-            ) { onClick() },
+            )
+            .semantics {
+                this.contentDescription = contentDescription
+            },
         contentAlignment = Alignment.Center
     ) {
         content()

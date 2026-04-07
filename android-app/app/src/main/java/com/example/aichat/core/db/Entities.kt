@@ -11,6 +11,7 @@ data class ProfileEntity(
     val email: String,
     val displayName: String,
     val avatarUrl: String?,
+    val description: String?,
     val createdAt: Long,
     val updatedAt: Long
 )
@@ -49,7 +50,9 @@ data class ConversationEntity(
     val updatedAt: Long,
     val startedAt: Long,
     val lastMessageAt: Long?,
-    val previewText: String
+    val previewText: String,
+    val unreadCount: Int,
+    val hasUnreadBadge: Boolean
 )
 
 @Entity(

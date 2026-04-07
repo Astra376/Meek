@@ -31,6 +31,7 @@ import com.example.aichat.core.ui.AppChrome
 import com.example.aichat.core.ui.CharacterSummaryCard
 import com.example.aichat.core.ui.ScreenBackgroundBox
 import com.example.aichat.core.ui.SimplePageHeader
+import com.example.aichat.core.ui.MainPageHeader
 import com.example.aichat.core.ui.screenContentPadding
 import com.example.aichat.feature.chatlist.ConversationRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -106,7 +107,7 @@ class HomeViewModel @Inject constructor(
 @Composable
 fun HomeRoute(
     paddingValues: PaddingValues,
-    onOpenSearch: () -> Unit,
+    onOpenActivity: () -> Unit = {},
     onOpenConversation: (String) -> Unit,
     viewModel: HomeViewModel = hiltViewModel()
 ) {
@@ -128,16 +129,10 @@ fun HomeRoute(
             horizontalArrangement = Arrangement.spacedBy(AppChrome.gridSpacing)
         ) {
             item(span = { GridItemSpan(maxLineSpan) }) {
-                SimplePageHeader(title = "Discover") {
-                    IconButton(onClick = onOpenSearch) {
-                        AppIcon(
-                            icon = AppIcons.search,
-                            contentDescription = "Search",
-                            size = AppChrome.headerActionIconSize,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
+                MainPageHeader(
+                    title = "Discover",
+                    onOpenActivity = onOpenActivity
+                )
             }
             if (state.errorMessage != null && state.feed.isEmpty()) {
                 item(span = { GridItemSpan(maxLineSpan) }) {

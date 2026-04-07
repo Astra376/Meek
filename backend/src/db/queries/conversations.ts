@@ -22,6 +22,8 @@ export interface ConversationSummaryRecord {
   started_at: number;
   last_message_at: number | null;
   last_preview: string;
+  unread_count: number;
+  has_unread_badge: number;
 }
 
 export interface MessageRecord {
@@ -60,7 +62,9 @@ export async function listConversationSummaries(
         conversations.updated_at,
         conversations.started_at,
         conversations.last_message_at,
-        COALESCE(selected_regenerations.content, latest_assistant_messages.content, '') AS last_preview
+        COALESCE(selected_regenerations.content, latest_assistant_messages.content, '') AS last_preview,
+        conversations.unread_count,
+        conversations.has_unread_badge
       FROM conversations
       INNER JOIN characters ON characters.id = conversations.character_id
       LEFT JOIN messages AS latest_assistant_messages
@@ -98,7 +102,9 @@ export async function getConversationSummaryById(
         conversations.updated_at,
         conversations.started_at,
         conversations.last_message_at,
-        COALESCE(selected_regenerations.content, latest_assistant_messages.content, '') AS last_preview
+        COALESCE(selected_regenerations.content, latest_assistant_messages.content, '') AS last_preview,
+        conversations.unread_count,
+        conversations.has_unread_badge
       FROM conversations
       INNER JOIN characters ON characters.id = conversations.character_id
       LEFT JOIN messages AS latest_assistant_messages

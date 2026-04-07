@@ -43,7 +43,9 @@ data class ConversationSummary(
     val updatedAt: Long,
     val startedAt: Long,
     val lastMessageAt: Long?,
-    val lastPreview: String
+    val lastPreview: String,
+    val unreadCount: Int,
+    val hasUnreadBadge: Boolean
 )
 
 data class ConversationDetail(

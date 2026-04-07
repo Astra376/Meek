@@ -160,6 +160,7 @@ fun AppBackButton(
 fun SimplePageHeader(
     title: String,
     modifier: Modifier = Modifier,
+    titlePrefix: (@Composable () -> Unit)? = null,
     trailing: (@Composable RowScope.() -> Unit)? = null
 ) {
     Row(
@@ -167,12 +168,37 @@ fun SimplePageHeader(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(title, style = MaterialTheme.typography.headlineMedium)
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            titlePrefix?.invoke()
+            Text(title, style = MaterialTheme.typography.headlineMedium)
+        }
         if (trailing != null) {
             Row(
                 horizontalArrangement = Arrangement.spacedBy(AppChrome.compactControlGap),
                 verticalAlignment = Alignment.CenterVertically,
                 content = trailing
+            )
+        }
+    }
+}
+
+@Composable
+fun MainPageHeader(
+    title: String,
+    onOpenActivity: () -> Unit,
+    modifier: Modifier = Modifier,
+    titlePrefix: (@Composable () -> Unit)? = null
+) {
+    SimplePageHeader(title = title, modifier = modifier, titlePrefix = titlePrefix) {
+        androidx.compose.material3.IconButton(onClick = onOpenActivity) {
+            AppIcon(
+                icon = AppIcons.activity,
+                contentDescription = "Activity",
+                size = AppChrome.headerActionIconSize,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
     }

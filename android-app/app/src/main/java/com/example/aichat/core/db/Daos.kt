@@ -68,7 +68,9 @@ data class ConversationSummaryRow(
     val updatedAt: Long,
     val startedAt: Long,
     val lastMessageAt: Long?,
-    val lastPreview: String
+    val lastPreview: String,
+    val unreadCount: Int,
+    val hasUnreadBadge: Boolean
 )
 
 @Dao
@@ -83,7 +85,9 @@ interface ConversationDao {
             conversations.updatedAt AS updatedAt,
             conversations.startedAt AS startedAt,
             conversations.lastMessageAt AS lastMessageAt,
-            COALESCE(selectedRegenerations.content, latestAssistantMessages.content, conversations.previewText, '') AS lastPreview
+            COALESCE(selectedRegenerations.content, latestAssistantMessages.content, conversations.previewText, '') AS lastPreview,
+            conversations.unreadCount AS unreadCount,
+            conversations.hasUnreadBadge AS hasUnreadBadge
         FROM conversations
         INNER JOIN characters ON characters.id = conversations.characterId
         LEFT JOIN messages AS latestAssistantMessages

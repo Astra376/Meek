@@ -41,6 +41,7 @@ import com.example.aichat.core.model.CharacterSummary
 import com.example.aichat.core.ui.AppChrome
 import com.example.aichat.core.ui.CharacterSummaryCard
 import com.example.aichat.core.ui.ScreenBackgroundBox
+import com.example.aichat.core.ui.MainPageHeader
 import com.example.aichat.core.ui.screenContentPadding
 import com.example.aichat.feature.character.CharacterRepository
 import com.example.aichat.feature.chatlist.ConversationRepository
@@ -60,6 +61,7 @@ enum class ProfileSection {
 data class ProfileUiState(
     val displayName: String = "",
     val avatarUrl: String? = null,
+    val description: String? = null,
     val userId: String = "",
     val owned: List<CharacterSummary> = emptyList(),
     val liked: List<CharacterSummary> = emptyList()
@@ -82,6 +84,7 @@ class ProfileViewModel @Inject constructor(
         ProfileUiState(
             displayName = profile?.displayName.orEmpty(),
             avatarUrl = profile?.avatarUrl,
+            description = profile?.description,
             userId = userId,
             owned = owned,
             liked = liked
@@ -107,6 +110,8 @@ class ProfileViewModel @Inject constructor(
 @Composable
 fun ProfileRoute(
     paddingValues: PaddingValues,
+    onOpenSearch: () -> Unit,
+    onOpenActivity: () -> Unit,
     onOpenConversation: (String) -> Unit,
     onOpenEditProfile: () -> Unit,
     onOpenSettings: () -> Unit,
@@ -126,20 +131,18 @@ fun ProfileRoute(
             horizontalArrangement = Arrangement.spacedBy(AppChrome.gridSpacing)
         ) {
             item(span = { GridItemSpan(maxLineSpan) }) {
-                Text("Profile", style = MaterialTheme.typography.headlineMedium)
+                MainPageHeader(
+                    title = "Profile",
+                    onOpenSearch = onOpenSearch,
+                    onOpenActivity = onOpenActivity
+                )
             }
             item(span = { GridItemSpan(maxLineSpan) }) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(AppChrome.screenTopPadding)
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
                 ) {
-                    CircleAvatar(
-                        name = state.displayName.ifBlank { "User" },
-                        avatarUrl = state.avatarUrl,
-                        modifier = Modifier
-                            .size(104.dp)
-                            .aspectRatio(1f)
-                    )
                     Column(
                         modifier = Modifier.weight(1f),
                         verticalArrangement = Arrangement.spacedBy(AppChrome.gridSpacing)
@@ -148,18 +151,61 @@ fun ProfileRoute(
                             text = state.displayName.ifBlank { "User" },
                             style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold)
                         )
-                        Row(horizontalArrangement = Arrangement.spacedBy(AppChrome.compactControlGap)) {
-                            IconPillButton(
-                                text = "Edit Profile",
-                                onClick = onOpenEditProfile,
-                                leadingIcon = {
-                                    AppIcon(AppIcons.edit, contentDescription = null)
-                                }
-                            )
-                            IconCircleButton(onClick = onOpenSettings) {
-                                AppIcon(AppIcons.settings, contentDescription = "Settings")
+                        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                            Column(horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) {
+                                Text(text = "${state.owned.size}", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold))
+                                Text(text = "Characters", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            Column(horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) {
+                                Text(text = "0", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold))
+                                Text(text = "Followers", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            Column(horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) {
+                                Text(text = "0", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold))
+                                Text(text = "Following", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
+                    }
+                    CircleAvatar(
+                        name = state.displayName.ifBlank { "User" },
+                        avatarUrl = state.avatarUrl,
+                        modifier = Modifier
+                            .size(104.dp)
+                            .aspectRatio(1f)
+                    )
+                }
+            }
+            if (!state.description.isNullOrBlank()) {
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    Text(
+                        text = state.description,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+            }
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(AppChrome.compactControlGap)
+                ) {
+                    IconPillButton(
+                        text = "Edit Profile",
+                        onClick = onOpenEditProfile,
+                        modifier = Modifier.weight(1f),
+                        leadingIcon = {
+                            AppIcon(AppIcons.edit, contentDescription = null)
+                        }
+                    )
+                    IconPillButton(
+                        text = "Share Profile",
+                        onClick = { /* No functionality yet */ },
+                        modifier = Modifier.weight(1f),
+                        leadingIcon = {
+                            AppIcon(AppIcons.share, contentDescription = null)
+                        }
+                    )
+                    IconCircleButton(onClick = onOpenSettings) {
+                        AppIcon(AppIcons.settings, contentDescription = "Settings")
                     }
                 }
             }

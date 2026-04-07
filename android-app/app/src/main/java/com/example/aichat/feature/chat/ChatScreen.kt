@@ -106,6 +106,7 @@ data class ChatUiState(
 class ChatViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val chatRepository: ChatRepository,
+    private val conversationRepository: com.example.aichat.feature.chatlist.ConversationRepository,
     private val authRepository: AuthRepository
 ) : ViewModel() {
     private val conversationId: String = checkNotNull(savedStateHandle["conversationId"])
@@ -113,6 +114,12 @@ class ChatViewModel @Inject constructor(
     private val _events = MutableSharedFlow<String>()
     private var activeStreamJob: Job? = null
     val events = _events.asSharedFlow()
+
+    init {
+        viewModelScope.launch {
+            conversationRepository.markConversationRead(conversationId)
+        }
+    }
 
     val uiState: StateFlow<ChatUiState> = combine(
         chatRepository.observeConversation(conversationId),

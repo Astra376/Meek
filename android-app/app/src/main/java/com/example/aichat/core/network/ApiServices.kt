@@ -73,6 +73,8 @@ interface ConversationApi {
 
     @GET("v1/conversations/{conversationId}")
     suspend fun getConversation(@Path("conversationId") conversationId: String): ConversationDetailDto
+    @POST("v1/conversations/{conversationId}/read")
+    suspend fun markConversationRead(@Path("conversationId") conversationId: String)
 }
 
 interface ChatApi {

@@ -16,3 +16,6 @@ database_id = "ad611737-fc84-4002-bcfe-0f0ce257f2ae"
 [[r2_buckets]]
 binding = "ASSETS"
 bucket_name = "character-chat-assets"
+
+[triggers]
+crons = ["*/15 * * * *"]

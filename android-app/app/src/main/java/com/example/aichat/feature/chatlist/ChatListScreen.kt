@@ -26,9 +26,10 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.example.aichat.core.auth.AuthRepository
 import com.example.aichat.core.design.CharacterPortrait
-import com.example.aichat.core.ui.screenContentPadding
 import com.example.aichat.core.model.ConversationSummary
 import com.example.aichat.core.ui.AppChrome
+import com.example.aichat.core.ui.MainPageHeader
+import com.example.aichat.core.ui.ScreenBackgroundBox
 import com.example.aichat.core.util.formatRelativeTime
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -66,20 +67,44 @@ class ChatListViewModel @Inject constructor(
 @Composable
 fun ChatListRoute(
     paddingValues: PaddingValues,
+    onOpenActivity: () -> Unit = {},
     onOpenConversation: (String) -> Unit,
     viewModel: ChatListViewModel = hiltViewModel()
 ) {
     val conversations by viewModel.conversations.collectAsStateWithLifecycle()
 
-    LazyColumn(
+    ScreenBackgroundBox {
+        LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = screenContentPadding(paddingValues)
     ) {
         item {
-            Text(
-                text = "Chats",
-                style = MaterialTheme.typography.headlineMedium,
-                modifier = Modifier.padding(bottom = AppChrome.sectionSpacing)
+            val totalUnread = conversations.sumOf { it.unreadCount }
+            MainPageHeader(
+                title = "Chats",
+                onOpenActivity = onOpenActivity,
+                modifier = Modifier.padding(bottom = AppChrome.sectionSpacing),
+                titlePrefix = if (totalUnread > 0) {
+                    {
+                        androidx.compose.foundation.layout.Box(
+                            modifier = Modifier
+                                .androidx.compose.foundation.background(
+                                    MaterialTheme.colorScheme.error,
+                                    androidx.compose.foundation.shape.CircleShape
+                                )
+                                .padding(horizontal = 8.dp, vertical = 2.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = totalUnread.toString(),
+                                style = MaterialTheme.typography.labelMedium.copy(
+                                    color = MaterialTheme.colorScheme.onError,
+                                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                                )
+                            )
+                        }
+                    }
+                } else null
             )
         }
         if (conversations.isEmpty()) {
@@ -99,17 +124,45 @@ fun ChatListRoute(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 4.dp)
+                    .padding(vertical = 12.dp)
                     .clickable { onOpenConversation(conversation.id) },
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                CharacterPortrait(
-                    name = conversation.characterName,
-                    avatarUrl = conversation.characterAvatarUrl,
-                    modifier = Modifier
-                        .size(64.dp)
-                )
+                androidx.compose.foundation.layout.Box {
+                    CharacterPortrait(
+                        name = conversation.characterName,
+                        avatarUrl = conversation.characterAvatarUrl,
+                        modifier = Modifier.size(64.dp)
+                    )
+                    
+                    if (conversation.unreadCount > 0) {
+                        androidx.compose.foundation.layout.Box(
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .androidx.compose.foundation.layout.offset(x = 4.dp, y = (-4).dp)
+                                .androidx.compose.foundation.background(
+                                    MaterialTheme.colorScheme.error,
+                                    androidx.compose.foundation.shape.CircleShape
+                                )
+                                .androidx.compose.foundation.border(
+                                    2.dp,
+                                    MaterialTheme.colorScheme.background,
+                                    androidx.compose.foundation.shape.CircleShape
+                                )
+                                .padding(horizontal = 6.dp, vertical = 2.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = conversation.unreadCount.toString(),
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    color = MaterialTheme.colorScheme.onError,
+                                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                                )
+                            )
+                        }
+                    }
+                }
                 Column(
                     modifier = Modifier
                         .weight(1f),
@@ -156,3 +209,4 @@ fun ChatListRoute(
         }
     }
 }
+

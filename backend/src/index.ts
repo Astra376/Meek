@@ -1,4 +1,5 @@
 import type { Env, RequestContext } from "./env";
+import { processOfflineMessages } from "./services/chat/offline";
 import { requireAuth } from "./lib/auth";
 import { handleError, json } from "./lib/response";
 import { authRoutes } from "./routes/auth";
@@ -82,5 +83,8 @@ export default {
     } catch (error) {
       return handleError(error);
     }
+  },
+  async scheduled(event: object, env: Env, ctx: { waitUntil(promise: Promise<any>): void }) {
+    ctx.waitUntil(processOfflineMessages(env));
   }
 };

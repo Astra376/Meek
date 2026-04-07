@@ -15,6 +15,7 @@ fun ProfileEntity.toModel(): UserProfile = UserProfile(
     email = email,
     displayName = displayName,
     avatarUrl = avatarUrl,
+    description = description,
     createdAt = createdAt,
     updatedAt = updatedAt
 )
@@ -24,6 +25,7 @@ fun UserProfile.toEntity(): ProfileEntity = ProfileEntity(
     email = email,
     displayName = displayName,
     avatarUrl = avatarUrl,
+    description = description,
     createdAt = createdAt,
     updatedAt = updatedAt
 )
@@ -111,5 +113,7 @@ fun ConversationSummaryRow.toModel(): ConversationSummary = ConversationSummary(
     updatedAt = updatedAt,
     startedAt = startedAt,
     lastMessageAt = lastMessageAt,
-    lastPreview = lastPreview
+    lastPreview = lastPreview,
+    unreadCount = unreadCount,
+    hasUnreadBadge = hasUnreadBadge
 )

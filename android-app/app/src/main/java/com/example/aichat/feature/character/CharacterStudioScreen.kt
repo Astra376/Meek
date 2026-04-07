@@ -33,6 +33,7 @@ import com.example.aichat.core.design.PrimaryButton
 import com.example.aichat.core.design.SelectionButton
 import com.example.aichat.core.ui.AppChrome
 import com.example.aichat.core.ui.ScreenBackgroundBox
+import com.example.aichat.core.ui.MainPageHeader
 import com.example.aichat.core.ui.screenContentPadding
 import com.example.aichat.core.model.CharacterDraft
 import com.example.aichat.core.model.CharacterVisibility
@@ -105,6 +106,8 @@ class CharacterStudioViewModel @Inject constructor(
 @Composable
 fun CharacterStudioRoute(
     paddingValues: PaddingValues,
+    onOpenSearch: () -> Unit,
+    onOpenActivity: () -> Unit,
     viewModel: CharacterStudioViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -126,7 +129,11 @@ fun CharacterStudioRoute(
             verticalArrangement = Arrangement.spacedBy(AppChrome.sectionSpacing)
         ) {
             item {
-                Text("Create", style = MaterialTheme.typography.headlineMedium)
+                MainPageHeader(
+                    title = "Create",
+                    onOpenSearch = onOpenSearch,
+                    onOpenActivity = onOpenActivity
+                )
             }
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(AppChrome.gridSpacing)) {

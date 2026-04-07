@@ -43,6 +43,20 @@ class ConversationRepository @Inject constructor(
         }
     }
 
+    suspend fun markConversationRead(conversationId: String): Result<Unit> {
+        return runCatching {
+            conversationApi.markConversationRead(conversationId)
+            conversationDao.getById(conversationId)?.let { entity ->
+                conversationDao.upsert(
+                    entity.copy(
+                        unreadCount = 0,
+                        hasUnreadBadge = false
+                    )
+                )
+            }
+        }
+    }
+
     private suspend fun upsertConversationSummary(ownerUserId: String, summary: ConversationSummaryDto) {
         val existingCharacter = characterDao.getById(summary.characterId)
         characterDao.upsert(
@@ -73,7 +87,9 @@ class ConversationRepository @Inject constructor(
                 updatedAt = summary.updatedAt,
                 startedAt = summary.startedAt,
                 lastMessageAt = summary.lastMessageAt,
-                previewText = summary.lastPreview
+                previewText = summary.lastPreview,
+                unreadCount = summary.unreadCount,
+                hasUnreadBadge = summary.hasUnreadBadge
             )
         )
     }

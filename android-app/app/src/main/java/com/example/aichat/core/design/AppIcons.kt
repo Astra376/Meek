@@ -49,6 +49,7 @@ object AppIcons {
 
     val search = Iconsax.Linear.SearchNormalOne
     val searchFilled = Iconsax.Bold.SearchNormalOne
+    val activity = Iconsax.Linear.Notification
     val discoverOutline = Iconsax.Linear.Discover
     val discover = Iconsax.Bold.Discover
     val sparkle = Iconsax.Linear.MagicStar
@@ -67,6 +68,7 @@ object AppIcons {
     val logout = Iconsax.Linear.LogoutCurve
     val edit = Iconsax.Linear.Edit
     val settings = Iconsax.Linear.SettingTwo
+    val share = Iconsax.Linear.Share
 
     val created = Iconsax.Linear.GridFour
     val createdFilled = Iconsax.Bold.GridFour

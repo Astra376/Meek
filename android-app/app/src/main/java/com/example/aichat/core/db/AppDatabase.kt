@@ -11,7 +11,7 @@ import androidx.room.RoomDatabase
         MessageEntity::class,
         AssistantRegenerationEntity::class
     ],
-    version = 5,
+    version = 7,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {

@@ -23,7 +23,9 @@ function toConversationSummary(record: Awaited<ReturnType<typeof listConversatio
     updatedAt: record.updated_at,
     startedAt: record.started_at,
     lastMessageAt: record.last_message_at,
-    lastPreview: record.last_preview
+    lastPreview: record.last_preview,
+    unreadCount: record.unread_count,
+    hasUnreadBadge: record.has_unread_badge === 1
   };
 }
 
@@ -61,7 +63,9 @@ export async function createConversation(context: RequestContext, characterId: s
       updatedAt: existing.updated_at,
       startedAt: existing.started_at,
       lastMessageAt: existing.last_message_at,
-      lastPreview: ""
+      lastPreview: "",
+      unreadCount: 0,
+      hasUnreadBadge: false
     };
   }
 
@@ -82,7 +86,9 @@ export async function createConversation(context: RequestContext, characterId: s
     updatedAt: now,
     startedAt: now,
     lastMessageAt: null,
-    lastPreview: ""
+    lastPreview: "",
+    unreadCount: 0,
+    hasUnreadBadge: false
   };
 }
 
@@ -132,4 +138,19 @@ export async function getConversationDetail(context: RequestContext, conversatio
       }))
     }))
   };
+}
+
+export async function markConversationRead(context: RequestContext, conversationId: string) {
+  await ensureConversationStreamingSchema(context.env);
+  const conversation = await getConversationById(context.env, conversationId);
+  if (!conversation) {
+    throw new AppError(404, "CONVERSATION_NOT_FOUND", "Conversation not found.");
+  }
+  if (conversation.owner_user_id !== context.user!.userId) {
+    forbidden("Conversations are private to their owner.");
+  }
+
+  await context.env.DB.prepare(
+    "UPDATE conversations SET unread_count = 0 WHERE id = ?"
+  ).bind(conversationId).run();
 }

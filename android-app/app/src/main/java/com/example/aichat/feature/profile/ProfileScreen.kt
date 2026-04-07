@@ -1,5 +1,8 @@
 package com.example.aichat.feature.profile
 
+import androidx.compose.foundation.LocalIndication
+import androidx.compose.foundation.indication
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -10,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -244,41 +248,44 @@ fun ProfileRoute(
                 }
             }
             item(span = { GridItemSpan(maxLineSpan) }) {
-                SecondaryTabRow(
-                    selectedTabIndex = ProfileSection.entries.indexOf(section),
-                    containerColor = androidx.compose.ui.graphics.Color.Transparent,
-                    contentColor = MaterialTheme.colorScheme.onBackground,
-                    indicator = {
-                        TabRowDefaults.SecondaryIndicator(
-                            modifier = Modifier.tabIndicatorOffset(ProfileSection.entries.indexOf(section)),
-                            color = MaterialTheme.colorScheme.primary,
-                            height = 2.dp
-                        )
-                    },
-                    divider = {}
-                ) {
-                    ProfileSection.entries.forEach { s ->
-                        val isSelected = section == s
-                        val icon = when (s) {
-                            ProfileSection.OWNED -> if (isSelected) AppIcons.createdFilled else AppIcons.created
-                            ProfileSection.LIKED -> if (isSelected) AppIcons.likedFilled else AppIcons.liked
-                            ProfileSection.RECENT -> AppIcons.activity // No bold version available
-                            ProfileSection.INTERACTED -> if (isSelected) AppIcons.chats else AppIcons.chatsOutline
+                CompositionLocalProvider(LocalIndication provides null) {
+                    SecondaryTabRow(
+                        selectedTabIndex = ProfileSection.entries.indexOf(section),
+                        containerColor = androidx.compose.ui.graphics.Color.Transparent,
+                        contentColor = MaterialTheme.colorScheme.onBackground,
+                        indicator = {
+                            TabRowDefaults.SecondaryIndicator(
+                                modifier = Modifier.tabIndicatorOffset(ProfileSection.entries.indexOf(section)),
+                                color = MaterialTheme.colorScheme.primary,
+                                height = 2.dp
+                            )
+                        },
+                        divider = {}
+                    ) {
+                        ProfileSection.entries.forEach { s ->
+                            val isSelected = section == s
+                            val icon = when (s) {
+                                ProfileSection.OWNED -> if (isSelected) AppIcons.createdFilled else AppIcons.created
+                                ProfileSection.LIKED -> if (isSelected) AppIcons.likedFilled else AppIcons.liked
+                                ProfileSection.RECENT -> AppIcons.activity // No bold version available
+                                ProfileSection.INTERACTED -> if (isSelected) AppIcons.chats else AppIcons.chatsOutline
+                            }
+                            Tab(
+                                selected = isSelected,
+                                onClick = { section = s },
+                                icon = {
+                                    AppIcon(
+                                        icon = icon,
+                                        contentDescription = s.name,
+                                        size = 24.dp,
+                                        tint = if (isSelected) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
+                                    )
+                                },
+                                selectedContentColor = MaterialTheme.colorScheme.onBackground,
+                                unselectedContentColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
+                                interactionSource = remember { MutableInteractionSource() }
+                            )
                         }
-                        Tab(
-                            selected = isSelected,
-                            onClick = { section = s },
-                            icon = {
-                                AppIcon(
-                                    icon = icon,
-                                    contentDescription = s.name,
-                                    size = 24.dp,
-                                    tint = if (isSelected) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
-                                )
-                            },
-                            selectedContentColor = MaterialTheme.colorScheme.onBackground,
-                            unselectedContentColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
-                        )
                     }
                 }
             }

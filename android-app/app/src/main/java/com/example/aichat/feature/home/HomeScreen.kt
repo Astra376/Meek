@@ -107,6 +107,7 @@ class HomeViewModel @Inject constructor(
 @Composable
 fun HomeRoute(
     paddingValues: PaddingValues,
+    onOpenSearch: () -> Unit = {},
     onOpenActivity: () -> Unit = {},
     onOpenConversation: (String) -> Unit,
     viewModel: HomeViewModel = hiltViewModel()
@@ -131,6 +132,7 @@ fun HomeRoute(
             item(span = { GridItemSpan(maxLineSpan) }) {
                 MainPageHeader(
                     title = "Discover",
+                    onOpenSearch = onOpenSearch,
                     onOpenActivity = onOpenActivity
                 )
             }

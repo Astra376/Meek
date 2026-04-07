@@ -106,6 +106,7 @@ class CharacterStudioViewModel @Inject constructor(
 @Composable
 fun CharacterStudioRoute(
     paddingValues: PaddingValues,
+    onOpenSearch: () -> Unit = {},
     onOpenActivity: () -> Unit = {},
     viewModel: CharacterStudioViewModel = hiltViewModel()
 ) {
@@ -130,6 +131,7 @@ fun CharacterStudioRoute(
             item {
                 MainPageHeader(
                     title = "Studio",
+                    onOpenSearch = onOpenSearch,
                     onOpenActivity = onOpenActivity
                 )
             }

@@ -59,8 +59,8 @@ internal object DesignMetrics {
     val fieldSingleLineVerticalPadding = 10.dp
     val fieldMultiLineVerticalPadding = 12.dp
     val fieldIconGap = 10.dp
-    val iconCircleSize = 50.dp
-    val iconPillHeight = 50.dp
+    val iconCircleSize = 36.dp
+    val iconPillHeight = 36.dp
     val iconPillHorizontalPadding = 16.dp
     val squareIconButtonSize = 50.dp
     val squareButtonCorner = 22.dp

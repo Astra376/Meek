@@ -78,10 +78,10 @@ fun SettingsRoute(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 AppBackButton(onClick = onBack)
-                Text("Settings", style = MaterialTheme.typography.headlineMedium)
+                Text("Settings", style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.onSurface)
             }
 
-            Text("App Theme", style = MaterialTheme.typography.titleLarge)
+            Text("App Theme", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface)
             ThemeOptionRow(
                 text = "System",
                 selected = themeMode == ThemeMode.SYSTEM,

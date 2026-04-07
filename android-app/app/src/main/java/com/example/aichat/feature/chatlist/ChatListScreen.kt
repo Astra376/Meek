@@ -74,6 +74,7 @@ class ChatListViewModel @Inject constructor(
 @Composable
 fun ChatListRoute(
     paddingValues: PaddingValues,
+    onOpenSearch: () -> Unit = {},
     onOpenActivity: () -> Unit = {},
     onOpenConversation: (String) -> Unit,
     viewModel: ChatListViewModel = hiltViewModel()
@@ -89,6 +90,7 @@ fun ChatListRoute(
             val totalUnread = conversations.sumOf { it.unreadCount }
             MainPageHeader(
                 title = "Chats",
+                onOpenSearch = onOpenSearch,
                 onOpenActivity = onOpenActivity,
                 modifier = Modifier.padding(bottom = AppChrome.sectionSpacing),
                 titlePrefix = if (totalUnread > 0) {

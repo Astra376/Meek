@@ -188,11 +188,20 @@ fun SimplePageHeader(
 @Composable
 fun MainPageHeader(
     title: String,
+    onOpenSearch: () -> Unit,
     onOpenActivity: () -> Unit,
     modifier: Modifier = Modifier,
     titlePrefix: (@Composable () -> Unit)? = null
 ) {
     SimplePageHeader(title = title, modifier = modifier, titlePrefix = titlePrefix) {
+        androidx.compose.material3.IconButton(onClick = onOpenSearch) {
+            AppIcon(
+                icon = AppIcons.search,
+                contentDescription = "Search",
+                size = AppChrome.headerActionIconSize,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
         androidx.compose.material3.IconButton(onClick = onOpenActivity) {
             AppIcon(
                 icon = AppIcons.activity,

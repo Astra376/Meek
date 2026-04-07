@@ -356,7 +356,7 @@ fun IconPillButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     onClick: () -> Unit,
-    leadingIcon: @Composable () -> Unit
+    leadingIcon: (@Composable () -> Unit)? = null
 ) {
     OutlineTextButton(
         text = text,

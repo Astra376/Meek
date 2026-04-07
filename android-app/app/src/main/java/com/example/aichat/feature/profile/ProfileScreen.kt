@@ -55,16 +55,20 @@ import kotlinx.coroutines.launch
 
 enum class ProfileSection {
     OWNED,
-    LIKED
+    LIKED,
+    RECENT,
+    INTERACTED
 }
 
 data class ProfileUiState(
     val displayName: String = "",
     val avatarUrl: String? = null,
-    val description: String? = null,
+    val bio: String? = null,
     val userId: String = "",
     val owned: List<CharacterSummary> = emptyList(),
-    val liked: List<CharacterSummary> = emptyList()
+    val liked: List<CharacterSummary> = emptyList(),
+    val recent: List<CharacterSummary> = emptyList(),
+    val interacted: List<CharacterSummary> = emptyList()
 )
 
 @HiltViewModel
@@ -79,15 +83,45 @@ class ProfileViewModel @Inject constructor(
     val uiState: StateFlow<ProfileUiState> = combine(
         profileRepository.profile,
         characterRepository.observeOwnedCharacters(userId),
-        characterRepository.observeLikedCharacters()
-    ) { profile, owned, liked ->
+        characterRepository.observeLikedCharacters(),
+        conversationRepository.observeConversations(userId)
+    ) { profile, owned, liked, conversations ->
+        // For Recent and Interacted, we need to map conversations back to CharacterSummary.
+        // We'll use the ones we already have in owned/liked or fetch missing ones if possible.
+        // For simplicity in this UI refactor, we'll build the list from available data.
+        val charMap = (owned + liked).associateBy { it.id }.toMutableMap()
+        
+        val recentChars = conversations
+            .sortedByDescending { it.lastMessageAt ?: it.updatedAt }
+            .mapNotNull { conv ->
+                charMap[conv.characterId] ?: CharacterSummary(
+                    id = conv.characterId,
+                    ownerUserId = "",
+                    name = conv.characterName,
+                    tagline = "",
+                    bio = "",
+                    systemPrompt = "",
+                    visibility = com.example.aichat.core.model.CharacterVisibility.PUBLIC,
+                    avatarUrl = conv.characterAvatarUrl,
+                    publicChatCount = 0,
+                    likeCount = 0,
+                    likedByMe = false,
+                    lastActiveAt = conv.lastMessageAt ?: conv.updatedAt,
+                    createdAt = conv.startedAt,
+                    updatedAt = conv.updatedAt
+                )
+            }
+            .distinctBy { it.id }
+
         ProfileUiState(
             displayName = profile?.displayName.orEmpty(),
             avatarUrl = profile?.avatarUrl,
-            description = profile?.description,
+            bio = profile?.bio,
             userId = userId,
             owned = owned,
-            liked = liked
+            liked = liked,
+            recent = recentChars,
+            interacted = recentChars // Temporary proxy until message count is implemented
         )
     }.stateIn(
         scope = viewModelScope,
@@ -173,12 +207,13 @@ fun ProfileRoute(
                     }
                 }
             }
-            state.description?.takeIf { it.isNotBlank() }?.let { desc ->
+            state.bio?.takeIf { it.isNotBlank() }?.let { bio ->
                 item(span = { GridItemSpan(maxLineSpan) }) {
                     Text(
-                        text = desc,
+                        text = bio,
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurface
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.fillMaxWidth()
                     )
                 }
             }
@@ -190,18 +225,12 @@ fun ProfileRoute(
                     IconPillButton(
                         text = "Edit Profile",
                         onClick = onOpenEditProfile,
-                        modifier = Modifier.weight(1f),
-                        leadingIcon = {
-                            AppIcon(AppIcons.edit, contentDescription = null)
-                        }
+                        modifier = Modifier.weight(1f)
                     )
                     IconPillButton(
                         text = "Share Profile",
                         onClick = { /* No functionality yet */ },
-                        modifier = Modifier.weight(1f),
-                        leadingIcon = {
-                            AppIcon(AppIcons.share, contentDescription = null)
-                        }
+                        modifier = Modifier.weight(1f)
                     )
                     IconCircleButton(onClick = onOpenSettings) {
                         AppIcon(AppIcons.settings, contentDescription = "Settings")
@@ -211,50 +240,43 @@ fun ProfileRoute(
             item(span = { GridItemSpan(maxLineSpan) }) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(AppChrome.compactControlGap)
+                    horizontalArrangement = Arrangement.SpaceAround,
+                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
                 ) {
-                    SelectionButton(
-                        text = "Created",
-                        selected = section == ProfileSection.OWNED,
-                        modifier = Modifier.weight(1f),
-                        leadingIcon = {
+                    listOf(
+                        ProfileSection.OWNED to (if (section == ProfileSection.OWNED) AppIcons.createdFilled else AppIcons.created),
+                        ProfileSection.LIKED to (if (section == ProfileSection.LIKED) AppIcons.likedFilled else AppIcons.liked),
+                        ProfileSection.RECENT to (if (section == ProfileSection.RECENT) AppIcons.recentFilled else AppIcons.recent),
+                        ProfileSection.INTERACTED to (if (section == ProfileSection.INTERACTED) AppIcons.interactedFilled else AppIcons.interacted)
+                    ).forEach { (s, icon) ->
+                        IconCircleButton(
+                            selected = section == s,
+                            onClick = { section = s },
+                            containerSize = 48.dp
+                        ) {
                             AppIcon(
-                                icon = if (section == ProfileSection.OWNED) {
-                                    AppIcons.createdFilled
-                                } else {
-                                    AppIcons.created
-                                },
-                                contentDescription = "Created Characters"
+                                icon = icon,
+                                contentDescription = s.name,
+                                size = 26.dp
                             )
-                        },
-                        onClick = { section = ProfileSection.OWNED }
-                    )
-                    SelectionButton(
-                        text = "Liked",
-                        selected = section == ProfileSection.LIKED,
-                        modifier = Modifier.weight(1f),
-                        leadingIcon = {
-                            AppIcon(
-                                icon = if (section == ProfileSection.LIKED) {
-                                    AppIcons.likedFilled
-                                } else {
-                                    AppIcons.liked
-                                },
-                                contentDescription = "Liked Characters"
-                            )
-                        },
-                        onClick = { section = ProfileSection.LIKED }
-                    )
+                        }
+                    }
                 }
             }
-            val characters = if (section == ProfileSection.OWNED) state.owned else state.liked
+            val characters = when (section) {
+                ProfileSection.OWNED -> state.owned
+                ProfileSection.LIKED -> state.liked
+                ProfileSection.RECENT -> state.recent
+                ProfileSection.INTERACTED -> state.interacted
+            }
             if (characters.isEmpty()) {
                 item(span = { GridItemSpan(maxLineSpan) }) {
                     Text(
-                        text = if (section == ProfileSection.OWNED) {
-                            "No Characters Yet."
-                        } else {
-                            "No Liked Characters Yet."
+                        text = when (section) {
+                            ProfileSection.OWNED -> "No Characters Yet."
+                            ProfileSection.LIKED -> "No Liked Characters Yet."
+                            ProfileSection.RECENT -> "No Recent Activity."
+                            ProfileSection.INTERACTED -> "No Interacted Characters."
                         },
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant

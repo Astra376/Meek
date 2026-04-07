@@ -46,17 +46,17 @@ class EditProfileViewModel @Inject constructor(
             initialValue = ""
         )
 
-    val description: StateFlow<String> = profileRepository.profile
-        .map { it?.description.orEmpty() }
+    val bio: StateFlow<String> = profileRepository.profile
+        .map { it?.bio.orEmpty() }
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),
             initialValue = ""
         )
 
-    fun save(name: String, desc: String, onSaved: () -> Unit) {
+    fun save(name: String, bio: String, onSaved: () -> Unit) {
         viewModelScope.launch {
-            profileRepository.updateProfile(name, desc)
+            profileRepository.updateProfile(name, bio)
                 .onSuccess { onSaved() }
         }
     }
@@ -69,13 +69,13 @@ fun EditProfileRoute(
     viewModel: EditProfileViewModel = hiltViewModel()
 ) {
     val currentName by viewModel.displayName.collectAsStateWithLifecycle()
-    val currentDescription by viewModel.description.collectAsStateWithLifecycle()
+    val currentBio by viewModel.bio.collectAsStateWithLifecycle()
     
     var editedName by remember(currentName) { mutableStateOf(currentName) }
-    var editedDescription by remember(currentDescription) { mutableStateOf(currentDescription) }
+    var editedBio by remember(currentBio) { mutableStateOf(currentBio) }
     
     val hasChanged = (editedName.trim() != currentName.trim() && editedName.isNotBlank()) ||
-                     (editedDescription.trim() != currentDescription.trim())
+                     (editedBio.trim() != currentBio.trim())
 
     ScreenBackgroundBox(clearFocusOnTap = true) {
         Column(
@@ -104,11 +104,11 @@ fun EditProfileRoute(
                 singleLine = true
             )
 
-            Text("Description", style = MaterialTheme.typography.titleLarge)
+            Text("Bio", style = MaterialTheme.typography.titleLarge)
 
             AppTextField(
-                value = editedDescription,
-                onValueChange = { editedDescription = it },
+                value = editedBio,
+                onValueChange = { editedBio = it },
                 placeholder = "Tell others about yourself",
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = false,
@@ -122,7 +122,7 @@ fun EditProfileRoute(
                     text = "Save Changes",
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    viewModel.save(editedName, editedDescription, onSaved = onBack)
+                    viewModel.save(editedName, editedBio, onSaved = onBack)
                 }
             }
         }

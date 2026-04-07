@@ -52,7 +52,7 @@ class CharacterRepository @Inject constructor(
             val payload = CharacterWriteRequestDto(
                 name = draft.name.trim(),
                 tagline = draft.tagline.trim(),
-                description = draft.description.trim(),
+                bio = draft.bio.trim(),
                 systemPrompt = draft.systemPrompt.trim(),
                 visibility = draft.visibility.name.lowercase(),
                 avatarUrl = draft.avatarUrl

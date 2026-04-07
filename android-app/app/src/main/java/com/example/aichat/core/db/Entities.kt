@@ -11,7 +11,7 @@ data class ProfileEntity(
     val email: String,
     val displayName: String,
     val avatarUrl: String?,
-    val description: String?,
+    val bio: String?,
     val createdAt: Long,
     val updatedAt: Long
 )
@@ -26,7 +26,7 @@ data class CharacterEntity(
     val authorUsername: String,
     val name: String,
     val tagline: String,
-    val description: String,
+    val bio: String,
     val systemPrompt: String,
     val visibility: String,
     val avatarUrl: String?,

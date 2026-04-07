@@ -11,7 +11,7 @@ data class CharacterSummary(
     val authorUsername: String = "",
     val name: String,
     val tagline: String,
-    val description: String,
+    val bio: String,
     val systemPrompt: String,
     val visibility: CharacterVisibility,
     val avatarUrl: String?,
@@ -27,7 +27,7 @@ data class CharacterDraft(
     val id: String? = null,
     val name: String = "",
     val tagline: String = "",
-    val description: String = "",
+    val bio: String = "",
     val systemPrompt: String = "",
     val visibility: CharacterVisibility = CharacterVisibility.PUBLIC,
     val avatarUrl: String? = null

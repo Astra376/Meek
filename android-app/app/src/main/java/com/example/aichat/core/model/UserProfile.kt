@@ -5,7 +5,7 @@ data class UserProfile(
     val email: String,
     val displayName: String,
     val avatarUrl: String?,
-    val description: String? = null,
+    val bio: String? = null,
     val createdAt: Long,
     val updatedAt: Long
 )

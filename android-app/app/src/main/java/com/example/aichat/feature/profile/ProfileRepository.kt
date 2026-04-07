@@ -39,10 +39,10 @@ class ProfileRepository @Inject constructor(
         }
     }
 
-    suspend fun updateProfile(name: String, description: String): Result<Unit> {
+    suspend fun updateProfile(name: String, bio: String): Result<Unit> {
         if (name.isBlank()) return Result.failure(IllegalArgumentException("Display name can't be empty."))
         val current = profileDao.getProfile() ?: return Result.failure(IllegalStateException("No active profile."))
-        profileDao.upsert(current.copy(displayName = name.trim(), description = description.trim(), updatedAt = System.currentTimeMillis()))
+        profileDao.upsert(current.copy(displayName = name.trim(), bio = bio.trim(), updatedAt = System.currentTimeMillis()))
         return Result.success(Unit)
     }
 }

@@ -66,7 +66,7 @@ class ConversationRepository @Inject constructor(
                 authorUsername = existingCharacter?.authorUsername ?: "",
                 name = summary.characterName,
                 tagline = existingCharacter?.tagline ?: "",
-                description = existingCharacter?.description ?: "",
+                bio = existingCharacter?.bio ?: "",
                 systemPrompt = existingCharacter?.systemPrompt ?: "",
                 visibility = existingCharacter?.visibility ?: CharacterVisibility.PUBLIC.name,
                 avatarUrl = summary.characterAvatarUrl ?: existingCharacter?.avatarUrl,

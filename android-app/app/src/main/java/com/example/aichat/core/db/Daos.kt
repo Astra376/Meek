@@ -44,7 +44,7 @@ interface CharacterDao {
         WHERE visibility = 'PUBLIC' AND (
             name LIKE '%' || :query || '%'
             OR tagline LIKE '%' || :query || '%'
-            OR description LIKE '%' || :query || '%'
+            OR bio LIKE '%' || :query || '%'
         )
         """
     )

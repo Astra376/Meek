@@ -173,10 +173,10 @@ fun CharacterStudioRoute(
                         shape = RoundedCornerShape(24.dp)
                     )
                     AppTextField(
-                        value = state.draft.description,
-                        onValueChange = { value -> viewModel.updateDraft { it.copy(description = value) } },
+                        value = state.draft.bio,
+                        onValueChange = { value -> viewModel.updateDraft { it.copy(bio = value) } },
                         modifier = Modifier.fillMaxWidth(),
-                        placeholder = "Description",
+                        placeholder = "Bio",
                         minLines = 3,
                         maxLines = 6,
                         shape = RoundedCornerShape(24.dp)

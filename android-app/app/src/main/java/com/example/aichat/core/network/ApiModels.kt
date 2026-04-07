@@ -32,7 +32,7 @@ data class ProfileDto(
     val email: String,
     val displayName: String,
     val avatarUrl: String? = null,
-    val bio: String? = null,
+    @SerialName("description") val bio: String? = null,
     val createdAt: Long,
     val updatedAt: Long
 )
@@ -40,7 +40,7 @@ data class ProfileDto(
 @Serializable
 data class UpdateProfileRequestDto(
     val displayName: String,
-    val bio: String? = null
+    @SerialName("description") val bio: String? = null
 )
 
 @Serializable
@@ -50,7 +50,7 @@ data class CharacterDto(
     val authorUsername: String = "",
     val name: String,
     val tagline: String,
-    val bio: String,
+    @SerialName("description") val bio: String,
     val systemPrompt: String,
     val visibility: String,
     val avatarUrl: String? = null,

@@ -490,8 +490,7 @@ fun ContinueNode(chat: ConversationSummary, onClick: () -> Unit) {
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         AppCard(
-            modifier = Modifier.size(88.dp),
-            shape = RoundedCornerShape(16.dp)
+            modifier = Modifier.size(88.dp)
         ) {
             CharacterPortrait(
                 name = chat.characterName,

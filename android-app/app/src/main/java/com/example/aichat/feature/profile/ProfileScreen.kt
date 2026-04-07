@@ -2,6 +2,7 @@ package com.example.aichat.feature.profile
 
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.indication
+import androidx.compose.foundation.interaction.InteractionSource
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -14,6 +15,21 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.graphics.drawscope.ContentDrawScope
+import androidx.compose.foundation.Indication
+import androidx.compose.foundation.IndicationInstance
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.runtime.remember
+import androidx.compose.ui.unit.dp
+import androidx.compose.material3.Tab
+import androidx.compose.material3.SecondaryTabRow
+import androidx.compose.material3.TabRowDefaults
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
+import androidx.compose.ui.Modifier
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -150,6 +166,19 @@ class ProfileViewModel @Inject constructor(
     }
 }
 
+private object NoIndication : Indication {
+    @Composable
+    override fun rememberUpdatedInstance(interactionSource: InteractionSource): IndicationInstance {
+        return NoIndicationInstance
+    }
+
+    private object NoIndicationInstance : IndicationInstance {
+        override fun ContentDrawScope.drawIndication() {
+            drawContent()
+        }
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileRoute(
@@ -248,7 +277,7 @@ fun ProfileRoute(
                 }
             }
             item(span = { GridItemSpan(maxLineSpan) }) {
-                CompositionLocalProvider(LocalIndication provides null) {
+                CompositionLocalProvider(LocalIndication provides NoIndication) {
                     SecondaryTabRow(
                         selectedTabIndex = ProfileSection.entries.indexOf(section),
                         containerColor = androidx.compose.ui.graphics.Color.Transparent,

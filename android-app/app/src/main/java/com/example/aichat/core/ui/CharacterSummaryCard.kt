@@ -49,13 +49,12 @@ fun CharacterSummaryCard(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .aspectRatio(CharacterCardMetrics.cardAspectRatio)
             .clickable(onClick = onClick)
     ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .weight(CharacterCardMetrics.portraitWeight)
+                .aspectRatio(1.25f)
         ) {
             CharacterPortrait(
                 name = character.name,
@@ -95,7 +94,6 @@ fun CharacterSummaryCard(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .weight(CharacterCardMetrics.contentWeight)
                     .padding(start = 0.dp, top = 8.dp, end = 12.dp, bottom = 12.dp)
             ) {
                 Text(

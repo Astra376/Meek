@@ -440,13 +440,12 @@ fun TopPickCard(character: CharacterSummary, onClick: () -> Unit) {
     Column(
         modifier = Modifier
             .width(230.dp)
-            .height(240.dp)
             .clickable(onClick = onClick)
     ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .weight(0.55f)
+                .height(132.dp)
         ) {
             CharacterPortrait(
                 name = character.name,
@@ -458,7 +457,6 @@ fun TopPickCard(character: CharacterSummary, onClick: () -> Unit) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .weight(0.45f)
                     .padding(start = 0.dp, top = 8.dp, end = 12.dp, bottom = 12.dp)
             ) {
                 Text(

@@ -416,7 +416,7 @@ private fun BottomIconBar(
                             val anim = clickAnims[index]
                             if (anim.value > 0f) {
                                 val progress = anim.value
-                                val width = (38.4f + (progress * 9.6f)).dp
+                                val fraction = 0.7f + (progress * 0.3f)
                                 val alpha = when {
                                     progress < 0.2f -> (progress / 0.2f) * 0.2f
                                     progress < 0.5f -> 0.2f
@@ -424,7 +424,7 @@ private fun BottomIconBar(
                                 }
                                 Box(
                                     modifier = Modifier
-                                        .width(width)
+                                        .fillMaxWidth(fraction)
                                         .height(0.5.dp)
                                         .background(
                                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = alpha),

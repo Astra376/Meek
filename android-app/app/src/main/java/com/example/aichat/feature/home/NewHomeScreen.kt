@@ -108,12 +108,11 @@ fun NewHomeRoute(
                 .fillMaxSize()
                 .padding(screenContentPadding(paddingValues))
         ) {
-
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clickable { onOpenChats() }
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                    .padding(vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
@@ -136,7 +135,6 @@ fun NewHomeRoute(
             Spacer(modifier = Modifier.height(12.dp))
 
             LazyRow(
-                contentPadding = PaddingValues(horizontal = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 item {

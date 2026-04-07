@@ -25,7 +25,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHostState
@@ -54,7 +53,6 @@ import com.example.aichat.core.design.AppIcon
 import com.example.aichat.core.design.AppIcons
 import com.example.aichat.core.design.CharacterPortrait
 import com.example.aichat.core.design.CircleAvatar
-import com.example.aichat.core.design.DesignMetrics
 import com.example.aichat.core.design.SecondaryButton
 import com.example.aichat.core.model.CharacterSummary
 import com.example.aichat.core.model.ConversationSummary
@@ -247,10 +245,11 @@ fun NewHomeRoute(
                 }
             }
 
-            if (state.errorMessage != null && state.recommendedFeed.isEmpty()) {
+            val errorMessage = state.errorMessage
+            if (errorMessage != null && state.recommendedFeed.isEmpty()) {
                 item(span = { GridItemSpan(maxLineSpan) }) {
                     Text(
-                        text = state.errorMessage,
+                        text = errorMessage,
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.error
                     )
@@ -407,13 +406,7 @@ fun TopPickCard(character: CharacterSummary, onClick: () -> Unit) {
                 CharacterPortrait(
                     name = character.name,
                     avatarUrl = character.avatarUrl,
-                    modifier = Modifier.fillMaxSize(),
-                    shape = RoundedCornerShape(
-                        topStart = DesignMetrics.portraitCorner,
-                        topEnd = DesignMetrics.portraitCorner,
-                        bottomStart = 0.dp,
-                        bottomEnd = 0.dp
-                    )
+                    modifier = Modifier.fillMaxSize()
                 )
                 Surface(
                     modifier = Modifier
@@ -520,7 +513,7 @@ fun ContinueNode(chat: ConversationSummary, onClick: () -> Unit) {
             horizontalArrangement = Arrangement.Center
         ) {
             Icon(
-                imageVector = Icons.Default.Schedule,
+                imageVector = AppIcons.activity,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(10.dp)

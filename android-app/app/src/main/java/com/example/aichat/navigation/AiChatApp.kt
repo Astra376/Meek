@@ -33,10 +33,12 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.animation.core.AnimationVector1D
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.contentDescription
@@ -383,7 +385,7 @@ private fun BottomIconBar(
     onNavigate: (String) -> Unit
 ) {
     val coroutineScope = rememberCoroutineScope()
-    val clickAnims = remember { bottomDestinations.map { Animatable(0f) } }
+    val activeClicks = remember { mutableStateListOf<Pair<Int, Animatable<Float, AnimationVector1D>>>() }
 
     Surface(
         modifier = modifier
@@ -411,25 +413,26 @@ private fun BottomIconBar(
                                 .weight(1f),
                             contentAlignment = Alignment.Center
                         ) {
-                            val anim = clickAnims[index]
-                            if (anim.value > 0f) {
-                                val progress = anim.value
-                                val expandProgress = (progress / 0.8f).coerceAtMost(1f)
-                                val fraction = 0.5f + (expandProgress * 0.5f)
-                                val alpha = when {
-                                    progress < 0.1f -> progress * 2f
-                                    progress < 0.6f -> 0.2f
-                                    else -> (1f - (progress - 0.6f) / 0.4f) * 0.2f
+                            activeClicks.filter { it.first == index }.forEach { activeClick ->
+                                val progress = activeClick.second.value
+                                if (progress > 0f) {
+                                    val expandProgress = (progress / 0.625f).coerceAtMost(1f)
+                                    val fraction = 0.5f + (expandProgress * 0.5f)
+                                    val alpha = when {
+                                        progress < 0.1f -> progress * 2f
+                                        progress <= 0.625f -> 0.2f
+                                        else -> (1f - (progress - 0.625f) / 0.375f) * 0.2f
+                                    }
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth(fraction)
+                                            .height(0.5.dp)
+                                            .background(
+                                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = alpha),
+                                                shape = CircleShape
+                                            )
+                                    )
                                 }
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth(fraction)
-                                        .height(0.5.dp)
-                                        .background(
-                                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = alpha),
-                                            shape = CircleShape
-                                        )
-                                )
                             }
                         }
                     }
@@ -447,9 +450,12 @@ private fun BottomIconBar(
                     BottomBarItem(
                         contentDescription = destination.contentDescription,
                         onClick = {
+                            val anim = Animatable(0f)
+                            val clickPair = index to anim
+                            activeClicks.add(clickPair)
                             coroutineScope.launch {
-                                clickAnims[index].snapTo(0f)
-                                clickAnims[index].animateTo(1f, tween(250))
+                                anim.animateTo(1f, tween(400))
+                                activeClicks.remove(clickPair)
                             }
                             onNavigate(destination.route)
                         },

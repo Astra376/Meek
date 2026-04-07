@@ -423,14 +423,9 @@ private fun BottomIconBar(
                                     val expandProgress = 1f - (inv * inv * inv * inv)
                                     val fraction = 0.5f + (expandProgress * 0.5f)
                                     val alpha = when {
-                                        progress < (1f / 3f) -> {
-                                            val t = progress * 3f
-                                            (kotlin.math.sin(t * kotlin.math.PI / 2).toFloat()) * 0.2f
-                                        }
-                                        else -> {
-                                            val t = (progress - (1f / 3f)) / (2f / 3f)
-                                            (kotlin.math.cos(t * kotlin.math.PI / 2).toFloat()) * 0.2f
-                                        }
+                                        progress < 0.1f -> progress * 2f
+                                        progress <= (2f / 3f) -> 0.2f
+                                        else -> (1f - (progress - (2f / 3f)) / (1f / 3f)) * 0.2f
                                     }
                                     Box(
                                         modifier = Modifier

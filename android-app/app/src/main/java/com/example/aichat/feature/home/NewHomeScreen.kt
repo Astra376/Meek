@@ -482,7 +482,6 @@ fun TopPickCard(character: CharacterSummary, onClick: () -> Unit) {
                     overflow = TextOverflow.Ellipsis
                 )
             }
-        }
     }
 }
 

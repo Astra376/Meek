@@ -7,6 +7,8 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -416,7 +418,9 @@ private fun BottomIconBar(
                             activeClicks.filter { it.first == index }.forEach { activeClick ->
                                 val progress = activeClick.second.value
                                 if (progress > 0f) {
-                                    val expandProgress = (progress / 0.625f).coerceAtMost(1f)
+                                    val linearExpand = (progress / 0.625f).coerceAtMost(1f)
+                                    val inv = 1f - linearExpand
+                                    val expandProgress = 1f - (inv * inv * inv)
                                     val fraction = 0.5f + (expandProgress * 0.5f)
                                     val alpha = when {
                                         progress < 0.1f -> progress * 2f
@@ -454,7 +458,7 @@ private fun BottomIconBar(
                             val clickPair = index to anim
                             activeClicks.add(clickPair)
                             coroutineScope.launch {
-                                anim.animateTo(1f, tween(400))
+                                anim.animateTo(1f, tween(400, easing = LinearEasing))
                                 activeClicks.remove(clickPair)
                             }
                             onNavigate(destination.route)

@@ -86,36 +86,7 @@ fun ChatListRoute(
         modifier = Modifier.fillMaxSize(),
         contentPadding = screenContentPadding(paddingValues)
     ) {
-        item {
-            val totalUnread = conversations.sumOf { it.unreadCount }
-            MainPageHeader(
-                title = "Chats",
-                onOpenSearch = onOpenSearch,
-                onOpenActivity = onOpenActivity,
-                modifier = Modifier.padding(bottom = AppChrome.sectionSpacing),
-                titlePrefix = if (totalUnread > 0) {
-                    {
-                        Box(
-                            modifier = Modifier
-                                .background(
-                                    MaterialTheme.colorScheme.error,
-                                    CircleShape
-                                )
-                                .padding(horizontal = 8.dp, vertical = 2.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = totalUnread.toString(),
-                                style = MaterialTheme.typography.labelMedium.copy(
-                                    color = MaterialTheme.colorScheme.onError,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            )
-                        }
-                    }
-                } else null
-            )
-        }
+
         if (conversations.isEmpty()) {
             item {
                 Column(modifier = Modifier.padding(top = AppChrome.bottomBarVerticalPadding)) {

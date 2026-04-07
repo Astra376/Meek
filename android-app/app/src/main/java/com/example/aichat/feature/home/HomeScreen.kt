@@ -129,13 +129,7 @@ fun HomeRoute(
             verticalArrangement = Arrangement.spacedBy(AppChrome.sectionSpacing),
             horizontalArrangement = Arrangement.spacedBy(AppChrome.gridSpacing)
         ) {
-            item(span = { GridItemSpan(maxLineSpan) }) {
-                MainPageHeader(
-                    title = "Discover",
-                    onOpenSearch = onOpenSearch,
-                    onOpenActivity = onOpenActivity
-                )
-            }
+
             if (state.errorMessage != null && state.feed.isEmpty()) {
                 item(span = { GridItemSpan(maxLineSpan) }) {
                     Text(

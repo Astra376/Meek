@@ -65,6 +65,7 @@ import com.example.aichat.feature.chat.ChatRoute
 import com.example.aichat.feature.chatlist.ChatListRoute
 import com.example.aichat.feature.home.HomeRoute
 import com.example.aichat.feature.home.NewHomeRoute
+import com.example.aichat.feature.home.SearchRoute
 import com.example.aichat.feature.profile.EditProfileRoute
 import com.example.aichat.feature.profile.ProfileRoute
 import com.example.aichat.feature.profile.SettingsRoute
@@ -72,6 +73,7 @@ import com.example.aichat.feature.signin.SignInRoute
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.absoluteValue
+import androidx.hilt.navigation.compose.hiltViewModel
 
 private sealed class MainDestination(
     val route: String,
@@ -126,6 +128,7 @@ private val bottomDestinations = listOf(
 private val subpageRoutes = setOf(
     "chat/{conversationId}",
     "edit-profile",
+    "search",
     "settings"
 )
 
@@ -249,6 +252,40 @@ private fun MainShell(
         }
 
         composable(
+            route = "search",
+            enterTransition = {
+                slideInHorizontally(
+                    initialOffsetX = { it },
+                    animationSpec = tween(durationMillis = 220)
+                )
+            },
+            exitTransition = {
+                slideOutHorizontally(
+                    targetOffsetX = { -it },
+                    animationSpec = tween(durationMillis = 220)
+                )
+            },
+            popEnterTransition = {
+                slideInHorizontally(
+                    initialOffsetX = { -it },
+                    animationSpec = tween(durationMillis = 220)
+                )
+            },
+            popExitTransition = {
+                slideOutHorizontally(
+                    targetOffsetX = { it },
+                    animationSpec = tween(durationMillis = 220)
+                )
+            }
+        ) {
+            SearchRoute(
+                paddingValues = androidx.compose.foundation.layout.PaddingValues(),
+                onBack = { rootNavController.popBackStack() },
+                onOpenConversation = { id -> rootNavController.navigate("chat/$id") }
+            )
+        }
+
+        composable(
             route = "settings",
             enterTransition = {
                 slideInHorizontally(
@@ -296,7 +333,43 @@ private fun MainTabs(
     val density = LocalDensity.current
     val minDragDistance = with(density) { 50.dp.toPx() }
 
+    val chatListViewModel: com.example.aichat.feature.chatlist.ChatListViewModel = hiltViewModel()
+    val conversations by chatListViewModel.conversations.collectAsStateWithLifecycle()
+    val totalUnread = conversations.sumOf { it.unreadCount }
+
     Scaffold(
+        topBar = {
+            val title = bottomDestinations.find { it.route == currentDestination?.route }?.contentDescription
+            if (title != null && currentDestination?.route != MainDestination.Home.route) {
+                com.example.aichat.core.ui.MainPageHeader(
+                    title = title,
+                    onOpenSearch = { rootNavController.navigate("search") },
+                    onOpenActivity = { rootNavController.navigate("activity") },
+                    modifier = Modifier.padding(bottom = com.example.aichat.core.ui.AppChrome.sectionSpacing),
+                    titlePrefix = if (currentDestination?.route == MainDestination.Chats.route && totalUnread > 0) {
+                        {
+                            androidx.compose.foundation.layout.Box(
+                                modifier = Modifier
+                                    .background(
+                                        MaterialTheme.colorScheme.error,
+                                        androidx.compose.foundation.shape.CircleShape
+                                    )
+                                    .padding(horizontal = 8.dp, vertical = 2.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                androidx.compose.material3.Text(
+                                    text = totalUnread.toString(),
+                                    style = MaterialTheme.typography.labelMedium.copy(
+                                        color = MaterialTheme.colorScheme.onError,
+                                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                                    )
+                                )
+                            }
+                        }
+                    } else null
+                )
+            }
+        },
         modifier = Modifier
             .fillMaxSize()
             .pointerInput(currentDestination?.route) {

@@ -130,13 +130,7 @@ fun ProfileRoute(
             verticalArrangement = Arrangement.spacedBy(AppChrome.sectionSpacing),
             horizontalArrangement = Arrangement.spacedBy(AppChrome.gridSpacing)
         ) {
-            item(span = { GridItemSpan(maxLineSpan) }) {
-                MainPageHeader(
-                    title = "Profile",
-                    onOpenSearch = onOpenSearch,
-                    onOpenActivity = onOpenActivity
-                )
-            }
+
             item(span = { GridItemSpan(maxLineSpan) }) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),

@@ -128,13 +128,7 @@ fun CharacterStudioRoute(
             contentPadding = screenContentPadding(paddingValues),
             verticalArrangement = Arrangement.spacedBy(AppChrome.sectionSpacing)
         ) {
-            item {
-                MainPageHeader(
-                    title = "Studio",
-                    onOpenSearch = onOpenSearch,
-                    onOpenActivity = onOpenActivity
-                )
-            }
+
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(AppChrome.gridSpacing)) {
                     CharacterPortrait(

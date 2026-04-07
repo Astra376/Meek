@@ -138,9 +138,16 @@ fun ProfileRoute(
             item(span = { GridItemSpan(maxLineSpan) }) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
                     verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
                 ) {
+                    CircleAvatar(
+                        name = state.displayName.ifBlank { "User" },
+                        avatarUrl = state.avatarUrl,
+                        modifier = Modifier
+                            .size(104.dp)
+                            .aspectRatio(1f)
+                    )
                     Column(
                         modifier = Modifier.weight(1f),
                         verticalArrangement = Arrangement.spacedBy(AppChrome.gridSpacing)
@@ -149,7 +156,10 @@ fun ProfileRoute(
                             text = state.displayName.ifBlank { "User" },
                             style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold)
                         )
-                        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
                             Column(horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) {
                                 Text(text = "${state.owned.size}", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold))
                                 Text(text = "Characters", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -164,13 +174,6 @@ fun ProfileRoute(
                             }
                         }
                     }
-                    CircleAvatar(
-                        name = state.displayName.ifBlank { "User" },
-                        avatarUrl = state.avatarUrl,
-                        modifier = Modifier
-                            .size(104.dp)
-                            .aspectRatio(1f)
-                    )
                 }
             }
             state.description?.takeIf { it.isNotBlank() }?.let { desc ->

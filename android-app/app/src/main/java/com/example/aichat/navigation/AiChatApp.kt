@@ -5,6 +5,7 @@ import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -30,6 +31,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
@@ -38,6 +40,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.launch
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -476,6 +479,8 @@ private fun BottomBarItem(
     content: @Composable () -> Unit
 ) {
     val interactionSource = remember { MutableInteractionSource() }
+    val coroutineScope = rememberCoroutineScope()
+    val animationProgress = remember { Animatable(0f) }
 
     Box(
         modifier = modifier,
@@ -490,10 +495,41 @@ private fun BottomBarItem(
                 .clickable(
                     interactionSource = interactionSource,
                     indication = null
-                ) { onClick() },
+                ) {
+                    onClick()
+                    coroutineScope.launch {
+                        animationProgress.snapTo(0f)
+                        animationProgress.animateTo(
+                            targetValue = 1f,
+                            animationSpec = tween(durationMillis = 500)
+                        )
+                    }
+                },
             contentAlignment = Alignment.Center
         ) {
             content()
+
+            if (animationProgress.value > 0f) {
+                val progress = animationProgress.value
+                val width = (progress * 48).dp
+                val alpha = when {
+                    progress < 0.2f -> progress * 5f
+                    progress < 0.5f -> 1f
+                    else -> 1f - (progress - 0.5f) * 2f
+                }
+
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .offset(y = (-0.5).dp)
+                        .width(width)
+                        .height(2.dp)
+                        .background(
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = alpha),
+                            shape = CircleShape
+                        )
+                )
+            }
         }
     }
 }

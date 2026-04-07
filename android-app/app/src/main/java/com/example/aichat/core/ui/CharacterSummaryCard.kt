@@ -62,16 +62,12 @@ fun CharacterSummaryCard(
                     name = character.name,
                     avatarUrl = character.avatarUrl,
                     modifier = Modifier.fillMaxSize(),
-<<<<<<< HEAD
-                    shape = RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp, bottomStart = 0.dp, bottomEnd = 0.dp)
-=======
                     shape = RoundedCornerShape(
                         topStart = DesignMetrics.portraitCorner,
                         topEnd = DesignMetrics.portraitCorner,
                         bottomStart = 0.dp,
                         bottomEnd = 0.dp
                     )
->>>>>>> 61a2596bf5e32811de964505454cfc8d3c24c0db
                 )
                 Surface(
                     modifier = Modifier

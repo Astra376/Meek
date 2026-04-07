@@ -15,6 +15,9 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.PressInteraction
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import kotlin.math.absoluteValue
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.offset
@@ -165,8 +168,40 @@ private fun MainShell(
         label = "bottomBarOffset"
     )
 
+    val minDragDistance = with(density) { 50.dp.toPx() }
+
     Scaffold(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier
+            .fillMaxSize()
+            .pointerInput(currentDestination?.route, showBottomBar) {
+                if (showBottomBar) {
+                    var swipeDistance = 0f
+                    detectHorizontalDragGestures(
+                        onDragStart = { swipeDistance = 0f },
+                        onDragEnd = {
+                            if (swipeDistance.absoluteValue > minDragDistance) {
+                                val currentIndex = bottomDestinations.indexOfFirst { it.route == currentDestination?.route }
+                                if (currentIndex != -1) {
+                                    val nextIndex = if (swipeDistance < 0) currentIndex + 1 else currentIndex - 1
+                                    if (nextIndex in bottomDestinations.indices) {
+                                        val nextRoute = bottomDestinations[nextIndex].route
+                                        navController.navigate(nextRoute) {
+                                            popUpTo(navController.graph.findStartDestination().id) {
+                                                saveState = true
+                                            }
+                                            launchSingleTop = true
+                                            restoreState = true
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        onHorizontalDrag = { _, dragAmount ->
+                            swipeDistance += dragAmount
+                        }
+                    )
+                }
+            },
         containerColor = MaterialTheme.colorScheme.background,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         bottomBar = {
@@ -408,14 +443,14 @@ private fun BottomIconBar(
                     launch {
                         launch {
                             animState.expand.snapTo(0f)
-                            animState.expand.animateTo(1f, tween(150, easing = LinearOutSlowInEasing))
+                            animState.expand.animateTo(1f, tween(200, easing = LinearOutSlowInEasing))
                         }
                         launch {
                             animState.alpha.snapTo(0.2f)
-                            delay(100)
+                            delay(150)
                             animState.alpha.animateTo(0f, tween(150, easing = LinearEasing))
                         }
-                        delay(250)
+                        delay(350)
                         activeClicks.remove(animState)
                     }
                 }

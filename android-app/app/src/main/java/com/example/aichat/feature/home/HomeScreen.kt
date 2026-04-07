@@ -123,9 +123,7 @@ fun HomeRoute(
     ScreenBackgroundBox(
         snackbarHostState = snackbarHostState
     ) {
-        if (state.isFeedLoading && state.feed.isEmpty()) {
-            AppLoadingScreen()
-        } else {
+        Box(modifier = Modifier.fillMaxSize()) {
             LazyVerticalGrid(
                 columns = GridCells.Fixed(2),
                 modifier = Modifier.fillMaxSize(),
@@ -165,6 +163,10 @@ fun HomeRoute(
                         )
                     }
                 }
+            }
+
+            if (state.isFeedLoading && state.feed.isEmpty()) {
+                AppLoadingScreen()
             }
         }
     }

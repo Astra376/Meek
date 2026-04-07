@@ -167,9 +167,7 @@ fun ProfileRoute(
     var section by remember { mutableStateOf(ProfileSection.OWNED) }
 
     ScreenBackgroundBox(snackbarHostState = snackbarHostState) {
-        if (state.isLoading) {
-            AppLoadingScreen()
-        } else {
+        Box(modifier = Modifier.fillMaxSize()) {
             LazyVerticalGrid(
                 columns = GridCells.Fixed(2),
                 modifier = Modifier.fillMaxSize(),
@@ -325,6 +323,10 @@ fun ProfileRoute(
                     }
                 }
             }
+            }
+
+            if (state.isLoading) {
+                AppLoadingScreen()
             }
         }
     }

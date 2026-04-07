@@ -443,11 +443,9 @@ internal fun ChatScreenContent(
                 .clearFocusOnTap()
                 .padding(top = paddingValues.calculateTopPadding())
         ) {
-            if (state.conversation == null) {
-                AppLoadingScreen(modifier = Modifier.weight(1f))
-            } else {
+            Box(modifier = Modifier.weight(1f)) {
                 ChatTranscriptPane(
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.fillMaxSize(),
                     state = listState,
                     messages = messages,
                     activeStream = activeStream,
@@ -478,6 +476,10 @@ internal fun ChatScreenContent(
                     onSelectPreviousVariant = onSelectPreviousVariant,
                     onSelectNextVariant = onSelectNextVariant
                 )
+                
+                if (state.conversation == null) {
+                    AppLoadingScreen()
+                }
             }
 
             ChatComposerBar(

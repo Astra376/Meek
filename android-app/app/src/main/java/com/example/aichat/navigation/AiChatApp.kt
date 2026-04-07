@@ -427,7 +427,7 @@ private fun BottomIconBar(
                                         progress <= (1f / 6f) -> 0.2f
                                         else -> {
                                             val fadeProgress = (progress - (1f / 6f)) / (5f / 6f)
-                                            (1f - (fadeProgress * fadeProgress * fadeProgress)) * 0.2f
+                                            (1f - (fadeProgress * fadeProgress)) * 0.2f
                                         }
                                     }
                                     Box(

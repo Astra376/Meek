@@ -425,7 +425,7 @@ private fun BottomIconBar(
                                 Box(
                                     modifier = Modifier
                                         .width(width)
-                                        .height(1.5.dp)
+                                        .height(0.5.dp)
                                         .background(
                                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = alpha),
                                             shape = CircleShape

@@ -482,7 +482,13 @@ private fun BottomIconBar(
                         contentDescription = destination.contentDescription,
                         interactionSource = interactionSources[index],
                         onClick = {
-                            onNavigate(destination.route)
+                            // Micro-delay protects the UI thread immediately following the tap,
+                            // allowing the animation's critical burst phase to render at max FPS
+                            // before the Navigation controller locks the thread constructing the new screen.
+                            coroutineScope.launch {
+                                delay(120)
+                                onNavigate(destination.route)
+                            }
                         },
                         modifier = Modifier
                             .weight(1f)

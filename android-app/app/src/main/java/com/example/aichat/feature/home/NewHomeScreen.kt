@@ -499,7 +499,7 @@ fun ContinueNode(chat: ConversationSummary, onClick: () -> Unit) {
         modifier = Modifier
             .width(76.dp)
             .clickable { onClick() },
-        horizontalAlignment = Alignment.CenterHorizontally
+        horizontalAlignment = Alignment.Start
     ) {
         CharacterPortrait(
             name = chat.characterName,
@@ -517,7 +517,7 @@ fun ContinueNode(chat: ConversationSummary, onClick: () -> Unit) {
         Spacer(modifier = Modifier.height(2.dp))
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center
+            horizontalArrangement = Arrangement.Start
         ) {
             Icon(
                 imageVector = AppIcons.activity,
@@ -526,8 +526,9 @@ fun ContinueNode(chat: ConversationSummary, onClick: () -> Unit) {
                 modifier = Modifier.size(10.dp)
             )
             Spacer(modifier = Modifier.width(4.dp))
+            val timeWord = formatRelativeTimeWords(chat.lastMessageAt ?: chat.updatedAt)
             Text(
-                text = formatRelativeTimeWords(chat.lastMessageAt ?: chat.updatedAt),
+                text = if (timeWord == "Just now") timeWord else "$timeWord Ago",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,

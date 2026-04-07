@@ -1,11 +1,5 @@
 package com.example.aichat.feature.profile
 
-import androidx.compose.foundation.Indication
-import androidx.compose.foundation.IndicationInstance
-import androidx.compose.foundation.LocalIndication
-import androidx.compose.foundation.indication
-import androidx.compose.foundation.interaction.InteractionSource
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -22,24 +16,19 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SecondaryTabRow
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRowDefaults
-import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
+import androidx.compose.material3.Tab
+import androidx.compose.material3.SecondaryTabRow
+import androidx.compose.material3.TabRowDefaults
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.drawscope.ContentDrawScope
-import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -49,21 +38,6 @@ import androidx.lifecycle.viewModelScope
 import com.example.aichat.core.auth.AuthRepository
 import com.example.aichat.core.design.AppIcon
 import com.example.aichat.core.design.AppIcons
-import com.example.aichat.core.design.CircleAvatar
-import com.example.aichat.core.design.IconCircleButton
-import com.example.aichat.core.design.IconPillButton
-import com.example.aichat.core.design.SelectionButton
-import com.example.aichat.core.model.CharacterSummary
-import com.example.aichat.core.ui.AppChrome
-import com.example.aichat.core.ui.CharacterSummaryCard
-import com.example.aichat.core.ui.ScreenBackgroundBox
-import com.example.aichat.core.ui.MainPageHeader
-import com.example.aichat.core.ui.screenContentPadding
-import com.example.aichat.feature.character.CharacterRepository
-import com.example.aichat.feature.chatlist.ConversationRepository
-import dagger.hilt.android.lifecycle.HiltViewModel
-import javax.inject.Inject
-import kotlinx.coroutines.flow.SharingStarted
 import com.example.aichat.core.design.CircleAvatar
 import com.example.aichat.core.design.IconCircleButton
 import com.example.aichat.core.design.IconPillButton
@@ -172,19 +146,6 @@ class ProfileViewModel @Inject constructor(
     }
 }
 
-private object NoIndication : Indication {
-    @Composable
-    override fun rememberUpdatedInstance(interactionSource: InteractionSource): IndicationInstance {
-        return NoIndicationInstance
-    }
-
-    private object NoIndicationInstance : IndicationInstance {
-        override fun ContentDrawScope.drawIndication() {
-            drawContent()
-        }
-    }
-}
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileRoute(
@@ -283,45 +244,44 @@ fun ProfileRoute(
                 }
             }
             item(span = { GridItemSpan(maxLineSpan) }) {
-                CompositionLocalProvider(LocalIndication provides NoIndication) {
-                    SecondaryTabRow(
-                        selectedTabIndex = ProfileSection.entries.indexOf(section),
-                        containerColor = androidx.compose.ui.graphics.Color.Transparent,
-                        contentColor = MaterialTheme.colorScheme.onBackground,
-                        indicator = {
-                            TabRowDefaults.SecondaryIndicator(
-                                modifier = Modifier.tabIndicatorOffset(ProfileSection.entries.indexOf(section)),
-                                color = MaterialTheme.colorScheme.primary,
-                                height = 2.dp
-                            )
-                        },
-                        divider = {}
-                    ) {
-                        ProfileSection.entries.forEach { s ->
-                            val isSelected = section == s
-                            val icon = when (s) {
-                                ProfileSection.OWNED -> if (isSelected) AppIcons.createdFilled else AppIcons.created
-                                ProfileSection.LIKED -> if (isSelected) AppIcons.likedFilled else AppIcons.liked
-                                ProfileSection.RECENT -> AppIcons.activity // No bold version available
-                                ProfileSection.INTERACTED -> if (isSelected) AppIcons.chats else AppIcons.chatsOutline
-                            }
-                            Tab(
-                                selected = isSelected,
-                                onClick = { section = s },
-                                icon = {
-                                    AppIcon(
-                                        icon = icon,
-                                        contentDescription = s.name,
-                                        size = 24.dp,
-                                        tint = if (isSelected) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
-                                    )
-                                },
-                                selectedContentColor = MaterialTheme.colorScheme.onBackground,
-                                unselectedContentColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
-                                interactionSource = remember { MutableInteractionSource() }
-                            )
+                androidx.compose.runtime.CompositionLocalProvider(androidx.compose.foundation.LocalIndication provides null) {
+                SecondaryTabRow(
+                    selectedTabIndex = ProfileSection.entries.indexOf(section),
+                    containerColor = androidx.compose.ui.graphics.Color.Transparent,
+                    contentColor = MaterialTheme.colorScheme.onBackground,
+                    indicator = {
+                        TabRowDefaults.SecondaryIndicator(
+                            modifier = Modifier.tabIndicatorOffset(ProfileSection.entries.indexOf(section)),
+                            color = MaterialTheme.colorScheme.primary,
+                            height = 2.dp
+                        )
+                    },
+                    divider = {}
+                ) {
+                    ProfileSection.entries.forEach { s ->
+                        val isSelected = section == s
+                        val icon = when (s) {
+                            ProfileSection.OWNED -> if (isSelected) AppIcons.createdFilled else AppIcons.created
+                            ProfileSection.LIKED -> if (isSelected) AppIcons.likedFilled else AppIcons.liked
+                            ProfileSection.RECENT -> AppIcons.activity // No bold version available
+                            ProfileSection.INTERACTED -> if (isSelected) AppIcons.chats else AppIcons.chatsOutline
                         }
+                        Tab(
+                            selected = isSelected,
+                            onClick = { section = s },
+                            icon = {
+                                AppIcon(
+                                    icon = icon,
+                                    contentDescription = s.name,
+                                    size = 24.dp,
+                                    tint = if (isSelected) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
+                                )
+                            },
+                            selectedContentColor = MaterialTheme.colorScheme.onBackground,
+                            unselectedContentColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
+                        )
                     }
+                }
                 }
             }
             val characters = when (section) {

@@ -126,6 +126,9 @@ class NewHomeViewModel @Inject constructor(
                         recommendedCursor = page.nextCursor,
                         isFeedLoading = false
                     )
+                    if (page.nextCursor != null) {
+                        loadMore()
+                    }
                 }
                 .onFailure {
                     _uiState.value = _uiState.value.copy(
@@ -137,12 +140,12 @@ class NewHomeViewModel @Inject constructor(
     }
 
     fun loadMore() {
-        val state = _uiState.value
+        val cursor = _uiState.value.recommendedCursor ?: return
         viewModelScope.launch {
-            runCatching { homeRepository.loadFeed(cursor = state.recommendedCursor) }
+            runCatching { homeRepository.loadFeed(cursor = cursor) }
                 .onSuccess { page ->
-                    _uiState.value = state.copy(
-                        recommendedFeed = state.recommendedFeed + page.items,
+                    _uiState.value = _uiState.value.copy(
+                        recommendedFeed = _uiState.value.recommendedFeed + page.items,
                         recommendedCursor = page.nextCursor
                     )
                 }

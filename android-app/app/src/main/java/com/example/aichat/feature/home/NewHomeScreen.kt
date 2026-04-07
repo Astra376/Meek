@@ -459,7 +459,7 @@ fun TopPickCard(character: CharacterSummary, onClick: () -> Unit) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(0.45f)
-                    .padding(14.dp)
+                    .padding(start = 0.dp, top = 8.dp, end = 12.dp, bottom = 12.dp)
             ) {
                 Text(
                     text = character.name,

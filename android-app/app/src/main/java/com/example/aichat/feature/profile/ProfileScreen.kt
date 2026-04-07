@@ -1,5 +1,5 @@
 package com.example.aichat.feature.profile
-import androidx.compose.foundation.clickable
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -265,25 +265,20 @@ fun ProfileRoute(
                             ProfileSection.RECENT -> AppIcons.activity // No bold version available
                             ProfileSection.INTERACTED -> if (isSelected) AppIcons.chats else AppIcons.chatsOutline
                         }
-                        androidx.compose.foundation.layout.Box(
-                            modifier = Modifier
-                                .weight(1f) // TabRow distributes evenly, but we need weight if it's a raw Row, TabRow measures children evenly.
-                                .height(48.dp)
-                                .androidx.compose.foundation.selection.selectable(
-                                    selected = isSelected,
-                                    onClick = { section = s },
-                                    interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
-                                    indication = null
-                                ),
-                            contentAlignment = androidx.compose.ui.Alignment.Center
-                        ) {
-                            AppIcon(
-                                icon = icon,
-                                contentDescription = s.name,
-                                size = 24.dp,
-                                tint = if (isSelected) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
-                            )
-                        }
+                        Tab(
+                            selected = isSelected,
+                            onClick = { section = s },
+                            icon = {
+                                AppIcon(
+                                    icon = icon,
+                                    contentDescription = s.name,
+                                    size = 24.dp,
+                                    tint = if (isSelected) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
+                                )
+                            },
+                            selectedContentColor = MaterialTheme.colorScheme.onBackground,
+                            unselectedContentColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
+                        )
                     }
                 }
             }
@@ -297,10 +292,10 @@ fun ProfileRoute(
                 item(span = { GridItemSpan(maxLineSpan) }) {
                     Text(
                         text = when (section) {
-                            ProfileSection.OWNED -> "No characters yet."
+                            ProfileSection.OWNED -> "No Characters yet."
                             ProfileSection.LIKED -> "No liked characters yet."
-                            ProfileSection.RECENT -> "No recent Activity."
-                            ProfileSection.INTERACTED -> "No interacted characters."
+                            ProfileSection.RECENT -> "No Recent Activity."
+                            ProfileSection.INTERACTED -> "No Interacted characters."
                         },
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant

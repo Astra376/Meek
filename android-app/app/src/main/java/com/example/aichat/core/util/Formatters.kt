@@ -9,6 +9,11 @@ private val crockfordBase32 = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
 private val ulidRandom = SecureRandom()
 
 fun formatRelativeTime(epochMillis: Long): String {
+    val formatter = SimpleDateFormat("MMM d, h:mm a", Locale.getDefault())
+    return formatter.format(Date(epochMillis))
+}
+
+fun formatRelativeTimeWords(epochMillis: Long): String {
     val now = System.currentTimeMillis()
     val diff = now - epochMillis
     if (diff < 0) return "Just now"

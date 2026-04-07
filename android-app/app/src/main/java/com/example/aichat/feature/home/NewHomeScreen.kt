@@ -61,7 +61,7 @@ import com.example.aichat.core.ui.AppChrome
 import com.example.aichat.core.ui.CharacterSummaryCard
 import com.example.aichat.core.ui.ScreenBackgroundBox
 import com.example.aichat.core.ui.screenContentPadding
-import com.example.aichat.core.util.formatRelativeTime
+import com.example.aichat.core.util.formatRelativeTimeWords
 import com.example.aichat.feature.chatlist.ConversationRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -496,6 +496,7 @@ fun TopPickCard(character: CharacterSummary, onClick: () -> Unit) {
 @Composable
 fun ContinueNode(chat: ConversationSummary, onClick: () -> Unit) {
     Column(
+        modifier = Modifier
             .width(76.dp)
             .clickable { onClick() },
         horizontalAlignment = Alignment.CenterHorizontally
@@ -526,7 +527,7 @@ fun ContinueNode(chat: ConversationSummary, onClick: () -> Unit) {
             )
             Spacer(modifier = Modifier.width(4.dp))
             Text(
-                text = formatRelativeTime(chat.lastMessageAt ?: chat.updatedAt),
+                text = formatRelativeTimeWords(chat.lastMessageAt ?: chat.updatedAt),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,

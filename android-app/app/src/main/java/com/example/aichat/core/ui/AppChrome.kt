@@ -122,23 +122,25 @@ fun ScreenBackgroundBox(
             .clearFocusOnTap(enabled = clearFocusOnTap),
         color = background
     ) {
-        Box(
-            modifier = Modifier
-                .matchParentSize()
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(
-                            topGlow,
-                            background,
-                            background
+        Box(modifier = Modifier.fillMaxSize()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(
+                                topGlow,
+                                background,
+                                background
+                            )
                         )
                     )
-                )
-        )
-        snackbarHostState?.let {
-            SnackbarHost(hostState = it)
+            )
+            snackbarHostState?.let {
+                SnackbarHost(hostState = it)
+            }
+            content()
         }
-        content()
     }
 }
 

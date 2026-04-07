@@ -39,6 +39,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -207,7 +208,19 @@ fun NewHomeRoute(
                         SectionHeader("Top Picks", onClick = null)
                         Spacer(modifier = Modifier.height(12.dp))
                         LazyRow(
-                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                            horizontalArrangement = Arrangement.spacedBy(16.dp),
+                            contentPadding = PaddingValues(horizontal = AppChrome.screenHorizontalPadding),
+                            modifier = Modifier.layout { measurable, constraints ->
+                                val padding = AppChrome.screenHorizontalPadding.roundToPx()
+                                val placeable = measurable.measure(
+                                    constraints.copy(
+                                        maxWidth = constraints.maxWidth + padding * 2
+                                    )
+                                )
+                                layout(placeable.width, placeable.height) {
+                                    placeable.place(-padding, 0)
+                                }
+                            }
                         ) {
                             items(state.topPicks, key = { it.id }) { character ->
                                 TopPickCard(
@@ -393,7 +406,7 @@ fun StoryNode(chat: ConversationSummary, onClick: () -> Unit) {
 fun TopPickCard(character: CharacterSummary, onClick: () -> Unit) {
     AppCard(
         modifier = Modifier
-            .width(200.dp)
+            .width(230.dp)
             .height(240.dp)
             .clickable(onClick = onClick)
     ) {
@@ -414,34 +427,6 @@ fun TopPickCard(character: CharacterSummary, onClick: () -> Unit) {
                         bottomEnd = 0.dp
                     )
                 )
-                Surface(
-                    modifier = Modifier
-                        .align(Alignment.BottomStart)
-                        .padding(12.dp),
-                    shape = RoundedCornerShape(999.dp),
-                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.84f)
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                        horizontalArrangement = Arrangement.spacedBy(5.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        AppIcon(
-                            icon = AppIcons.chats,
-                            contentDescription = null,
-                            size = 14.dp,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Text(
-                            text = character.publicChatCount.toString(),
-                            style = MaterialTheme.typography.labelLarge.copy(
-                                fontSize = 12.sp,
-                                lineHeight = 14.sp
-                            ),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
             }
 
             Column(
@@ -453,33 +438,21 @@ fun TopPickCard(character: CharacterSummary, onClick: () -> Unit) {
                 Text(
                     text = character.name,
                     style = MaterialTheme.typography.titleLarge.copy(
-                        fontSize = 20.sp,
-                        lineHeight = 22.sp
+                        fontSize = 24.sp,
+                        lineHeight = 26.sp
                     ),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(6.dp))
                 Text(
                     text = character.tagline,
                     style = MaterialTheme.typography.bodyMedium.copy(
-                        fontSize = 12.sp,
-                        lineHeight = 16.sp
+                        fontSize = 15.sp,
+                        lineHeight = 20.sp
                     ),
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.94f),
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Spacer(modifier = Modifier.weight(1f))
-                Spacer(modifier = Modifier.height(10.dp))
-                Text(
-                    text = "@${character.authorUsername.ifBlank { "creator" }}",
-                    style = MaterialTheme.typography.labelLarge.copy(
-                        fontSize = 12.sp,
-                        lineHeight = 14.sp
-                    ),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
-                    maxLines = 1,
+                    maxLines = 3,
                     overflow = TextOverflow.Ellipsis
                 )
             }

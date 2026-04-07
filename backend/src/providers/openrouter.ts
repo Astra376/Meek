@@ -1,8 +1,6 @@
 import type { Env } from "../env";
 import { AppError } from "../lib/errors";
 
-const REQUIRED_OPENROUTER_MODEL = "deepseek/deepseek-v3.2";
-
 interface OpenRouterMessage {
   role: "system" | "user" | "assistant";
   content: string;
@@ -38,8 +36,9 @@ export async function* streamChatText(
       Authorization: `Bearer ${env.OPENROUTER_API_KEY}`
     },
     body: JSON.stringify({
-      model: REQUIRED_OPENROUTER_MODEL,
+      model: env.OPENROUTER_MODEL,
       messages,
+      max_tokens: 1000,
       temperature: 0.8,
       stream: true
     }),

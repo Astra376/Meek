@@ -8,7 +8,8 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.LinearOutSlowInEasing
+import kotlinx.coroutines.delay
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -40,7 +41,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.animation.core.AnimationVector1D
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.contentDescription
@@ -378,6 +378,11 @@ private fun MainShell(
     }
 }
 
+private class LineAnimState(val tabIndex: Int) {
+    val expand = Animatable(0.5f)
+    val alpha = Animatable(0f)
+}
+
 @Composable
 private fun BottomIconBar(
     modifier: Modifier = Modifier,
@@ -387,7 +392,7 @@ private fun BottomIconBar(
     onNavigate: (String) -> Unit
 ) {
     val coroutineScope = rememberCoroutineScope()
-    val activeClicks = remember { mutableStateListOf<Pair<Int, Animatable<Float, AnimationVector1D>>>() }
+    val activeClicks = remember { mutableStateListOf<LineAnimState>() }
 
     Surface(
         modifier = modifier
@@ -415,28 +420,16 @@ private fun BottomIconBar(
                                 .weight(1f),
                             contentAlignment = Alignment.Center
                         ) {
-                            activeClicks.filter { it.first == index }.forEach { activeClick ->
-                                val progress = activeClick.second.value
-                                if (progress > 0f) {
-                                    val linearExpand = progress
-                                    val inv = 1f - linearExpand
-                                    val expandProgress = 1f - (inv * inv * inv * inv)
-                                    val fraction = 0.5f + (expandProgress * 0.5f)
-                                    val alpha = when {
-                                        progress < 0.1f -> progress * 2f
-                                        progress <= (2f / 3f) -> 0.2f
-                                        else -> (1f - (progress - (2f / 3f)) / (1f / 3f)) * 0.2f
-                                    }
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxWidth(fraction)
-                                            .height(0.5.dp)
-                                            .background(
-                                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = alpha),
-                                                shape = CircleShape
-                                            )
-                                    )
-                                }
+                            activeClicks.filter { it.tabIndex == index }.forEach { activeClick ->
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth(activeClick.expand.value)
+                                        .height(0.5.dp)
+                                        .background(
+                                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = activeClick.alpha.value),
+                                            shape = CircleShape
+                                        )
+                                )
                             }
                         }
                     }
@@ -454,12 +447,19 @@ private fun BottomIconBar(
                     BottomBarItem(
                         contentDescription = destination.contentDescription,
                         onClick = {
-                            val anim = Animatable(0f)
-                            val clickPair = index to anim
-                            activeClicks.add(clickPair)
+                            val anim = LineAnimState(index)
+                            activeClicks.add(anim)
                             coroutineScope.launch {
-                                anim.animateTo(1f, tween(300, easing = LinearEasing))
-                                activeClicks.remove(clickPair)
+                                launch {
+                                    anim.expand.animateTo(1f, tween(300, easing = LinearOutSlowInEasing))
+                                }
+                                launch {
+                                    anim.alpha.animateTo(0.2f, tween(30))
+                                    delay(120) // Fade out kicks in dynamically over timeline
+                                    anim.alpha.animateTo(0f, tween(150, easing = LinearEasing))
+                                }
+                                delay(300)
+                                activeClicks.remove(anim)
                             }
                             onNavigate(destination.route)
                         },

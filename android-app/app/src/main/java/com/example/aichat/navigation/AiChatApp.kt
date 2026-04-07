@@ -461,7 +461,7 @@ private fun BottomIconBar(
                             val clickPair = index to anim
                             activeClicks.add(clickPair)
                             coroutineScope.launch {
-                                anim.animateTo(1f, tween(300, easing = LinearEasing))
+                                anim.animateTo(1f, tween(250, easing = LinearEasing))
                                 activeClicks.remove(clickPair)
                             }
                             onNavigate(destination.route)

@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
@@ -556,19 +557,19 @@ private fun BottomBarItem(
     content: @Composable () -> Unit
 ) {
     Box(
-        modifier = modifier,
+        modifier = modifier
+            .fillMaxHeight()
+            .semantics(mergeDescendants = true) {
+                this.contentDescription = contentDescription
+            }
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null
+            ) { onClick() },
         contentAlignment = Alignment.Center
     ) {
         Box(
-            modifier = Modifier
-                .size(AppChrome.bottomBarTapHeight)
-                .semantics(mergeDescendants = true) {
-                    this.contentDescription = contentDescription
-                }
-                .clickable(
-                    interactionSource = interactionSource,
-                    indication = null
-                ) { onClick() },
+            modifier = Modifier.size(AppChrome.bottomBarTapHeight),
             contentAlignment = Alignment.Center
         ) {
             content()

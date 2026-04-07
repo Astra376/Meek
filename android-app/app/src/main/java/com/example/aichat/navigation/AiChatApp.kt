@@ -382,6 +382,9 @@ private fun BottomIconBar(
     profileAvatarUrl: String?,
     onNavigate: (String) -> Unit
 ) {
+    val coroutineScope = rememberCoroutineScope()
+    val clickAnims = remember { bottomDestinations.map { Animatable(0f) } }
+
     Surface(
         modifier = modifier
             .fillMaxWidth(),
@@ -390,10 +393,49 @@ private fun BottomIconBar(
         shadowElevation = 0.dp
     ) {
         Column {
-            HorizontalDivider(
-                thickness = 0.5.dp,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)
-            )
+            Box(
+                modifier = Modifier.fillMaxWidth(),
+                contentAlignment = Alignment.Center
+            ) {
+                HorizontalDivider(
+                    thickness = 0.5.dp,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)
+                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = AppChrome.bottomBarHorizontalPadding)
+                ) {
+                    bottomDestinations.forEachIndexed { index, _ ->
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(horizontal = AppChrome.bottomBarItemHorizontalPadding),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            val anim = clickAnims[index]
+                            if (anim.value > 0f) {
+                                val progress = anim.value
+                                val width = (progress * 48).dp
+                                val alpha = when {
+                                    progress < 0.2f -> progress * 5f
+                                    progress < 0.5f -> 1f
+                                    else -> 1f - (progress - 0.5f) * 2f
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .width(width)
+                                        .height(1.5.dp)
+                                        .background(
+                                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = alpha),
+                                            shape = CircleShape
+                                        )
+                                )
+                            }
+                        }
+                    }
+                }
+            }
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -404,11 +446,17 @@ private fun BottomIconBar(
                     ),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                bottomDestinations.forEach { destination ->
+                bottomDestinations.forEachIndexed { index, destination ->
                     val selected = currentRoute == destination.route
                     BottomBarItem(
                         contentDescription = destination.contentDescription,
-                        onClick = { onNavigate(destination.route) },
+                        onClick = {
+                            coroutineScope.launch {
+                                clickAnims[index].snapTo(0f)
+                                clickAnims[index].animateTo(1f, tween(500))
+                            }
+                            onNavigate(destination.route)
+                        },
                         modifier = Modifier
                             .weight(1f)
                             .padding(horizontal = AppChrome.bottomBarItemHorizontalPadding)
@@ -482,8 +530,6 @@ private fun BottomBarItem(
     content: @Composable () -> Unit
 ) {
     val interactionSource = remember { MutableInteractionSource() }
-    val coroutineScope = rememberCoroutineScope()
-    val animationProgress = remember { Animatable(0f) }
 
     Box(
         modifier = modifier,
@@ -498,41 +544,10 @@ private fun BottomBarItem(
                 .clickable(
                     interactionSource = interactionSource,
                     indication = null
-                ) {
-                    onClick()
-                    coroutineScope.launch {
-                        animationProgress.snapTo(0f)
-                        animationProgress.animateTo(
-                            targetValue = 1f,
-                            animationSpec = tween(durationMillis = 500)
-                        )
-                    }
-                },
+                ) { onClick() },
             contentAlignment = Alignment.Center
         ) {
             content()
-
-            if (animationProgress.value > 0f) {
-                val progress = animationProgress.value
-                val width = (progress * 48).dp
-                val alpha = when {
-                    progress < 0.2f -> progress * 5f
-                    progress < 0.5f -> 1f
-                    else -> 1f - (progress - 0.5f) * 2f
-                }
-
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.TopCenter)
-                        .offset(y = (-0.5).dp)
-                        .width(width)
-                        .height(2.dp)
-                        .background(
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = alpha),
-                            shape = CircleShape
-                        )
-                )
-            }
         }
     }
 }

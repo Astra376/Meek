@@ -373,10 +373,10 @@ fun CreateStoryNode(onClick: () -> Unit) {
             contentAlignment = Alignment.Center
         ) {
             AppIcon(
-                icon = AppIcons.create,
+                icon = AppIcons.createAction,
                 contentDescription = "Create Character",
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                size = 32.dp
+                size = 40.dp
             )
         }
         Spacer(modifier = Modifier.height(8.dp))

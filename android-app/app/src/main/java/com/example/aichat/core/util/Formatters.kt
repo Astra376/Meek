@@ -9,8 +9,37 @@ private val crockfordBase32 = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
 private val ulidRandom = SecureRandom()
 
 fun formatRelativeTime(epochMillis: Long): String {
-    val formatter = SimpleDateFormat("MMM d, h:mm a", Locale.getDefault())
-    return formatter.format(Date(epochMillis))
+    val now = System.currentTimeMillis()
+    val diff = now - epochMillis
+    if (diff < 0) return "Just now"
+    
+    val minutes = diff / (60 * 1000)
+    if (minutes < 60) {
+        return if (minutes <= 1) "1 Min" else "$minutes Mins"
+    }
+    
+    val hours = minutes / 60
+    if (hours < 24) {
+        return if (hours == 1L) "1 Hour" else "$hours Hours"
+    }
+    
+    val days = hours / 24
+    if (days < 7) {
+        return if (days == 1L) "1 Day" else "$days Days"
+    }
+    
+    val weeks = days / 7
+    if (weeks < 4) {
+        return if (weeks == 1L) "1 Week" else "$weeks Weeks"
+    }
+    
+    val months = days / 30
+    if (months < 12) {
+        return if (months == 1L) "1 Month" else "$months Months"
+    }
+    
+    val years = days / 365
+    return if (years == 1L) "1 Year" else "$years Years"
 }
 
 fun generateUlid(timeMillis: Long = System.currentTimeMillis()): String {

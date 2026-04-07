@@ -496,20 +496,15 @@ fun TopPickCard(character: CharacterSummary, onClick: () -> Unit) {
 @Composable
 fun ContinueNode(chat: ConversationSummary, onClick: () -> Unit) {
     Column(
-        modifier = Modifier
-            .width(88.dp)
+            .width(76.dp)
             .clickable { onClick() },
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        AppCard(
-            modifier = Modifier.size(88.dp)
-        ) {
-            CharacterPortrait(
-                name = chat.characterName,
-                avatarUrl = chat.characterAvatarUrl,
-                modifier = Modifier.fillMaxSize()
-            )
-        }
+        CharacterPortrait(
+            name = chat.characterName,
+            avatarUrl = chat.characterAvatarUrl,
+            modifier = Modifier.size(76.dp)
+        )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
             text = chat.characterName,

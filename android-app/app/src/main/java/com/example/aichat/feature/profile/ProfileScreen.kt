@@ -21,9 +21,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.material3.Tab
 import androidx.compose.material3.SecondaryTabRow
 import androidx.compose.material3.TabRowDefaults
@@ -268,10 +269,11 @@ fun ProfileRoute(
                         androidx.compose.foundation.layout.Box(
                             modifier = Modifier
                                 .height(48.dp)
-                                .androidx.compose.foundation.selection.selectable(
+                                .weight(1f) // Ensure tabs are spaced properly inside TabRow
+                                .selectable(
                                     selected = isSelected,
                                     onClick = { section = s },
-                                    interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                                    interactionSource = remember { MutableInteractionSource() },
                                     indication = null
                                 ),
                             contentAlignment = androidx.compose.ui.Alignment.Center

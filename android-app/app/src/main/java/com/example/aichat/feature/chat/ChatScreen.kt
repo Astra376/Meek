@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -757,6 +758,7 @@ private fun MessageBubble(
             Surface(
                 modifier = Modifier
                     .fillMaxWidth(0.82f)
+                    .clip(RoundedCornerShape(24.dp))
                     .combinedClickable(
                         onClick = onTap,
                         onLongClick = {

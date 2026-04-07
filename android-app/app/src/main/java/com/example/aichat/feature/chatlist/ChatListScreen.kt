@@ -101,11 +101,15 @@ fun ChatListRoute(
             }
         }
         items(conversations, key = { it.id }) { conversation ->
+            val interactionSource = androidx.compose.runtime.remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(vertical = 12.dp)
-                    .clickable { onOpenConversation(conversation.id) },
+                    .clickable(
+                        interactionSource = interactionSource,
+                        indication = null
+                    ) { onOpenConversation(conversation.id) },
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {

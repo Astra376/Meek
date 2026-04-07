@@ -262,26 +262,23 @@ fun ProfileRoute(
                         val icon = when (s) {
                             ProfileSection.OWNED -> if (isSelected) AppIcons.createdFilled else AppIcons.created
                             ProfileSection.LIKED -> if (isSelected) AppIcons.likedFilled else AppIcons.liked
-                            ProfileSection.RECENT -> AppIcons.activity 
+                            ProfileSection.RECENT -> AppIcons.activity // No bold version available
                             ProfileSection.INTERACTED -> if (isSelected) AppIcons.chats else AppIcons.chatsOutline
                         }
-                        androidx.compose.foundation.layout.Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(48.dp)
-                                .androidx.compose.foundation.clickable(
-                                    interactionSource = androidx.compose.runtime.remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
-                                    indication = null
-                                ) { section = s },
-                            contentAlignment = androidx.compose.ui.Alignment.Center
-                        ) {
-                            AppIcon(
-                                icon = icon,
-                                contentDescription = s.name,
-                                size = 24.dp,
-                                tint = if (isSelected) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
-                            )
-                        }
+                        Tab(
+                            selected = isSelected,
+                            onClick = { section = s },
+                            icon = {
+                                AppIcon(
+                                    icon = icon,
+                                    contentDescription = s.name,
+                                    size = 24.dp,
+                                    tint = if (isSelected) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
+                                )
+                            },
+                            selectedContentColor = MaterialTheme.colorScheme.onBackground,
+                            unselectedContentColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
+                        )
                     }
                 }
             }

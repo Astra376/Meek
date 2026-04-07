@@ -411,11 +411,11 @@ private fun BottomIconBar(
                             animState.expand.animateTo(1f, tween(300, easing = LinearOutSlowInEasing))
                         }
                         launch {
-                            animState.alpha.snapTo(0.2f)
-                            delay(120)
-                            animState.alpha.animateTo(0f, tween(150, easing = LinearEasing))
+                            animState.alpha.snapTo(0.12f)
+                            delay(200)
+                            animState.alpha.animateTo(0f, tween(350, easing = LinearEasing))
                         }
-                        delay(300)
+                        delay(600)
                         activeClicks.remove(animState)
                     }
                 }
@@ -568,11 +568,6 @@ private fun BottomBarItem(
             ) { onClick() },
         contentAlignment = Alignment.Center
     ) {
-        Box(
-            modifier = Modifier.size(AppChrome.bottomBarTapHeight),
-            contentAlignment = Alignment.Center
-        ) {
-            content()
-        }
+        content()
     }
 }

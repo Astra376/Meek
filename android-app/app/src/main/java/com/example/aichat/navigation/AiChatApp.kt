@@ -416,11 +416,11 @@ private fun BottomIconBar(
                             val anim = clickAnims[index]
                             if (anim.value > 0f) {
                                 val progress = anim.value
-                                val width = (24f + (progress * 24f)).dp
+                                val width = (38.4f + (progress * 9.6f)).dp
                                 val alpha = when {
-                                    progress < 0.2f -> (progress / 0.2f) * 0.5f
-                                    progress < 0.5f -> 0.5f
-                                    else -> (1f - (progress - 0.5f) / 0.5f) * 0.5f
+                                    progress < 0.2f -> (progress / 0.2f) * 0.2f
+                                    progress < 0.5f -> 0.2f
+                                    else -> (1f - (progress - 0.5f) / 0.5f) * 0.2f
                                 }
                                 Box(
                                     modifier = Modifier

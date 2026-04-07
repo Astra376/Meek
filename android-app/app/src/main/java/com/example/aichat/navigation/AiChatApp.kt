@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.windowInsetsBottomHeight
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.HorizontalDivider
@@ -340,12 +341,17 @@ private fun MainTabs(
     Scaffold(
         topBar = {
             val title = bottomDestinations.find { it.route == currentDestination?.route }?.contentDescription
-            if (title != null && currentDestination?.route != MainDestination.Home.route) {
+            if (title != null) {
                 com.example.aichat.core.ui.MainPageHeader(
                     title = title,
                     onOpenSearch = { rootNavController.navigate("search") },
                     onOpenActivity = { rootNavController.navigate("activity") },
-                    modifier = Modifier.padding(bottom = com.example.aichat.core.ui.AppChrome.sectionSpacing),
+                    modifier = Modifier
+                        .statusBarsPadding()
+                        .padding(
+                            horizontal = com.example.aichat.core.ui.AppChrome.screenHorizontalPadding,
+                            bottom = com.example.aichat.core.ui.AppChrome.sectionSpacing
+                        ),
                     titlePrefix = if (currentDestination?.route == MainDestination.Chats.route && totalUnread > 0) {
                         {
                             androidx.compose.foundation.layout.Box(
@@ -400,7 +406,6 @@ private fun MainTabs(
                 )
             },
         containerColor = MaterialTheme.colorScheme.background,
-        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         bottomBar = {
             BottomIconBar(
                 currentRoute = currentDestination?.route,

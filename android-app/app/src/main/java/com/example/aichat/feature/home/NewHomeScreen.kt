@@ -108,7 +108,7 @@ fun NewHomeRoute(
                 .fillMaxSize()
                 .padding(screenContentPadding(paddingValues))
         ) {
-            Spacer(modifier = Modifier.height(16.dp))
+
             Row(
                 modifier = Modifier
                     .fillMaxWidth()

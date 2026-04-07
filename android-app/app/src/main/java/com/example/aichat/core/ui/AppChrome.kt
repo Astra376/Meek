@@ -57,9 +57,14 @@ object AppChrome {
 @Composable
 fun screenContentPadding(paddingValues: PaddingValues): PaddingValues {
     val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val topPadding = if (paddingValues.calculateTopPadding() > 0.dp) {
+        paddingValues.calculateTopPadding() + AppChrome.screenTopPadding
+    } else {
+        statusBarPadding + AppChrome.screenTopPadding
+    }
     return PaddingValues(
         start = AppChrome.screenHorizontalPadding,
-        top = statusBarPadding + paddingValues.calculateTopPadding() + AppChrome.screenTopPadding,
+        top = topPadding,
         end = AppChrome.screenHorizontalPadding,
         bottom = paddingValues.calculateBottomPadding() + AppChrome.screenBottomPadding
     )
@@ -70,9 +75,14 @@ fun Modifier.pageContentFrame(
     imeAware: Boolean = false
 ): Modifier = composed {
     val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val topPadding = if (paddingValues.calculateTopPadding() > 0.dp) {
+        paddingValues.calculateTopPadding() + AppChrome.screenTopPadding
+    } else {
+        statusBarPadding + AppChrome.screenTopPadding
+    }
     var framedModifier = this
         .fillMaxSize()
-        .padding(top = statusBarPadding + paddingValues.calculateTopPadding())
+        .padding(top = topPadding)
     if (imeAware) {
         framedModifier = framedModifier.imePadding()
     }

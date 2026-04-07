@@ -66,7 +66,7 @@ data class CharacterDto(
 data class CharacterWriteRequestDto(
     val name: String,
     val tagline: String,
-    val bio: String,
+    @SerialName("description") val bio: String,
     val systemPrompt: String,
     val visibility: String,
     val avatarUrl: String? = null

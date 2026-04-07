@@ -23,6 +23,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.material3.Tab
+import androidx.compose.material3.SecondaryTabRow
+import androidx.compose.material3.TabRowDefaults
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -238,28 +242,41 @@ fun ProfileRoute(
                 }
             }
             item(span = { GridItemSpan(maxLineSpan) }) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceAround,
-                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                SecondaryTabRow(
+                    selectedTabIndex = ProfileSection.entries.indexOf(section),
+                    containerColor = androidx.compose.ui.graphics.Color.Transparent,
+                    contentColor = MaterialTheme.colorScheme.onBackground,
+                    indicator = {
+                        TabRowDefaults.SecondaryIndicator(
+                            modifier = Modifier.tabIndicatorOffset(ProfileSection.entries.indexOf(section)),
+                            color = MaterialTheme.colorScheme.primary,
+                            height = 2.dp
+                        )
+                    },
+                    divider = {}
                 ) {
-                    listOf(
-                        ProfileSection.OWNED to (if (section == ProfileSection.OWNED) AppIcons.createdFilled else AppIcons.created),
-                        ProfileSection.LIKED to (if (section == ProfileSection.LIKED) AppIcons.likedFilled else AppIcons.liked),
-                        ProfileSection.RECENT to (if (section == ProfileSection.RECENT) AppIcons.activity else AppIcons.activity),
-                        ProfileSection.INTERACTED to (if (section == ProfileSection.INTERACTED) AppIcons.chats else AppIcons.chatsOutline)
-                    ).forEach { (s, icon) ->
-                        IconCircleButton(
-                            selected = section == s,
-                            onClick = { section = s },
-                            containerSize = 48.dp
-                        ) {
-                            AppIcon(
-                                icon = icon,
-                                contentDescription = s.name,
-                                size = 26.dp
-                            )
+                    ProfileSection.entries.forEach { s ->
+                        val isSelected = section == s
+                        val icon = when (s) {
+                            ProfileSection.OWNED -> if (isSelected) AppIcons.createdFilled else AppIcons.created
+                            ProfileSection.LIKED -> if (isSelected) AppIcons.likedFilled else AppIcons.liked
+                            ProfileSection.RECENT -> AppIcons.activity // No bold version available
+                            ProfileSection.INTERACTED -> if (isSelected) AppIcons.chats else AppIcons.chatsOutline
                         }
+                        Tab(
+                            selected = isSelected,
+                            onClick = { section = s },
+                            icon = {
+                                AppIcon(
+                                    icon = icon,
+                                    contentDescription = s.name,
+                                    size = 24.dp,
+                                    tint = if (isSelected) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
+                                )
+                            },
+                            selectedContentColor = MaterialTheme.colorScheme.onBackground,
+                            unselectedContentColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
+                        )
                     }
                 }
             }

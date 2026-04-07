@@ -77,6 +77,7 @@ import com.example.aichat.core.model.MessageRole
 import com.example.aichat.core.model.MessageSendState
 import com.example.aichat.core.ui.AppBackButton
 import com.example.aichat.core.ui.AppChrome
+import com.example.aichat.core.ui.AppLoadingScreen
 import com.example.aichat.core.ui.clearFocusOnTap
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -442,38 +443,42 @@ internal fun ChatScreenContent(
                 .clearFocusOnTap()
                 .padding(top = paddingValues.calculateTopPadding())
         ) {
-            ChatTranscriptPane(
-                modifier = Modifier.weight(1f),
-                state = listState,
-                messages = messages,
-                activeStream = activeStream,
-                streamDisplayText = streamDisplayText,
-                isStreaming = state.isStreaming,
-                showSendDraft = showSendDraft,
-                showPausedIndicator = activeStream?.status == ActiveStreamStatus.PAUSED,
-                characterName = state.conversation?.character?.name ?: "Character",
-                characterAvatarUrl = state.conversation?.character?.avatarUrl,
-                currentUserName = state.currentUserName,
-                currentUserAvatarUrl = state.currentUserAvatarUrl,
-                showJumpToLatest = showJumpToLatest,
-                contentPadding = PaddingValues(
-                    start = AppChrome.screenHorizontalPadding,
-                    top = innerPadding.calculateTopPadding() + AppChrome.compactHeaderVerticalPadding,
-                    end = AppChrome.screenHorizontalPadding,
-                    bottom = AppChrome.gridSpacing +
-                        if (activeStream?.status == ActiveStreamStatus.PAUSED) 44.dp else 0.dp
-                ),
-                onJumpToLatest = {
-                    followLatest = true
-                    coroutineScope.launch {
-                        scrollToLatest(animated = true)
-                    }
-                },
-                onMessageTap = { focusManager.clearFocus(force = true) },
-                onMessageLongPress = onMessageLongPress,
-                onSelectPreviousVariant = onSelectPreviousVariant,
-                onSelectNextVariant = onSelectNextVariant
-            )
+            if (state.conversation == null) {
+                AppLoadingScreen(modifier = Modifier.weight(1f))
+            } else {
+                ChatTranscriptPane(
+                    modifier = Modifier.weight(1f),
+                    state = listState,
+                    messages = messages,
+                    activeStream = activeStream,
+                    streamDisplayText = streamDisplayText,
+                    isStreaming = state.isStreaming,
+                    showSendDraft = showSendDraft,
+                    showPausedIndicator = activeStream?.status == ActiveStreamStatus.PAUSED,
+                    characterName = state.conversation?.character?.name ?: "Character",
+                    characterAvatarUrl = state.conversation?.character?.avatarUrl,
+                    currentUserName = state.currentUserName,
+                    currentUserAvatarUrl = state.currentUserAvatarUrl,
+                    showJumpToLatest = showJumpToLatest,
+                    contentPadding = PaddingValues(
+                        start = AppChrome.screenHorizontalPadding,
+                        top = innerPadding.calculateTopPadding() + AppChrome.compactHeaderVerticalPadding,
+                        end = AppChrome.screenHorizontalPadding,
+                        bottom = AppChrome.gridSpacing +
+                            if (activeStream?.status == ActiveStreamStatus.PAUSED) 44.dp else 0.dp
+                    ),
+                    onJumpToLatest = {
+                        followLatest = true
+                        coroutineScope.launch {
+                            scrollToLatest(animated = true)
+                        }
+                    },
+                    onMessageTap = { focusManager.clearFocus(force = true) },
+                    onMessageLongPress = onMessageLongPress,
+                    onSelectPreviousVariant = onSelectPreviousVariant,
+                    onSelectNextVariant = onSelectNextVariant
+                )
+            }
 
             ChatComposerBar(
                 composerText = state.composerText,

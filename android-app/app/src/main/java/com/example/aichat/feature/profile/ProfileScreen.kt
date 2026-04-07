@@ -46,6 +46,7 @@ import com.example.aichat.core.design.IconPillButton
 import com.example.aichat.core.design.SelectionButton
 import com.example.aichat.core.model.CharacterSummary
 import com.example.aichat.core.ui.AppChrome
+import com.example.aichat.core.ui.AppLoadingScreen
 import com.example.aichat.core.ui.CharacterSummaryCard
 import com.example.aichat.core.ui.ScreenBackgroundBox
 import com.example.aichat.core.ui.MainPageHeader
@@ -75,7 +76,8 @@ data class ProfileUiState(
     val owned: List<CharacterSummary> = emptyList(),
     val liked: List<CharacterSummary> = emptyList(),
     val recent: List<CharacterSummary> = emptyList(),
-    val interacted: List<CharacterSummary> = emptyList()
+    val interacted: List<CharacterSummary> = emptyList(),
+    val isLoading: Boolean = false
 )
 
 @HiltViewModel
@@ -133,7 +135,7 @@ class ProfileViewModel @Inject constructor(
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
-        initialValue = ProfileUiState()
+        initialValue = ProfileUiState(isLoading = true)
     )
 
     init {
@@ -165,13 +167,16 @@ fun ProfileRoute(
     var section by remember { mutableStateOf(ProfileSection.OWNED) }
 
     ScreenBackgroundBox(snackbarHostState = snackbarHostState) {
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(2),
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = screenContentPadding(paddingValues),
-            verticalArrangement = Arrangement.spacedBy(AppChrome.sectionSpacing),
-            horizontalArrangement = Arrangement.spacedBy(AppChrome.gridSpacing)
-        ) {
+        if (state.isLoading) {
+            AppLoadingScreen()
+        } else {
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(2),
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = screenContentPadding(paddingValues),
+                verticalArrangement = Arrangement.spacedBy(AppChrome.sectionSpacing),
+                horizontalArrangement = Arrangement.spacedBy(AppChrome.gridSpacing)
+            ) {
 
             item(span = { GridItemSpan(maxLineSpan) }) {
                 Row(
@@ -319,6 +324,7 @@ fun ProfileRoute(
                             .onFailure { snackbarHostState.showSnackbar(it.message ?: "Couldn't open chat.") }
                     }
                 }
+            }
             }
         }
     }

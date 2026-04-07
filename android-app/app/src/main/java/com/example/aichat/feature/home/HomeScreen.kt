@@ -28,6 +28,7 @@ import com.example.aichat.core.design.AppIcons
 import com.example.aichat.core.design.SecondaryButton
 import com.example.aichat.core.model.CharacterSummary
 import com.example.aichat.core.ui.AppChrome
+import com.example.aichat.core.ui.AppLoadingScreen
 import com.example.aichat.core.ui.CharacterSummaryCard
 import com.example.aichat.core.ui.ScreenBackgroundBox
 import com.example.aichat.core.ui.SimplePageHeader
@@ -122,43 +123,47 @@ fun HomeRoute(
     ScreenBackgroundBox(
         snackbarHostState = snackbarHostState
     ) {
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(2),
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = screenContentPadding(paddingValues),
-            verticalArrangement = Arrangement.spacedBy(AppChrome.sectionSpacing),
-            horizontalArrangement = Arrangement.spacedBy(AppChrome.gridSpacing)
-        ) {
+        if (state.isFeedLoading && state.feed.isEmpty()) {
+            AppLoadingScreen()
+        } else {
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(2),
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = screenContentPadding(paddingValues),
+                verticalArrangement = Arrangement.spacedBy(AppChrome.sectionSpacing),
+                horizontalArrangement = Arrangement.spacedBy(AppChrome.gridSpacing)
+            ) {
 
-            if (state.errorMessage != null && state.feed.isEmpty()) {
-                item(span = { GridItemSpan(maxLineSpan) }) {
-                    Text(
-                        text = state.errorMessage ?: "Failed to load the feed.",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.error
-                    )
-                }
-            }
-            items(state.feed, key = { it.id }) { character ->
-                CharacterSummaryCard(
-                    character = character,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    scope.launch {
-                        viewModel.ensureConversation(character.id)
-                            .onSuccess(onOpenConversation)
-                            .onFailure { snackbarHostState.showSnackbar(it.message ?: "Couldn't open chat.") }
+                if (state.errorMessage != null && state.feed.isEmpty()) {
+                    item(span = { GridItemSpan(maxLineSpan) }) {
+                        Text(
+                            text = state.errorMessage ?: "Failed to load the feed.",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.error
+                        )
                     }
                 }
-            }
-            if (state.feedCursor != null) {
-                item(span = { GridItemSpan(maxLineSpan) }) {
-                    SecondaryButton(
-                        text = if (state.isFeedLoading) "Loading..." else "Load More",
-                        modifier = Modifier.fillMaxWidth(),
-                        enabled = !state.isFeedLoading,
-                        onClick = viewModel::loadMore
-                    )
+                items(state.feed, key = { it.id }) { character ->
+                    CharacterSummaryCard(
+                        character = character,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        scope.launch {
+                            viewModel.ensureConversation(character.id)
+                                .onSuccess(onOpenConversation)
+                                .onFailure { snackbarHostState.showSnackbar(it.message ?: "Couldn't open chat.") }
+                        }
+                    }
+                }
+                if (state.feedCursor != null) {
+                    item(span = { GridItemSpan(maxLineSpan) }) {
+                        SecondaryButton(
+                            text = if (state.isFeedLoading) "Loading..." else "Load More",
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = !state.isFeedLoading,
+                            onClick = viewModel::loadMore
+                        )
+                    }
                 }
             }
         }

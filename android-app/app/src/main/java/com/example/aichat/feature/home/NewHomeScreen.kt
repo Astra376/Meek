@@ -501,7 +501,10 @@ fun ContinueNode(chat: ConversationSummary, onClick: () -> Unit) {
         Spacer(modifier = Modifier.height(8.dp))
         Text(
             text = chat.characterName,
-            style = MaterialTheme.typography.labelMedium,
+            style = MaterialTheme.typography.titleMedium.copy(
+                fontWeight = FontWeight.Bold,
+                fontSize = 14.sp
+            ),
             color = MaterialTheme.colorScheme.onSurface,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis

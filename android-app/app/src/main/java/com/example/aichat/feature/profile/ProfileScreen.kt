@@ -267,7 +267,7 @@ fun ProfileRoute(
                         }
                         Tab(
                             selected = isSelected,
-                            onClick = { section = s },
+                            onClick = { }, modifier = Modifier.clickable(interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }, indication = null) { section = s },
                             icon = {
                                 AppIcon(
                                     icon = icon,
@@ -292,10 +292,10 @@ fun ProfileRoute(
                 item(span = { GridItemSpan(maxLineSpan) }) {
                     Text(
                         text = when (section) {
-                            ProfileSection.OWNED -> "No Characters Yet."
-                            ProfileSection.LIKED -> "No Liked Characters Yet."
-                            ProfileSection.RECENT -> "No Recent Activity."
-                            ProfileSection.INTERACTED -> "No Interacted Characters."
+                            ProfileSection.OWNED -> "No characters yet."
+                            ProfileSection.LIKED -> "No liked characters yet."
+                            ProfileSection.RECENT -> "No recent Activity."
+                            ProfileSection.INTERACTED -> "No interacted characters."
                         },
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant

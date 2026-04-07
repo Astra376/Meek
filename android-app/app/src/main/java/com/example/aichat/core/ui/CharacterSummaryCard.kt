@@ -46,29 +46,22 @@ fun CharacterSummaryCard(
     modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
-    AppCard(
+    Column(
         modifier = modifier
             .fillMaxWidth()
             .aspectRatio(CharacterCardMetrics.cardAspectRatio)
             .clickable(onClick = onClick)
     ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(CharacterCardMetrics.portraitWeight)
-            ) {
-                CharacterPortrait(
-                    name = character.name,
-                    avatarUrl = character.avatarUrl,
-                    modifier = Modifier.fillMaxSize(),
-                    shape = RoundedCornerShape(
-                        topStart = DesignMetrics.portraitCorner,
-                        topEnd = DesignMetrics.portraitCorner,
-                        bottomStart = 0.dp,
-                        bottomEnd = 0.dp
-                    )
-                )
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(CharacterCardMetrics.portraitWeight)
+        ) {
+            CharacterPortrait(
+                name = character.name,
+                avatarUrl = character.avatarUrl,
+                modifier = Modifier.fillMaxSize()
+            )
                 Surface(
                     modifier = Modifier
                         .align(Alignment.BottomStart)
@@ -138,6 +131,5 @@ fun CharacterSummaryCard(
                     overflow = TextOverflow.Ellipsis
                 )
             }
-        }
     }
 }

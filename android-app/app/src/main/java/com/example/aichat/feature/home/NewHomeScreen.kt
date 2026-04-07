@@ -437,30 +437,23 @@ fun StoryNode(chat: ConversationSummary, onClick: () -> Unit) {
 
 @Composable
 fun TopPickCard(character: CharacterSummary, onClick: () -> Unit) {
-    AppCard(
+    Column(
         modifier = Modifier
             .width(230.dp)
             .height(240.dp)
             .clickable(onClick = onClick)
     ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(0.55f)
-            ) {
-                CharacterPortrait(
-                    name = character.name,
-                    avatarUrl = character.avatarUrl,
-                    modifier = Modifier.fillMaxSize(),
-                    shape = RoundedCornerShape(
-                        topStart = 22.dp,
-                        topEnd = 22.dp,
-                        bottomStart = 0.dp,
-                        bottomEnd = 0.dp
-                    )
-                )
-            }
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(0.55f)
+        ) {
+            CharacterPortrait(
+                name = character.name,
+                avatarUrl = character.avatarUrl,
+                modifier = Modifier.fillMaxSize()
+            )
+        }
 
             Column(
                 modifier = Modifier
@@ -514,26 +507,5 @@ fun ContinueNode(chat: ConversationSummary, onClick: () -> Unit) {
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
-        Spacer(modifier = Modifier.height(2.dp))
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Start
-        ) {
-            Icon(
-                imageVector = AppIcons.activity,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(10.dp)
-            )
-            Spacer(modifier = Modifier.width(4.dp))
-            val timeWord = formatRelativeTimeWords(chat.lastMessageAt ?: chat.updatedAt)
-            Text(
-                text = if (timeWord == "Just now") timeWord else "$timeWord Ago",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
     }
 }

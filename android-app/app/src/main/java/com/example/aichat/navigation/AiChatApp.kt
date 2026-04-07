@@ -6,9 +6,6 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.LinearOutSlowInEasing
-import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -33,8 +30,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
@@ -381,11 +376,6 @@ private fun BottomIconBar(
     profileAvatarUrl: String?,
     onNavigate: (String) -> Unit
 ) {
-    val coroutineScope = rememberCoroutineScope()
-    val clickAnimations = bottomDestinations.associateWith {
-        remember { Animatable(0f) }
-    }
-
     Surface(
         modifier = modifier
             .fillMaxWidth(),
@@ -394,45 +384,10 @@ private fun BottomIconBar(
         shadowElevation = 0.dp
     ) {
         Column {
-            Box(modifier = Modifier.fillMaxWidth()) {
-                HorizontalDivider(
-                    modifier = Modifier.align(Alignment.Center),
-                    thickness = 0.5.dp,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)
-                )
-                
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = AppChrome.bottomBarHorizontalPadding)
-                ) {
-                    bottomDestinations.forEach { destination ->
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(1.5.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            val anim = clickAnimations[destination]!!
-                            if (anim.value > 0f) {
-                                val progress = anim.value
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth(fraction = 0.2f + (0.6f * progress))
-                                        .height(1.5.dp)
-                                        .graphicsLayer {
-                                            alpha = 1f - progress
-                                        }
-                                        .background(
-                                            color = MaterialTheme.colorScheme.onSurface,
-                                            shape = CircleShape
-                                        )
-                                )
-                            }
-                        }
-                    }
-                }
-            }
+            HorizontalDivider(
+                thickness = 0.5.dp,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)
+            )
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -447,18 +402,7 @@ private fun BottomIconBar(
                     val selected = currentRoute == destination.route
                     BottomBarItem(
                         contentDescription = destination.contentDescription,
-                        onClick = { 
-                            onNavigate(destination.route)
-                            coroutineScope.launch {
-                                val anim = clickAnimations[destination]!!
-                                anim.snapTo(0f)
-                                anim.animateTo(
-                                    targetValue = 1f,
-                                    animationSpec = tween(durationMillis = 400, easing = LinearOutSlowInEasing)
-                                )
-                                anim.snapTo(0f)
-                            }
-                        },
+                        onClick = { onNavigate(destination.route) },
                         modifier = Modifier
                             .weight(1f)
                             .padding(horizontal = AppChrome.bottomBarItemHorizontalPadding)

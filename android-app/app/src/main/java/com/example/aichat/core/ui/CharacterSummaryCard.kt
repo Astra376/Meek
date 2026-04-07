@@ -25,12 +25,13 @@ import com.example.aichat.core.design.AppCard
 import com.example.aichat.core.design.AppIcon
 import com.example.aichat.core.design.AppIcons
 import com.example.aichat.core.design.CharacterPortrait
+import com.example.aichat.core.design.DesignMetrics
 import com.example.aichat.core.model.CharacterSummary
 
 private object CharacterCardMetrics {
     val cardAspectRatio = 0.7f
-    val portraitWeight = 0.64f
-    val contentWeight = 0.36f
+    val portraitWeight = 0.55f
+    val contentWeight = 0.45f
     val contentPadding = 14.dp
     val titleGap = 4.dp
     val authorGap = 10.dp
@@ -61,7 +62,16 @@ fun CharacterSummaryCard(
                     name = character.name,
                     avatarUrl = character.avatarUrl,
                     modifier = Modifier.fillMaxSize(),
+<<<<<<< HEAD
                     shape = RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp, bottomStart = 0.dp, bottomEnd = 0.dp)
+=======
+                    shape = RoundedCornerShape(
+                        topStart = DesignMetrics.portraitCorner,
+                        topEnd = DesignMetrics.portraitCorner,
+                        bottomStart = 0.dp,
+                        bottomEnd = 0.dp
+                    )
+>>>>>>> 61a2596bf5e32811de964505454cfc8d3c24c0db
                 )
                 Surface(
                     modifier = Modifier

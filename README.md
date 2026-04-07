@@ -1,4 +1,4 @@
-# AI Character Chat
+# Meek
 
 Android-only AI character chat app with a local-first mock mode now and a Cloudflare Worker backend scaffold ready to wire up later.
 

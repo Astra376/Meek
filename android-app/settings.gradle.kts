@@ -14,6 +14,6 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "AiCharacterChat"
+rootProject.name = "Meek"
 include(":app")
 

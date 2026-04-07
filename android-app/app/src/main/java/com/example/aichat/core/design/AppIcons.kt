@@ -74,8 +74,4 @@ object AppIcons {
     val createdFilled = Iconsax.Bold.GridFour
     val liked = Iconsax.Linear.Heart
     val likedFilled = Iconsax.Bold.Heart
-    val recent = Iconsax.Linear.Timer
-    val recentFilled = Iconsax.Bold.Timer
-    val interacted = Iconsax.Linear.MessagesOne
-    val interactedFilled = Iconsax.Bold.MessagesOne
 }

@@ -380,7 +380,6 @@ private fun MainTabs(
                 // The old Home feed becomes Discover
                 HomeRoute(
                     paddingValues = routePaddingValues,
-                    onOpenSearch = { /* No-op, search sub-page deleted */ },
                     onOpenActivity = { /* No-op, not used in old Home */ },
                     onOpenConversation = { id -> rootNavController.navigate("chat/$id") }
                 )

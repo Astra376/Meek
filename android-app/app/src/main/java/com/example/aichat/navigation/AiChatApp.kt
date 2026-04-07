@@ -408,14 +408,14 @@ private fun BottomIconBar(
                     launch {
                         launch {
                             animState.expand.snapTo(0f)
-                            animState.expand.animateTo(1f, tween(200, easing = LinearOutSlowInEasing))
+                            animState.expand.animateTo(1f, tween(150, easing = LinearOutSlowInEasing))
                         }
                         launch {
-                            animState.alpha.snapTo(0.12f)
-                            delay(150)
+                            animState.alpha.snapTo(0.2f)
+                            delay(100)
                             animState.alpha.animateTo(0f, tween(150, easing = LinearEasing))
                         }
-                        delay(350)
+                        delay(250)
                         activeClicks.remove(animState)
                     }
                 }

@@ -334,10 +334,11 @@ fun NewHomeRoute(
 
 @Composable
 fun SectionHeader(title: String, modifier: Modifier = Modifier, onClick: (() -> Unit)?) {
+    val interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .then(if (onClick != null) Modifier.clickable { onClick() } else Modifier)
+            .then(if (onClick != null) Modifier.clickable(interactionSource = interactionSource, indication = null) { onClick() } else Modifier)
             .padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -363,6 +364,7 @@ fun SectionHeader(title: String, modifier: Modifier = Modifier, onClick: (() -> 
 
 @Composable
 fun CreateStoryNode(onClick: () -> Unit) {
+    val interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier.width(80.dp)
@@ -372,7 +374,7 @@ fun CreateStoryNode(onClick: () -> Unit) {
                 .size(76.dp)
                 .clip(CircleShape)
                 .background(MaterialTheme.colorScheme.surfaceVariant)
-                .clickable { onClick() },
+                .clickable(interactionSource = interactionSource, indication = null) { onClick() },
             contentAlignment = Alignment.Center
         ) {
             AppIcon(
@@ -395,6 +397,7 @@ fun CreateStoryNode(onClick: () -> Unit) {
 
 @Composable
 fun StoryNode(chat: ConversationSummary, onClick: () -> Unit) {
+    val interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
     val showRedOutline = chat.unreadCount > 0
     val showGreyOutline = !showRedOutline && chat.hasUnreadBadge
     
@@ -417,7 +420,7 @@ fun StoryNode(chat: ConversationSummary, onClick: () -> Unit) {
                 .clip(CircleShape)
                 .border(outlineWidth, outlineColor, CircleShape)
                 .padding(outlineWidth + gapWidth)
-                .clickable { onClick() },
+                .clickable(interactionSource = interactionSource, indication = null) { onClick() },
             contentAlignment = Alignment.Center
         ) {
             CircleAvatar(
@@ -440,10 +443,11 @@ fun StoryNode(chat: ConversationSummary, onClick: () -> Unit) {
 
 @Composable
 fun TopPickCard(character: CharacterSummary, onClick: () -> Unit) {
+    val interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
     Column(
         modifier = Modifier
             .width(230.dp)
-            .clickable(onClick = onClick)
+            .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
     ) {
         Box(
             modifier = Modifier
@@ -488,10 +492,11 @@ fun TopPickCard(character: CharacterSummary, onClick: () -> Unit) {
 
 @Composable
 fun ContinueNode(chat: ConversationSummary, onClick: () -> Unit) {
+    val interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
     Column(
         modifier = Modifier
             .width(76.dp)
-            .clickable { onClick() },
+            .clickable(interactionSource = interactionSource, indication = null) { onClick() },
         horizontalAlignment = Alignment.Start
     ) {
         CharacterPortrait(

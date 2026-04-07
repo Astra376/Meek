@@ -1,7 +1,6 @@
 package com.example.aichat.feature.profile
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -47,7 +46,6 @@ import com.example.aichat.core.design.IconPillButton
 import com.example.aichat.core.design.SelectionButton
 import com.example.aichat.core.model.CharacterSummary
 import com.example.aichat.core.ui.AppChrome
-import com.example.aichat.core.ui.AppLoadingScreen
 import com.example.aichat.core.ui.CharacterSummaryCard
 import com.example.aichat.core.ui.ScreenBackgroundBox
 import com.example.aichat.core.ui.MainPageHeader
@@ -61,6 +59,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import com.example.aichat.core.ui.DeferredLoadingContainer
 
 enum class ProfileSection {
     OWNED,
@@ -70,6 +69,7 @@ enum class ProfileSection {
 }
 
 data class ProfileUiState(
+    val isLoading: Boolean = false,
     val displayName: String = "",
     val avatarUrl: String? = null,
     val bio: String? = null,
@@ -77,8 +77,7 @@ data class ProfileUiState(
     val owned: List<CharacterSummary> = emptyList(),
     val liked: List<CharacterSummary> = emptyList(),
     val recent: List<CharacterSummary> = emptyList(),
-    val interacted: List<CharacterSummary> = emptyList(),
-    val isLoading: Boolean = false
+    val interacted: List<CharacterSummary> = emptyList()
 )
 
 @HiltViewModel
@@ -124,6 +123,7 @@ class ProfileViewModel @Inject constructor(
             .distinctBy { it.id }
 
         ProfileUiState(
+            isLoading = false,
             displayName = profile?.displayName.orEmpty(),
             avatarUrl = profile?.avatarUrl,
             bio = profile?.bio,
@@ -167,8 +167,8 @@ fun ProfileRoute(
     val scope = rememberCoroutineScope()
     var section by remember { mutableStateOf(ProfileSection.OWNED) }
 
-    ScreenBackgroundBox(snackbarHostState = snackbarHostState) {
-        Box(modifier = Modifier.fillMaxSize()) {
+    DeferredLoadingContainer(isLoading = state.isLoading) {
+        ScreenBackgroundBox(snackbarHostState = snackbarHostState) {
             LazyVerticalGrid(
                 columns = GridCells.Fixed(2),
                 modifier = Modifier.fillMaxSize(),
@@ -177,157 +177,153 @@ fun ProfileRoute(
                 horizontalArrangement = Arrangement.spacedBy(AppChrome.gridSpacing)
             ) {
 
-            item(span = { GridItemSpan(maxLineSpan) }) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
-                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-                ) {
-                    CircleAvatar(
-                        name = state.displayName.ifBlank { "User" },
-                        avatarUrl = state.avatarUrl,
-                        modifier = Modifier
-                            .size(104.dp)
-                            .aspectRatio(1f)
-                    )
-                    Column(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(AppChrome.gridSpacing)
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = state.displayName.ifBlank { "User" },
-                            style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Column(horizontalAlignment = androidx.compose.ui.Alignment.Start) {
-                                Text(text = "${state.owned.size}", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.onSurface)
-                                Text(text = "characters", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                            Column(horizontalAlignment = androidx.compose.ui.Alignment.Start) {
-                                Text(text = "0", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.onSurface)
-                                Text(text = "followers", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                            Column(horizontalAlignment = androidx.compose.ui.Alignment.Start) {
-                                Text(text = "0", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.onSurface)
-                                Text(text = "following", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                        }
-                    }
-                }
-            }
-            state.bio?.takeIf { it.isNotBlank() }?.let { bio ->
-                item(span = { GridItemSpan(maxLineSpan) }) {
-                    Text(
-                        text = bio,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-            }
-            item(span = { GridItemSpan(maxLineSpan) }) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(AppChrome.compactControlGap)
-                ) {
-                    IconPillButton(
-                        text = "Edit Profile",
-                        onClick = onOpenEditProfile,
-                        modifier = Modifier.weight(1f)
-                    )
-                    IconPillButton(
-                        text = "Share Profile",
-                        onClick = { /* No functionality yet */ },
-                        modifier = Modifier.weight(1f)
-                    )
-                    IconCircleButton(onClick = onOpenSettings) {
-                        AppIcon(AppIcons.settings, contentDescription = "Settings")
-                    }
-                }
-            }
-            item(span = { GridItemSpan(maxLineSpan) }) {
-                SecondaryTabRow(
-                    selectedTabIndex = ProfileSection.entries.indexOf(section),
-                    containerColor = androidx.compose.ui.graphics.Color.Transparent,
-                    contentColor = MaterialTheme.colorScheme.onBackground,
-                    indicator = {
-                        TabRowDefaults.SecondaryIndicator(
-                            modifier = Modifier.tabIndicatorOffset(ProfileSection.entries.indexOf(section)),
-                            color = MaterialTheme.colorScheme.primary,
-                            height = 2.dp
-                        )
-                    },
-                    divider = {}
-                ) {
-                    ProfileSection.entries.forEach { s ->
-                        val isSelected = section == s
-                        val icon = when (s) {
-                            ProfileSection.OWNED -> if (isSelected) AppIcons.createdFilled else AppIcons.created
-                            ProfileSection.LIKED -> if (isSelected) AppIcons.likedFilled else AppIcons.liked
-                            ProfileSection.RECENT -> AppIcons.activity // No bold version available
-                            ProfileSection.INTERACTED -> if (isSelected) AppIcons.chats else AppIcons.chatsOutline
-                        }
-                        androidx.compose.foundation.layout.Box(
+                        CircleAvatar(
+                            name = state.displayName.ifBlank { "User" },
+                            avatarUrl = state.avatarUrl,
                             modifier = Modifier
-                                .height(48.dp)
-                                .selectable(
-                                    selected = isSelected,
-                                    onClick = { section = s },
-                                    interactionSource = remember { MutableInteractionSource() },
-                                    indication = null
-                                ),
-                            contentAlignment = androidx.compose.ui.Alignment.Center
+                                .size(104.dp)
+                                .aspectRatio(1f)
+                        )
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(AppChrome.gridSpacing)
                         ) {
-                            AppIcon(
-                                icon = icon,
-                                contentDescription = s.name,
-                                size = 24.dp,
-                                tint = if (isSelected) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
+                            Text(
+                                text = state.displayName.ifBlank { "User" },
+                                style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
+                                color = MaterialTheme.colorScheme.onSurface
                             )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Column(horizontalAlignment = androidx.compose.ui.Alignment.Start) {
+                                    Text(text = "${state.owned.size}", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.onSurface)
+                                    Text(text = "characters", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                                Column(horizontalAlignment = androidx.compose.ui.Alignment.Start) {
+                                    Text(text = "0", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.onSurface)
+                                    Text(text = "followers", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                                Column(horizontalAlignment = androidx.compose.ui.Alignment.Start) {
+                                    Text(text = "0", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.onSurface)
+                                    Text(text = "following", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
                         }
                     }
                 }
-            }
-            val characters = when (section) {
-                ProfileSection.OWNED -> state.owned
-                ProfileSection.LIKED -> state.liked
-                ProfileSection.RECENT -> state.recent
-                ProfileSection.INTERACTED -> state.interacted
-            }
-            if (characters.isEmpty()) {
-                item(span = { GridItemSpan(maxLineSpan) }) {
-                    Text(
-                        text = when (section) {
-                            ProfileSection.OWNED -> "No Characters yet."
-                            ProfileSection.LIKED -> "No liked characters yet."
-                            ProfileSection.RECENT -> "No Recent Activity."
-                            ProfileSection.INTERACTED -> "No Interacted characters."
-                        },
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-            items(characters, key = { it.id }) { character ->
-                CharacterSummaryCard(
-                    character = character,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    scope.launch {
-                        viewModel.ensureConversation(character.id)
-                            .onSuccess(onOpenConversation)
-                            .onFailure { snackbarHostState.showSnackbar(it.message ?: "Couldn't open chat.") }
+                state.bio?.takeIf { it.isNotBlank() }?.let { bio ->
+                    item(span = { GridItemSpan(maxLineSpan) }) {
+                        Text(
+                            text = bio,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.fillMaxWidth()
+                        )
                     }
                 }
-            }
-            }
-
-            if (state.isLoading) {
-                AppLoadingScreen()
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(AppChrome.compactControlGap)
+                    ) {
+                        IconPillButton(
+                            text = "Edit Profile",
+                            onClick = onOpenEditProfile,
+                            modifier = Modifier.weight(1f)
+                        )
+                        IconPillButton(
+                            text = "Share Profile",
+                            onClick = { /* No functionality yet */ },
+                            modifier = Modifier.weight(1f)
+                        )
+                        IconCircleButton(onClick = onOpenSettings) {
+                            AppIcon(AppIcons.settings, contentDescription = "Settings")
+                        }
+                    }
+                }
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    SecondaryTabRow(
+                        selectedTabIndex = ProfileSection.entries.indexOf(section),
+                        containerColor = androidx.compose.ui.graphics.Color.Transparent,
+                        contentColor = MaterialTheme.colorScheme.onBackground,
+                        indicator = {
+                            TabRowDefaults.SecondaryIndicator(
+                                modifier = Modifier.tabIndicatorOffset(ProfileSection.entries.indexOf(section)),
+                                color = MaterialTheme.colorScheme.primary,
+                                height = 2.dp
+                            )
+                        },
+                        divider = {}
+                    ) {
+                        ProfileSection.entries.forEach { s ->
+                            val isSelected = section == s
+                            val icon = when (s) {
+                                ProfileSection.OWNED -> if (isSelected) AppIcons.createdFilled else AppIcons.created
+                                ProfileSection.LIKED -> if (isSelected) AppIcons.likedFilled else AppIcons.liked
+                                ProfileSection.RECENT -> AppIcons.activity // No bold version available
+                                ProfileSection.INTERACTED -> if (isSelected) AppIcons.chats else AppIcons.chatsOutline
+                            }
+                            androidx.compose.foundation.layout.Box(
+                                modifier = Modifier
+                                    .height(48.dp)
+                                    .selectable(
+                                        selected = isSelected,
+                                        onClick = { section = s },
+                                        interactionSource = remember { MutableInteractionSource() },
+                                        indication = null
+                                    ),
+                                contentAlignment = androidx.compose.ui.Alignment.Center
+                            ) {
+                                AppIcon(
+                                    icon = icon,
+                                    contentDescription = s.name,
+                                    size = 24.dp,
+                                    tint = if (isSelected) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
+                                )
+                            }
+                        }
+                    }
+                }
+                val characters = when (section) {
+                    ProfileSection.OWNED -> state.owned
+                    ProfileSection.LIKED -> state.liked
+                    ProfileSection.RECENT -> state.recent
+                    ProfileSection.INTERACTED -> state.interacted
+                }
+                if (characters.isEmpty()) {
+                    item(span = { GridItemSpan(maxLineSpan) }) {
+                        Text(
+                            text = when (section) {
+                                ProfileSection.OWNED -> "No Characters yet."
+                                ProfileSection.LIKED -> "No liked characters yet."
+                                ProfileSection.RECENT -> "No Recent Activity."
+                                ProfileSection.INTERACTED -> "No Interacted characters."
+                            },
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+                items(characters, key = { it.id }) { character ->
+                    CharacterSummaryCard(
+                        character = character,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        scope.launch {
+                            viewModel.ensureConversation(character.id)
+                                .onSuccess(onOpenConversation)
+                                .onFailure { snackbarHostState.showSnackbar(it.message ?: "Couldn't open chat.") }
+                        }
+                    }
+                }
             }
         }
     }

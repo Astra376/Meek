@@ -1,7 +1,6 @@
 package com.example.aichat.feature.home
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -29,14 +28,13 @@ import com.example.aichat.core.design.AppIcons
 import com.example.aichat.core.design.SecondaryButton
 import com.example.aichat.core.model.CharacterSummary
 import com.example.aichat.core.ui.AppChrome
-import com.example.aichat.core.ui.AppLoadingScreen
 import com.example.aichat.core.ui.CharacterSummaryCard
 import com.example.aichat.core.ui.ScreenBackgroundBox
-import com.example.aichat.core.ui.SimplePageHeader
 import com.example.aichat.core.ui.MainPageHeader
+import com.example.aichat.core.ui.ScreenBackgroundBox
+import com.example.aichat.core.ui.SimplePageHeader
 import com.example.aichat.core.ui.screenContentPadding
-import com.example.aichat.feature.chatlist.ConversationRepository
-import dagger.hilt.android.lifecycle.HiltViewModel
+import com.example.aichat.core.ui.DeferredLoadingContainer
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -121,10 +119,10 @@ fun HomeRoute(
         viewModel.events.collect { snackbarHostState.showSnackbar(it) }
     }
 
-    ScreenBackgroundBox(
-        snackbarHostState = snackbarHostState
-    ) {
-        Box(modifier = Modifier.fillMaxSize()) {
+    DeferredLoadingContainer(isLoading = state.isFeedLoading && state.feed.isEmpty()) {
+        ScreenBackgroundBox(
+            snackbarHostState = snackbarHostState
+        ) {
             LazyVerticalGrid(
                 columns = GridCells.Fixed(2),
                 modifier = Modifier.fillMaxSize(),
@@ -164,10 +162,6 @@ fun HomeRoute(
                         )
                     }
                 }
-            }
-
-            if (state.isFeedLoading && state.feed.isEmpty()) {
-                AppLoadingScreen()
             }
         }
     }

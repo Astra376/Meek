@@ -265,20 +265,24 @@ fun ProfileRoute(
                             ProfileSection.RECENT -> AppIcons.activity // No bold version available
                             ProfileSection.INTERACTED -> if (isSelected) AppIcons.chats else AppIcons.chatsOutline
                         }
-                        Tab(
-                            selected = isSelected,
-                            onClick = { section = s },
-                            icon = {
-                                AppIcon(
-                                    icon = icon,
-                                    contentDescription = s.name,
-                                    size = 24.dp,
-                                    tint = if (isSelected) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
-                                )
-                            },
-                            selectedContentColor = MaterialTheme.colorScheme.onBackground,
-                            unselectedContentColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
-                        )
+                        androidx.compose.foundation.layout.Box(
+                            modifier = Modifier
+                                .height(48.dp)
+                                .androidx.compose.foundation.selection.selectable(
+                                    selected = isSelected,
+                                    onClick = { section = s },
+                                    interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                                    indication = null
+                                ),
+                            contentAlignment = androidx.compose.ui.Alignment.Center
+                        ) {
+                            AppIcon(
+                                icon = icon,
+                                contentDescription = s.name,
+                                size = 24.dp,
+                                tint = if (isSelected) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
+                            )
+                        }
                     }
                 }
             }

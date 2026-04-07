@@ -65,8 +65,8 @@ fun CharacterSummaryCard(
                 Surface(
                     modifier = Modifier
                         .align(Alignment.BottomStart)
-                        .padding(CharacterCardMetrics.badgeInset),
-                    shape = RoundedCornerShape(999.dp),
+                        .padding(start = 6.dp, bottom = 6.dp),
+                    shape = RoundedCornerShape(6.dp),
                     color = MaterialTheme.colorScheme.surface.copy(alpha = 0.84f)
                 ) {
                     Row(
@@ -96,7 +96,7 @@ fun CharacterSummaryCard(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(CharacterCardMetrics.contentWeight)
-                    .padding(CharacterCardMetrics.contentPadding)
+                    .padding(start = 0.dp, top = 8.dp, end = 12.dp, bottom = 12.dp)
             ) {
                 Text(
                     text = character.name,
@@ -116,18 +116,6 @@ fun CharacterSummaryCard(
                     ),
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.94f),
                     maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Spacer(modifier = Modifier.weight(1f))
-                Spacer(modifier = Modifier.height(CharacterCardMetrics.authorGap))
-                Text(
-                    text = "@${character.authorUsername.ifBlank { "creator" }}",
-                    style = MaterialTheme.typography.labelLarge.copy(
-                        fontSize = 12.sp,
-                        lineHeight = 14.sp
-                    ),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
-                    maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
             }

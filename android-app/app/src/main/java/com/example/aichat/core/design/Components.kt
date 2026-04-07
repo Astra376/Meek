@@ -66,7 +66,7 @@ internal object DesignMetrics {
     val squareButtonCorner = 22.dp
     val selectionDotSize = 20.dp
     val selectionDotInnerSize = 8.dp
-    val portraitCorner = 22.dp
+    val portraitCorner = 12.dp
     val chipHorizontalPadding = 12.dp
     val chipVerticalPadding = 6.dp
     val portraitBadgeGap = 12.dp

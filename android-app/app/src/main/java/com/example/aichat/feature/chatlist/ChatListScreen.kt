@@ -36,6 +36,7 @@ import com.example.aichat.core.model.ConversationSummary
 import com.example.aichat.core.ui.AppChrome
 import com.example.aichat.core.ui.MainPageHeader
 import com.example.aichat.core.ui.ScreenBackgroundBox
+import com.example.aichat.core.ui.screenContentPadding
 import com.example.aichat.core.util.formatRelativeTime
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -82,7 +83,7 @@ fun ChatListRoute(
     ScreenBackgroundBox {
         LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = AppChrome.screenContentPadding(paddingValues)
+        contentPadding = screenContentPadding(paddingValues)
     ) {
         item {
             val totalUnread = conversations.sumOf { it.unreadCount }

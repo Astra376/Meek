@@ -32,13 +32,15 @@ data class ProfileDto(
     val email: String,
     val displayName: String,
     val avatarUrl: String? = null,
+    val description: String? = null,
     val createdAt: Long,
     val updatedAt: Long
 )
 
 @Serializable
 data class UpdateProfileRequestDto(
-    val displayName: String
+    val displayName: String,
+    val description: String? = null
 )
 
 @Serializable

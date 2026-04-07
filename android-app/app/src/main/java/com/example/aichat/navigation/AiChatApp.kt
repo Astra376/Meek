@@ -399,6 +399,7 @@ private fun MainTabs(
             composable(MainDestination.Profile.route) {
                 ProfileRoute(
                     paddingValues = routePaddingValues,
+                    onOpenActivity = {},
                     onOpenConversation = { id -> rootNavController.navigate("chat/$id") },
                     onOpenEditProfile = { rootNavController.navigate("edit-profile") },
                     onOpenSettings = { rootNavController.navigate("settings") }

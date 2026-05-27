@@ -65,6 +65,7 @@ export async function* streamChatText(
       if (done) break;
 
       buffer += decoder.decode(value, { stream: true });
+      buffer = normalizeSseNewlines(buffer);
       const events = buffer.split("\n\n");
       buffer = events.pop() ?? "";
 
@@ -114,4 +115,8 @@ export async function* streamChatText(
   if (!emittedContent) {
     throw new AppError(502, "OPENROUTER_EMPTY", "The model returned an empty response.");
   }
+}
+
+function normalizeSseNewlines(value: string): string {
+  return value.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
 }

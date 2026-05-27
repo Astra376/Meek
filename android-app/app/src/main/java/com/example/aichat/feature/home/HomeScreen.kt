@@ -30,11 +30,9 @@ import com.example.aichat.core.model.CharacterSummary
 import com.example.aichat.core.ui.AppChrome
 import com.example.aichat.core.ui.CharacterSummaryCard
 import com.example.aichat.core.ui.ScreenBackgroundBox
-import com.example.aichat.core.ui.MainPageHeader
-import com.example.aichat.core.ui.ScreenBackgroundBox
 import com.example.aichat.core.ui.SimplePageHeader
+import com.example.aichat.core.ui.MainPageHeader
 import com.example.aichat.core.ui.screenContentPadding
-import com.example.aichat.core.ui.DeferredLoadingContainer
 import com.example.aichat.feature.chatlist.ConversationRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -121,48 +119,46 @@ fun HomeRoute(
         viewModel.events.collect { snackbarHostState.showSnackbar(it) }
     }
 
-    DeferredLoadingContainer(isLoading = state.isFeedLoading && state.feed.isEmpty()) {
-        ScreenBackgroundBox(
-            snackbarHostState = snackbarHostState
+    ScreenBackgroundBox(
+        snackbarHostState = snackbarHostState
+    ) {
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(2),
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = screenContentPadding(paddingValues),
+            verticalArrangement = Arrangement.spacedBy(AppChrome.sectionSpacing),
+            horizontalArrangement = Arrangement.spacedBy(AppChrome.gridSpacing)
         ) {
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(2),
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = screenContentPadding(paddingValues),
-                verticalArrangement = Arrangement.spacedBy(AppChrome.sectionSpacing),
-                horizontalArrangement = Arrangement.spacedBy(AppChrome.gridSpacing)
-            ) {
 
-                if (state.errorMessage != null && state.feed.isEmpty()) {
-                    item(span = { GridItemSpan(maxLineSpan) }) {
-                        Text(
-                            text = state.errorMessage ?: "Failed to load the feed.",
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.error
-                        )
+            if (state.errorMessage != null && state.feed.isEmpty()) {
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    Text(
+                        text = state.errorMessage ?: "Failed to load the feed.",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+            }
+            items(state.feed, key = { it.id }) { character ->
+                CharacterSummaryCard(
+                    character = character,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    scope.launch {
+                        viewModel.ensureConversation(character.id)
+                            .onSuccess(onOpenConversation)
+                            .onFailure { snackbarHostState.showSnackbar(it.message ?: "Couldn't open chat.") }
                     }
                 }
-                items(state.feed, key = { it.id }) { character ->
-                    CharacterSummaryCard(
-                        character = character,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        scope.launch {
-                            viewModel.ensureConversation(character.id)
-                                .onSuccess(onOpenConversation)
-                                .onFailure { snackbarHostState.showSnackbar(it.message ?: "Couldn't open chat.") }
-                        }
-                    }
-                }
-                if (state.feedCursor != null) {
-                    item(span = { GridItemSpan(maxLineSpan) }) {
-                        SecondaryButton(
-                            text = if (state.isFeedLoading) "Loading..." else "Load More",
-                            modifier = Modifier.fillMaxWidth(),
-                            enabled = !state.isFeedLoading,
-                            onClick = viewModel::loadMore
-                        )
-                    }
+            }
+            if (state.feedCursor != null) {
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    SecondaryButton(
+                        text = if (state.isFeedLoading) "Loading..." else "Load More",
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = !state.isFeedLoading,
+                        onClick = viewModel::loadMore
+                    )
                 }
             }
         }

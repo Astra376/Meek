@@ -118,6 +118,8 @@ class ChatViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
+            chatRepository.refreshConversation(conversationId)
+                .onFailure { _events.emit(it.message ?: "Couldn't load conversation.") }
             conversationRepository.markConversationRead(conversationId)
         }
     }

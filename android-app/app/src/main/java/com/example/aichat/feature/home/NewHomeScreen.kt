@@ -59,9 +59,9 @@ import com.example.aichat.core.model.CharacterSummary
 import com.example.aichat.core.model.ConversationSummary
 import com.example.aichat.core.ui.AppChrome
 import com.example.aichat.core.ui.CharacterSummaryCard
-import com.example.aichat.core.ui.DeferredLoadingContainer
 import com.example.aichat.core.ui.ScreenBackgroundBox
 import com.example.aichat.core.ui.screenContentPadding
+import com.example.aichat.core.util.formatRelativeTimeWords
 import com.example.aichat.feature.chatlist.ConversationRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -175,159 +175,157 @@ fun NewHomeRoute(
         viewModel.events.collect { snackbarHostState.showSnackbar(it) }
     }
 
-    DeferredLoadingContainer(isLoading = state.isFeedLoading && state.recommendedFeed.isEmpty() && state.topPicks.isEmpty()) {
-        ScreenBackgroundBox(
-            snackbarHostState = snackbarHostState
+    ScreenBackgroundBox(
+        snackbarHostState = snackbarHostState
+    ) {
+        val gridPadding = screenContentPadding(paddingValues)
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(
+                top = gridPadding.calculateTopPadding(),
+                bottom = gridPadding.calculateBottomPadding()
+            ),
+            verticalArrangement = Arrangement.spacedBy(AppChrome.sectionSpacing)
         ) {
-            val gridPadding = screenContentPadding(paddingValues)
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(
-                    top = gridPadding.calculateTopPadding(),
-                    bottom = gridPadding.calculateBottomPadding()
-                ),
-                verticalArrangement = Arrangement.spacedBy(AppChrome.sectionSpacing)
-            ) {
-                item {
-                    Column {
-                        // Unread Header
+            item {
+                Column {
+                    // Unread Header
+                    SectionHeader(
+                        title = "Unread (${state.totalUnreadCount})",
+                        modifier = Modifier.padding(horizontal = AppChrome.screenHorizontalPadding),
+                        onClick = onOpenChats
+                    )
+                    
+                    Spacer(modifier = Modifier.height(12.dp))
+                    
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        contentPadding = PaddingValues(horizontal = AppChrome.screenHorizontalPadding)
+                    ) {
+                        item {
+                            CreateStoryNode(onClick = onOpenStudio)
+                        }
+                        items(state.recentChats, key = { it.id }) { chat ->
+                            StoryNode(
+                                chat = chat,
+                                onClick = { onOpenConversation(chat.id) }
+                            )
+                        }
+                    }
+
+                    if (state.topPicks.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(24.dp))
                         SectionHeader(
-                            title = "Unread (${state.totalUnreadCount})",
+                            title = "Top Picks",
+                            modifier = Modifier.padding(horizontal = AppChrome.screenHorizontalPadding),
+                            onClick = null
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(16.dp),
+                            contentPadding = PaddingValues(horizontal = AppChrome.screenHorizontalPadding)
+                        ) {
+                            items(state.topPicks, key = { it.id }) { character ->
+                                TopPickCard(
+                                    character = character,
+                                    onClick = {
+                                        scope.launch {
+                                            viewModel.ensureConversation(character.id)
+                                                .onSuccess(onOpenConversation)
+                                                .onFailure { snackbarHostState.showSnackbar(it.message ?: "Couldn't open chat.") }
+                                        }
+                                    }
+                                )
+                            }
+                        }
+                    }
+
+                    if (state.recentChats.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(24.dp))
+                        SectionHeader(
+                            title = "Continue",
                             modifier = Modifier.padding(horizontal = AppChrome.screenHorizontalPadding),
                             onClick = onOpenChats
                         )
-
                         Spacer(modifier = Modifier.height(12.dp))
-
                         LazyRow(
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            horizontalArrangement = Arrangement.spacedBy(16.dp),
                             contentPadding = PaddingValues(horizontal = AppChrome.screenHorizontalPadding)
                         ) {
-                            item {
-                                CreateStoryNode(onClick = onOpenStudio)
-                            }
-                            items(state.recentChats, key = { it.id }) { chat ->
-                                StoryNode(
+                            items(state.recentChats, key = { "continue_${it.id}" }) { chat ->
+                                ContinueNode(
                                     chat = chat,
                                     onClick = { onOpenConversation(chat.id) }
                                 )
                             }
                         }
-
-                        if (state.topPicks.isNotEmpty()) {
-                            Spacer(modifier = Modifier.height(24.dp))
-                            SectionHeader(
-                                title = "Top Picks",
-                                modifier = Modifier.padding(horizontal = AppChrome.screenHorizontalPadding),
-                                onClick = null
-                            )
-                            Spacer(modifier = Modifier.height(12.dp))
-                            LazyRow(
-                                horizontalArrangement = Arrangement.spacedBy(16.dp),
-                                contentPadding = PaddingValues(horizontal = AppChrome.screenHorizontalPadding)
-                            ) {
-                                items(state.topPicks, key = { it.id }) { character ->
-                                    TopPickCard(
-                                        character = character,
-                                        onClick = {
-                                            scope.launch {
-                                                viewModel.ensureConversation(character.id)
-                                                    .onSuccess(onOpenConversation)
-                                                    .onFailure { snackbarHostState.showSnackbar(it.message ?: "Couldn't open chat.") }
-                                            }
-                                        }
-                                    )
-                                }
-                            }
-                        }
-
-                        if (state.recentChats.isNotEmpty()) {
-                            Spacer(modifier = Modifier.height(24.dp))
-                            SectionHeader(
-                                title = "Continue",
-                                modifier = Modifier.padding(horizontal = AppChrome.screenHorizontalPadding),
-                                onClick = onOpenChats
-                            )
-                            Spacer(modifier = Modifier.height(12.dp))
-                            LazyRow(
-                                horizontalArrangement = Arrangement.spacedBy(16.dp),
-                                contentPadding = PaddingValues(horizontal = AppChrome.screenHorizontalPadding)
-                            ) {
-                                items(state.recentChats, key = { "continue_${it.id}" }) { chat ->
-                                    ContinueNode(
-                                        chat = chat,
-                                        onClick = { onOpenConversation(chat.id) }
-                                    )
-                                }
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(24.dp))
-                        SectionHeader(
-                            title = "Recommended",
-                            modifier = Modifier.padding(horizontal = AppChrome.screenHorizontalPadding),
-                            onClick = null
-                        )
                     }
-                }
 
-                val errorMessage = state.errorMessage
-                if (errorMessage != null && state.recommendedFeed.isEmpty()) {
-                    item {
-                        Text(
-                            text = errorMessage,
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.error,
-                            modifier = Modifier.padding(horizontal = AppChrome.screenHorizontalPadding)
-                        )
-                    }
+                    Spacer(modifier = Modifier.height(24.dp))
+                    SectionHeader(
+                        title = "Recommended",
+                        modifier = Modifier.padding(horizontal = AppChrome.screenHorizontalPadding),
+                        onClick = null
+                    )
                 }
+            }
 
-                items(state.recommendedFeed.chunked(2), key = { it.first().id }) { pair ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = AppChrome.screenHorizontalPadding),
-                        horizontalArrangement = Arrangement.spacedBy(AppChrome.gridSpacing)
+            val errorMessage = state.errorMessage
+            if (errorMessage != null && state.recommendedFeed.isEmpty()) {
+                item {
+                    Text(
+                        text = errorMessage,
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(horizontal = AppChrome.screenHorizontalPadding)
+                    )
+                }
+            }
+
+            items(state.recommendedFeed.chunked(2), key = { it.first().id }) { pair ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = AppChrome.screenHorizontalPadding),
+                    horizontalArrangement = Arrangement.spacedBy(AppChrome.gridSpacing)
+                ) {
+                    CharacterSummaryCard(
+                        character = pair[0],
+                        modifier = Modifier.weight(1f)
                     ) {
+                        scope.launch {
+                            viewModel.ensureConversation(pair[0].id)
+                                .onSuccess(onOpenConversation)
+                                .onFailure { snackbarHostState.showSnackbar(it.message ?: "Couldn't open chat.") }
+                        }
+                    }
+                    if (pair.size > 1) {
                         CharacterSummaryCard(
-                            character = pair[0],
+                            character = pair[1],
                             modifier = Modifier.weight(1f)
                         ) {
                             scope.launch {
-                                viewModel.ensureConversation(pair[0].id)
+                                viewModel.ensureConversation(pair[1].id)
                                     .onSuccess(onOpenConversation)
                                     .onFailure { snackbarHostState.showSnackbar(it.message ?: "Couldn't open chat.") }
                             }
                         }
-                        if (pair.size > 1) {
-                            CharacterSummaryCard(
-                                character = pair[1],
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                scope.launch {
-                                    viewModel.ensureConversation(pair[1].id)
-                                        .onSuccess(onOpenConversation)
-                                        .onFailure { snackbarHostState.showSnackbar(it.message ?: "Couldn't open chat.") }
-                                }
-                            }
-                        } else {
-                            Spacer(modifier = Modifier.weight(1f))
-                        }
+                    } else {
+                        Spacer(modifier = Modifier.weight(1f))
                     }
                 }
+            }
 
-                if (state.recommendedCursor != null) {
-                    item {
-                        SecondaryButton(
-                            text = if (state.isFeedLoading) "Loading..." else "Load More",
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = AppChrome.screenHorizontalPadding),
-                            enabled = !state.isFeedLoading,
-                            onClick = viewModel::loadMore
-                        )
-                    }
+            if (state.recommendedCursor != null) {
+                item {
+                    SecondaryButton(
+                        text = if (state.isFeedLoading) "Loading..." else "Load More",
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = AppChrome.screenHorizontalPadding),
+                        enabled = !state.isFeedLoading,
+                        onClick = viewModel::loadMore
+                    )
                 }
             }
         }

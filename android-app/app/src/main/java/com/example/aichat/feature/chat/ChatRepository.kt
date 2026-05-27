@@ -5,16 +5,22 @@ import com.example.aichat.core.db.AppDatabase
 import com.example.aichat.core.db.AssistantRegenerationDao
 import com.example.aichat.core.db.AssistantRegenerationEntity
 import com.example.aichat.core.db.CharacterDao
+import com.example.aichat.core.db.CharacterEntity
 import com.example.aichat.core.db.ConversationDao
+import com.example.aichat.core.db.ConversationEntity
 import com.example.aichat.core.db.MessageDao
 import com.example.aichat.core.db.MessageEntity
 import com.example.aichat.core.db.toModel
+import com.example.aichat.core.network.AssistantRegenerationDto
+import com.example.aichat.core.network.CharacterDto
 import com.example.aichat.core.model.ConversationDetail
 import com.example.aichat.core.model.MessageRole
 import com.example.aichat.core.model.MessageSendState
 import com.example.aichat.core.network.ChatApi
 import com.example.aichat.core.network.ChatStreamEvent
 import com.example.aichat.core.network.ChatStreamingClient
+import com.example.aichat.core.network.ConversationApi
+import com.example.aichat.core.network.ConversationDetailDto
 import com.example.aichat.core.network.ConversationSummaryDto
 import com.example.aichat.core.network.EditMessageRequestDto
 import com.example.aichat.core.network.MessageDto
@@ -64,6 +70,7 @@ class ChatRepository @Inject constructor(
     private val messageDao: MessageDao,
     private val regenerationDao: AssistantRegenerationDao,
     private val chatApi: ChatApi,
+    private val conversationApi: ConversationApi,
     private val streamingClient: ChatStreamingClient
 ) {
     private val activeStreams = MutableStateFlow<Map<String, ActiveAssistantStream>>(emptyMap())
@@ -92,6 +99,17 @@ class ChatRepository @Inject constructor(
 
     fun observeActiveStream(conversationId: String): Flow<ActiveAssistantStream?> {
         return activeStreams.map { streams -> streams[conversationId] }
+    }
+
+    suspend fun refreshConversation(conversationId: String): Result<Unit> = withContext(Dispatchers.IO) {
+        captureResult {
+            val detail = conversationApi.getConversation(conversationId)
+            if (currentActiveStream(conversationId) != null) return@captureResult
+            database.withTransaction {
+                if (currentActiveStream(conversationId) != null) return@withTransaction
+                applyRemoteConversationDetail(detail)
+            }
+        }
     }
 
     fun requestPause(conversationId: String) {
@@ -408,6 +426,31 @@ class ChatRepository @Inject constructor(
         }
     }
 
+    private suspend fun applyRemoteConversationDetail(detail: ConversationDetailDto) {
+        val existingConversation = conversationDao.getById(detail.id)
+        val latestTimestamp = latestMessageTimestamp(detail.messages)
+        characterDao.upsert(detail.character.toEntity())
+        conversationDao.upsert(
+            ConversationEntity(
+                id = detail.id,
+                ownerUserId = detail.ownerUserId,
+                characterId = detail.character.id,
+                version = detail.conversationVersion,
+                updatedAt = maxOf(existingConversation?.updatedAt ?: 0L, latestTimestamp),
+                startedAt = existingConversation?.startedAt ?: earliestMessageTimestamp(detail.messages),
+                lastMessageAt = latestTimestamp.takeIf { detail.messages.isNotEmpty() },
+                previewText = latestAssistantPreview(detail.messages),
+                unreadCount = existingConversation?.unreadCount ?: 0,
+                hasUnreadBadge = existingConversation?.hasUnreadBadge ?: false
+            )
+        )
+
+        regenerationDao.deleteForCommittedMessages(detail.id)
+        messageDao.deleteCommittedByConversation(detail.id)
+        messageDao.insertAll(detail.messages.map { it.toEntity(MessageSendState.SENT) })
+        regenerationDao.insertAll(detail.messages.flatMap { message -> message.regenerations.map { it.toEntity() } })
+    }
+
     private suspend fun markMessageFailed(messageId: String) {
         val message = messageDao.getById(messageId) ?: return
         messageDao.update(
@@ -419,20 +462,7 @@ class ChatRepository @Inject constructor(
     }
 
     private suspend fun upsertMessageFromDto(message: MessageDto, sendState: MessageSendState) {
-        messageDao.insert(
-            MessageEntity(
-                id = message.id,
-                conversationId = message.conversationId,
-                position = message.position,
-                role = message.role.uppercase(),
-                content = message.content,
-                edited = message.edited,
-                createdAt = message.createdAt,
-                updatedAt = message.updatedAt,
-                selectedRegenerationId = message.selectedRegenerationId,
-                sendState = sendState.name
-            )
-        )
+        messageDao.insert(message.toEntity(sendState))
     }
 
     private suspend fun applyLocalEdit(message: MessageEntity, newContent: String) {
@@ -566,5 +596,58 @@ class ChatRepository @Inject constructor(
         if (message.sendState != MessageSendState.SENT.name) {
             throw ChatRuleViolation("Only committed messages can be changed.")
         }
+    }
+
+    private fun CharacterDto.toEntity(): CharacterEntity = CharacterEntity(
+        id = id,
+        ownerUserId = ownerUserId,
+        authorUsername = authorUsername,
+        name = name,
+        tagline = tagline,
+        bio = bio,
+        systemPrompt = systemPrompt,
+        visibility = visibility.uppercase(),
+        avatarUrl = avatarUrl,
+        publicChatCount = publicChatCount,
+        likeCount = likeCount,
+        likedByMe = likedByMe,
+        lastActiveAt = lastActiveAt,
+        createdAt = createdAt,
+        updatedAt = updatedAt
+    )
+
+    private fun MessageDto.toEntity(sendState: MessageSendState): MessageEntity = MessageEntity(
+        id = id,
+        conversationId = conversationId,
+        position = position,
+        role = role.uppercase(),
+        content = content,
+        edited = edited,
+        createdAt = createdAt,
+        updatedAt = updatedAt,
+        selectedRegenerationId = selectedRegenerationId,
+        sendState = sendState.name
+    )
+
+    private fun AssistantRegenerationDto.toEntity(): AssistantRegenerationEntity = AssistantRegenerationEntity(
+        id = id,
+        messageId = messageId,
+        content = content,
+        createdAt = createdAt
+    )
+
+    private fun latestMessageTimestamp(messages: List<MessageDto>): Long {
+        return messages.maxOfOrNull { it.updatedAt } ?: System.currentTimeMillis()
+    }
+
+    private fun earliestMessageTimestamp(messages: List<MessageDto>): Long {
+        return messages.minOfOrNull { it.createdAt } ?: System.currentTimeMillis()
+    }
+
+    private fun latestAssistantPreview(messages: List<MessageDto>): String {
+        val assistant = messages.lastOrNull { it.role.equals(MessageRole.ASSISTANT.name, ignoreCase = true) }
+            ?: return ""
+        val selectedId = assistant.selectedRegenerationId
+        return assistant.regenerations.firstOrNull { it.id == selectedId }?.content ?: assistant.content
     }
 }

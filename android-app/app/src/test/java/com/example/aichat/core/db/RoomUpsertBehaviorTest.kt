@@ -41,7 +41,9 @@ class RoomUpsertBehaviorTest {
             updatedAt = 100L,
             startedAt = 100L,
             lastMessageAt = null,
-            previewText = ""
+            previewText = "",
+            unreadCount = 0,
+            hasUnreadBadge = false
         )
         conversationDao.upsert(conversation)
         messageDao.insert(
@@ -81,7 +83,9 @@ class RoomUpsertBehaviorTest {
             updatedAt = 100L,
             startedAt = 100L,
             lastMessageAt = null,
-            previewText = ""
+            previewText = "",
+            unreadCount = 0,
+            hasUnreadBadge = false
         )
         conversationDao.upsert(conversation)
         val message = MessageEntity(
@@ -121,7 +125,9 @@ class RoomUpsertBehaviorTest {
             updatedAt = 100L,
             startedAt = 100L,
             lastMessageAt = 100L,
-            previewText = "hello"
+            previewText = "hello",
+            unreadCount = 0,
+            hasUnreadBadge = false
         )
         conversationDao.upsert(conversation)
 

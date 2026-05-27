@@ -15,7 +15,11 @@ import com.example.aichat.core.network.AssistantRegenerationDto
 import com.example.aichat.core.network.ChatApi
 import com.example.aichat.core.network.ChatStreamEvent
 import com.example.aichat.core.network.ChatStreamingClient
+import com.example.aichat.core.network.CharacterDto
+import com.example.aichat.core.network.ConversationApi
+import com.example.aichat.core.network.ConversationDetailDto
 import com.example.aichat.core.network.ConversationSummaryDto
+import com.example.aichat.core.network.CursorPageDto
 import com.example.aichat.core.network.EditMessageRequestDto
 import com.example.aichat.core.network.MessageDto
 import com.example.aichat.core.network.SelectRegenerationRequestDto
@@ -37,6 +41,7 @@ class ChatRepositoryTest {
     private lateinit var characterDao: CharacterDao
     private lateinit var messageDao: MessageDao
     private lateinit var streamingClient: FakeStreamingClient
+    private lateinit var conversationApi: FakeConversationApi
     private lateinit var repository: ChatRepository
 
     @Before
@@ -49,6 +54,7 @@ class ChatRepositoryTest {
         characterDao = database.characterDao()
         messageDao = database.messageDao()
         streamingClient = FakeStreamingClient()
+        conversationApi = FakeConversationApi()
         repository = ChatRepository(
             database = database,
             conversationDao = conversationDao,
@@ -56,6 +62,7 @@ class ChatRepositoryTest {
             messageDao = messageDao,
             regenerationDao = database.assistantRegenerationDao(),
             chatApi = FakeChatApi(),
+            conversationApi = conversationApi,
             streamingClient = streamingClient
         )
     }
@@ -225,6 +232,80 @@ class ChatRepositoryTest {
         assertThat(activeStream?.status).isEqualTo(ActiveStreamStatus.COMPLETED)
     }
 
+    @Test
+    fun refreshConversation_replacesCommittedTranscriptAndKeepsLocalOnlyMessages() = runTest {
+        seedConversation(version = 1)
+        messageDao.insertAll(
+            listOf(
+                sentMessage(
+                    id = "stale-user",
+                    position = 1,
+                    role = "USER",
+                    content = "old",
+                    createdAt = 100L,
+                    updatedAt = 100L
+                ),
+                sentMessage(
+                    id = "stale-assistant",
+                    position = 2,
+                    role = "ASSISTANT",
+                    content = "old answer",
+                    createdAt = 200L,
+                    updatedAt = 200L
+                ),
+                MessageEntity(
+                    id = "local-failed",
+                    conversationId = CONVERSATION_ID,
+                    position = -1,
+                    role = "USER",
+                    content = "try again",
+                    edited = false,
+                    createdAt = 300L,
+                    updatedAt = 300L,
+                    selectedRegenerationId = null,
+                    sendState = MessageSendState.FAILED.name
+                )
+            )
+        )
+        database.assistantRegenerationDao().insert(
+            AssistantRegenerationEntity(
+                id = "stale-regen",
+                messageId = "stale-assistant",
+                content = "stale variant",
+                createdAt = 201L
+            )
+        )
+        conversationApi.detail = conversationDetail(
+            messages = listOf(
+                remoteMessage(
+                    id = "user-1",
+                    position = 1,
+                    role = "user",
+                    content = "hello",
+                    createdAt = 400L,
+                    updatedAt = 400L
+                ),
+                remoteMessage(
+                    id = "assistant-1",
+                    position = 2,
+                    role = "assistant",
+                    content = "fresh answer",
+                    createdAt = 500L,
+                    updatedAt = 500L
+                )
+            )
+        )
+
+        repository.refreshConversation(CONVERSATION_ID).getOrThrow()
+
+        val messages = messageDao.getMessages(CONVERSATION_ID)
+        val regenerations = database.assistantRegenerationDao().getConversationRegenerations(CONVERSATION_ID)
+
+        assertThat(messages.map { it.id }).containsExactly("user-1", "assistant-1", "local-failed").inOrder()
+        assertThat(messages.first { it.id == "assistant-1" }.content).isEqualTo("fresh answer")
+        assertThat(regenerations.map { it.id }).doesNotContain("stale-regen")
+    }
+
     private suspend fun seedConversation(version: Long) {
         conversationDao.upsert(
             ConversationEntity(
@@ -235,16 +316,19 @@ class ChatRepositoryTest {
                 updatedAt = 100L,
                 startedAt = 100L,
                 lastMessageAt = null,
-                previewText = ""
+                previewText = "",
+                unreadCount = 0,
+                hasUnreadBadge = false
             )
         )
         characterDao.upsert(
             com.example.aichat.core.db.CharacterEntity(
                 id = CHARACTER_ID,
                 ownerUserId = USER_ID,
+                authorUsername = "astra",
                 name = "Astra",
                 tagline = "",
-                description = "",
+                bio = "",
                 systemPrompt = "Be helpful",
                 visibility = "PUBLIC",
                 avatarUrl = null,
@@ -310,12 +394,76 @@ class ChatRepositoryTest {
         lastPreview = preview
     )
 
+    private fun conversationDetail(messages: List<MessageDto>) = ConversationDetailDto(
+        id = CONVERSATION_ID,
+        ownerUserId = USER_ID,
+        conversationVersion = 2,
+        character = CharacterDto(
+            id = CHARACTER_ID,
+            ownerUserId = USER_ID,
+            authorUsername = "astra",
+            name = "Astra",
+            tagline = "",
+            bio = "",
+            systemPrompt = "Be helpful",
+            visibility = "PUBLIC",
+            avatarUrl = null,
+            publicChatCount = 0,
+            likeCount = 0,
+            likedByMe = false,
+            lastActiveAt = 100L,
+            createdAt = 100L,
+            updatedAt = 100L
+        ),
+        messages = messages
+    )
+
     private class FakeChatApi : ChatApi {
         override suspend fun editMessage(messageId: String, body: EditMessageRequestDto) = Unit
 
         override suspend fun rewind(messageId: String) = Unit
 
         override suspend fun selectRegeneration(messageId: String, body: SelectRegenerationRequestDto) = Unit
+    }
+
+    private class FakeConversationApi : ConversationApi {
+        var detail: ConversationDetailDto? = null
+
+        override suspend fun getConversations(cursor: String?): CursorPageDto<ConversationSummaryDto> {
+            return CursorPageDto(emptyList())
+        }
+
+        override suspend fun createConversation(body: Map<String, String>): ConversationSummaryDto {
+            error("Not needed")
+        }
+
+        override suspend fun getConversation(conversationId: String): ConversationDetailDto {
+            return detail ?: ConversationDetailDto(
+                id = conversationId,
+                ownerUserId = USER_ID,
+                conversationVersion = 1,
+                character = CharacterDto(
+                    id = CHARACTER_ID,
+                    ownerUserId = USER_ID,
+                    authorUsername = "astra",
+                    name = "Astra",
+                    tagline = "",
+                    bio = "",
+                    systemPrompt = "Be helpful",
+                    visibility = "PUBLIC",
+                    avatarUrl = null,
+                    publicChatCount = 0,
+                    likeCount = 0,
+                    likedByMe = false,
+                    lastActiveAt = 100L,
+                    createdAt = 100L,
+                    updatedAt = 100L
+                ),
+                messages = emptyList()
+            )
+        }
+
+        override suspend fun markConversationRead(conversationId: String) = Unit
     }
 
     private class FakeStreamingClient : ChatStreamingClient {

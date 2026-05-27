@@ -246,6 +246,17 @@ interface AssistantRegenerationDao {
     @Upsert
     suspend fun insertAll(regenerations: List<AssistantRegenerationEntity>)
 
+    @Query(
+        """
+        DELETE FROM assistant_regenerations
+        WHERE messageId IN (
+            SELECT id FROM messages
+            WHERE conversationId = :conversationId AND sendState = 'SENT'
+        )
+        """
+    )
+    suspend fun deleteForCommittedMessages(conversationId: String)
+
     @Query("DELETE FROM assistant_regenerations WHERE id = :regenerationId")
     suspend fun deleteById(regenerationId: String)
 

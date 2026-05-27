@@ -60,6 +60,21 @@ interface CharacterDao {
     suspend fun clear()
 }
 
+@Dao
+interface ConversationSceneDao {
+    @Query("SELECT * FROM conversation_scenes WHERE conversationId = :conversationId LIMIT 1")
+    fun observeByConversation(conversationId: String): Flow<ConversationSceneEntity?>
+
+    @Query("SELECT * FROM conversation_scenes WHERE conversationId = :conversationId LIMIT 1")
+    suspend fun getByConversation(conversationId: String): ConversationSceneEntity?
+
+    @Upsert
+    suspend fun upsert(scene: ConversationSceneEntity)
+
+    @Query("DELETE FROM conversation_scenes")
+    suspend fun clear()
+}
+
 data class ConversationSummaryRow(
     val id: String,
     val characterId: String,

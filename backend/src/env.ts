@@ -7,6 +7,7 @@ export interface Env {
   OPENROUTER_MODEL: string;
   FAL_API_KEY: string;
   FAL_MODEL: string;
+  FAL_BACKGROUND_MODEL?: string;
   R2_PUBLIC_BASE_URL: string;
 }
 
@@ -32,4 +33,3 @@ export function requireConfigured(env: Env, keys: Array<keyof Env>): void {
     }
   }
 }
-

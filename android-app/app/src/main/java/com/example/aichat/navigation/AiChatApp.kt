@@ -41,6 +41,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
@@ -370,45 +371,62 @@ private fun MainTabs(
     val minDragDistance = with(density) { 50.dp.toPx() }
 
     val chatListViewModel: com.example.aichat.feature.chatlist.ChatListViewModel = hiltViewModel()
-    val conversations by chatListViewModel.conversations.collectAsStateWithLifecycle()
-    val totalUnread = conversations.sumOf { it.unreadCount }
+    val chatListState by chatListViewModel.uiState.collectAsStateWithLifecycle()
+    val totalUnread = chatListState.conversations.sumOf { it.unreadCount }
 
     Scaffold(
         topBar = {
             val title = bottomDestinations.find { it.route == currentDestination?.route }?.contentDescription
             if (title != null) {
-                com.example.aichat.core.ui.MainPageHeader(
-                    title = title,
-                    onOpenSearch = { rootNavController.navigate("search") },
-                    onOpenActivity = { rootNavController.navigate("activity") },
+                val background = MaterialTheme.colorScheme.background
+                Column(
                     modifier = Modifier
-                        .statusBarsPadding()
-                        .padding(
-                            start = com.example.aichat.core.ui.AppChrome.screenHorizontalPadding,
-                            end = com.example.aichat.core.ui.AppChrome.screenHorizontalPadding
-                        ),
-                    titlePrefix = if (currentDestination?.route == MainDestination.Chats.route && totalUnread > 0) {
-                        {
-                            androidx.compose.foundation.layout.Box(
-                                modifier = Modifier
-                                    .background(
-                                        MaterialTheme.colorScheme.error,
-                                        androidx.compose.foundation.shape.CircleShape
+                        .fillMaxWidth()
+                        .background(background)
+                ) {
+                    com.example.aichat.core.ui.MainPageHeader(
+                        title = title,
+                        onOpenSearch = { rootNavController.navigate("search") },
+                        onOpenActivity = { rootNavController.navigate("activity") },
+                        modifier = Modifier
+                            .statusBarsPadding()
+                            .padding(
+                                start = com.example.aichat.core.ui.AppChrome.screenHorizontalPadding,
+                                end = com.example.aichat.core.ui.AppChrome.screenHorizontalPadding
+                            ),
+                        titlePrefix = if (currentDestination?.route == MainDestination.Chats.route && totalUnread > 0) {
+                            {
+                                androidx.compose.foundation.layout.Box(
+                                    modifier = Modifier
+                                        .background(
+                                            MaterialTheme.colorScheme.error,
+                                            androidx.compose.foundation.shape.CircleShape
+                                        )
+                                        .padding(horizontal = 8.dp, vertical = 2.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    androidx.compose.material3.Text(
+                                        text = totalUnread.toString(),
+                                        style = MaterialTheme.typography.labelMedium.copy(
+                                            color = MaterialTheme.colorScheme.onError,
+                                            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                                        )
                                     )
-                                    .padding(horizontal = 8.dp, vertical = 2.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                androidx.compose.material3.Text(
-                                    text = totalUnread.toString(),
-                                    style = MaterialTheme.typography.labelMedium.copy(
-                                        color = MaterialTheme.colorScheme.onError,
-                                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
-                                    )
-                                )
+                                }
                             }
-                        }
-                    } else null
-                )
+                        } else null
+                    )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(18.dp)
+                            .background(
+                                brush = Brush.verticalGradient(
+                                    listOf(background, background.copy(alpha = 0f))
+                                )
+                            )
+                    )
+                }
             }
         },
         modifier = Modifier

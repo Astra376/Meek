@@ -7,6 +7,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -20,17 +22,19 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
+import com.example.aichat.core.model.UserProfile
 import com.example.aichat.core.design.AppTextField
 import com.example.aichat.core.design.PrimaryButton
 import com.example.aichat.core.ui.AppBackButton
 import com.example.aichat.core.ui.AppChrome
 import com.example.aichat.core.ui.ScreenBackgroundBox
+import com.example.aichat.core.ui.ShimmerBox
+import com.example.aichat.core.ui.ShimmerTextLine
 import com.example.aichat.core.ui.pageContentFrame
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -38,20 +42,11 @@ import kotlinx.coroutines.launch
 class EditProfileViewModel @Inject constructor(
     private val profileRepository: ProfileRepository
 ) : ViewModel() {
-    val displayName: StateFlow<String> = profileRepository.profile
-        .map { it?.displayName.orEmpty() }
+    val profile: StateFlow<UserProfile?> = profileRepository.profile
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),
-            initialValue = ""
-        )
-
-    val bio: StateFlow<String> = profileRepository.profile
-        .map { it?.bio.orEmpty() }
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5_000),
-            initialValue = ""
+            initialValue = null
         )
 
     fun save(name: String, bio: String, onSaved: () -> Unit) {
@@ -68,8 +63,9 @@ fun EditProfileRoute(
     onBack: () -> Unit,
     viewModel: EditProfileViewModel = hiltViewModel()
 ) {
-    val currentName by viewModel.displayName.collectAsStateWithLifecycle()
-    val currentBio by viewModel.bio.collectAsStateWithLifecycle()
+    val profile by viewModel.profile.collectAsStateWithLifecycle()
+    val currentName = profile?.displayName.orEmpty()
+    val currentBio = profile?.bio.orEmpty()
     
     var editedName by remember(currentName) { mutableStateOf(currentName) }
     var editedBio by remember(currentBio) { mutableStateOf(currentBio) }
@@ -94,26 +90,30 @@ fun EditProfileRoute(
                 Text("Edit Profile", style = MaterialTheme.typography.headlineMedium)
             }
 
-            Text("Username", style = MaterialTheme.typography.titleLarge)
+            if (profile == null) {
+                EditProfilePlaceholder()
+            } else {
+                Text("Username", style = MaterialTheme.typography.titleLarge)
 
-            AppTextField(
-                value = editedName,
-                onValueChange = { editedName = it },
-                placeholder = "Username",
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true
-            )
+                AppTextField(
+                    value = editedName,
+                    onValueChange = { editedName = it },
+                    placeholder = "Username",
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
 
-            Text("Bio", style = MaterialTheme.typography.titleLarge)
+                Text("Bio", style = MaterialTheme.typography.titleLarge)
 
-            AppTextField(
-                value = editedBio,
-                onValueChange = { editedBio = it },
-                placeholder = "Tell others about yourself",
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = false,
-                minLines = 3
-            )
+                AppTextField(
+                    value = editedBio,
+                    onValueChange = { editedBio = it },
+                    placeholder = "Tell others about yourself",
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = false,
+                    minLines = 3
+                )
+            }
 
             Spacer(modifier = Modifier.weight(1f))
 
@@ -126,5 +126,25 @@ fun EditProfileRoute(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun EditProfilePlaceholder() {
+    Column(verticalArrangement = Arrangement.spacedBy(AppChrome.sectionSpacing)) {
+        ShimmerTextLine(width = 104.dp, height = 22.dp)
+        ShimmerBox(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(50.dp),
+            shape = RoundedCornerShape(24.dp)
+        )
+        ShimmerTextLine(width = 46.dp, height = 22.dp)
+        ShimmerBox(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(112.dp),
+            shape = RoundedCornerShape(24.dp)
+        )
     }
 }

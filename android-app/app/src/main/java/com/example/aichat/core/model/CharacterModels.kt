@@ -15,6 +15,8 @@ data class CharacterSummary(
     val systemPrompt: String,
     val visibility: CharacterVisibility,
     val avatarUrl: String?,
+    val initialSceneUrl: String? = null,
+    val initialSceneKey: String? = null,
     val publicChatCount: Int,
     val likeCount: Int,
     val likedByMe: Boolean,

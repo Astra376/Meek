@@ -70,6 +70,8 @@ class ConversationRepository @Inject constructor(
                 systemPrompt = existingCharacter?.systemPrompt ?: "",
                 visibility = existingCharacter?.visibility ?: CharacterVisibility.PUBLIC.name,
                 avatarUrl = summary.characterAvatarUrl ?: existingCharacter?.avatarUrl,
+                initialSceneUrl = existingCharacter?.initialSceneUrl,
+                initialSceneKey = existingCharacter?.initialSceneKey,
                 publicChatCount = existingCharacter?.publicChatCount ?: 0,
                 likeCount = existingCharacter?.likeCount ?: 0,
                 likedByMe = existingCharacter?.likedByMe ?: false,

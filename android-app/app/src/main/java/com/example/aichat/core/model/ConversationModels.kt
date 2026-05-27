@@ -53,5 +53,7 @@ data class ConversationDetail(
     val ownerUserId: String,
     val conversationVersion: Long,
     val character: CharacterSummary,
-    val messages: List<ChatMessage>
+    val messages: List<ChatMessage>,
+    val backgroundSceneUrl: String? = null,
+    val backgroundSceneKey: String? = null
 )

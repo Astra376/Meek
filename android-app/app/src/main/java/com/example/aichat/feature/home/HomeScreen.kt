@@ -28,6 +28,7 @@ import com.example.aichat.core.design.AppIcons
 import com.example.aichat.core.design.SecondaryButton
 import com.example.aichat.core.model.CharacterSummary
 import com.example.aichat.core.ui.AppChrome
+import com.example.aichat.core.ui.CharacterSummaryCardPlaceholder
 import com.example.aichat.core.ui.CharacterSummaryCard
 import com.example.aichat.core.ui.ScreenBackgroundBox
 import com.example.aichat.core.ui.SimplePageHeader
@@ -129,6 +130,12 @@ fun HomeRoute(
             verticalArrangement = Arrangement.spacedBy(AppChrome.sectionSpacing),
             horizontalArrangement = Arrangement.spacedBy(AppChrome.gridSpacing)
         ) {
+
+            if (state.isFeedLoading && state.feed.isEmpty()) {
+                items(8) {
+                    CharacterSummaryCardPlaceholder(modifier = Modifier.fillMaxWidth())
+                }
+            }
 
             if (state.errorMessage != null && state.feed.isEmpty()) {
                 item(span = { GridItemSpan(maxLineSpan) }) {

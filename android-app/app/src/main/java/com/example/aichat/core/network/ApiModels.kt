@@ -54,6 +54,8 @@ data class CharacterDto(
     val systemPrompt: String,
     val visibility: String,
     val avatarUrl: String? = null,
+    val initialSceneUrl: String? = null,
+    val initialSceneKey: String? = null,
     val publicChatCount: Int,
     val likeCount: Int,
     val likedByMe: Boolean,
@@ -141,6 +143,16 @@ data class GeneratePortraitRequestDto(
 @Serializable
 data class GeneratePortraitResponseDto(
     val avatarUrl: String
+)
+
+@Serializable
+data class GenerateChatBackgroundRequestDto(
+    val prompt: String
+)
+
+@Serializable
+data class GenerateChatBackgroundResponseDto(
+    val imageUrl: String
 )
 
 @Serializable

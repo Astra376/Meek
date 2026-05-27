@@ -14,16 +14,42 @@ interface FalResultResponse {
   images?: Array<{ url: string }>;
 }
 
+const FAL_STATUS_ATTEMPTS = 80;
+const FAL_STATUS_POLL_INTERVAL_MS = 1_500;
+
 export async function generatePortraitWithFal(env: Env, prompt: string): Promise<string> {
-  const queueResponse = await fetch(`https://queue.fal.run/${env.FAL_MODEL}`, {
+  return generateImageWithFal(env, {
+    model: env.FAL_MODEL,
+    prompt,
+    imageSize: "square_hd"
+  });
+}
+
+export async function generateChatBackgroundWithFal(env: Env, prompt: string): Promise<string> {
+  return generateImageWithFal(env, {
+    model: env.FAL_BACKGROUND_MODEL || env.FAL_MODEL,
+    prompt,
+    imageSize: "landscape_16_9"
+  });
+}
+
+async function generateImageWithFal(
+  env: Env,
+  options: {
+    model: string;
+    prompt: string;
+    imageSize: string;
+  }
+): Promise<string> {
+  const queueResponse = await fetch(`https://queue.fal.run/${options.model}`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Key ${env.FAL_API_KEY}`
     },
     body: JSON.stringify({
-      prompt,
-      image_size: "square_hd"
+      prompt: options.prompt,
+      image_size: options.imageSize
     })
   });
 
@@ -36,8 +62,8 @@ export async function generatePortraitWithFal(env: Env, prompt: string): Promise
     throw new AppError(502, "FAL_QUEUE_ERROR", "Image generation did not return a request id.");
   }
 
-  for (let attempt = 0; attempt < 30; attempt += 1) {
-    const statusResponse = await fetch(`https://queue.fal.run/${env.FAL_MODEL}/requests/${queued.request_id}/status`, {
+  for (let attempt = 0; attempt < FAL_STATUS_ATTEMPTS; attempt += 1) {
+    const statusResponse = await fetch(`https://queue.fal.run/${options.model}/requests/${queued.request_id}/status`, {
       headers: {
         Authorization: `Key ${env.FAL_API_KEY}`
       }
@@ -54,7 +80,12 @@ export async function generatePortraitWithFal(env: Env, prompt: string): Promise
 
     if (status.status === "COMPLETED") {
       const resultResponse = await fetch(
-        `https://queue.fal.run/${env.FAL_MODEL}/requests/${queued.request_id}`
+        `https://queue.fal.run/${options.model}/requests/${queued.request_id}`,
+        {
+          headers: {
+            Authorization: `Key ${env.FAL_API_KEY}`
+          }
+        }
       );
       if (!resultResponse.ok) {
         throw new AppError(502, "FAL_RESULT_ERROR", "Image generation result fetch failed.");
@@ -67,7 +98,7 @@ export async function generatePortraitWithFal(env: Env, prompt: string): Promise
       return imageUrl;
     }
 
-    await new Promise((resolve) => setTimeout(resolve, 1_500));
+    await new Promise((resolve) => setTimeout(resolve, FAL_STATUS_POLL_INTERVAL_MS));
   }
 
   throw new AppError(504, "FAL_TIMEOUT", "Image generation timed out.");

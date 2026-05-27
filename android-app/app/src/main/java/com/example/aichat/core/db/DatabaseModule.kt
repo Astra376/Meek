@@ -29,6 +29,9 @@ object DatabaseModule {
     fun provideCharacterDao(database: AppDatabase): CharacterDao = database.characterDao()
 
     @Provides
+    fun provideConversationSceneDao(database: AppDatabase): ConversationSceneDao = database.conversationSceneDao()
+
+    @Provides
     fun provideConversationDao(database: AppDatabase): ConversationDao = database.conversationDao()
 
     @Provides
@@ -38,4 +41,3 @@ object DatabaseModule {
     fun provideAssistantRegenerationDao(database: AppDatabase): AssistantRegenerationDao =
         database.assistantRegenerationDao()
 }
-

@@ -8,8 +8,10 @@ import com.example.aichat.core.model.CharacterSummary
 import com.example.aichat.core.model.CharacterVisibility
 import com.example.aichat.core.network.CharacterApi
 import com.example.aichat.core.network.CharacterWriteRequestDto
+import com.example.aichat.core.network.GenerateChatBackgroundRequestDto
 import com.example.aichat.core.network.GeneratePortraitRequestDto
 import com.example.aichat.core.network.ImageApi
+import com.example.aichat.feature.chat.ChatScenePromptBuilder
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.Flow
@@ -62,7 +64,8 @@ class CharacterRepository @Inject constructor(
             } else {
                 characterApi.updateCharacter(draft.id, payload)
             }
-            characterDao.upsert(remote.toEntity())
+            val saved = remote.toEntity()
+            characterDao.upsert(saved)
             remote.id
         }
     }
@@ -96,5 +99,26 @@ class CharacterRepository @Inject constructor(
         return runCatching {
             imageApi.generatePortrait(GeneratePortraitRequestDto(seedSource.trim())).avatarUrl
         }
+    }
+
+    suspend fun generateInitialScene(characterId: String): Result<Unit> {
+        return runCatching {
+            val character = characterDao.getById(characterId)
+                ?: throw IllegalArgumentException("Character not found.")
+            if (character.initialSceneUrl != null && character.initialSceneKey != null) return@runCatching
+            generateInitialScene(character)
+        }
+    }
+
+    private suspend fun generateInitialScene(character: com.example.aichat.core.db.CharacterEntity) {
+        val scene = ChatScenePromptBuilder.initialScene(character)
+        val imageUrl = imageApi.generateChatBackground(GenerateChatBackgroundRequestDto(scene.prompt)).imageUrl
+        characterDao.upsert(
+            character.copy(
+                initialSceneUrl = imageUrl,
+                initialSceneKey = scene.key,
+                updatedAt = System.currentTimeMillis()
+            )
+        )
     }
 }

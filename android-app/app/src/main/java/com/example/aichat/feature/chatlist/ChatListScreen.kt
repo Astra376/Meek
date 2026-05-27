@@ -34,16 +34,24 @@ import com.example.aichat.core.auth.AuthRepository
 import com.example.aichat.core.design.CharacterPortrait
 import com.example.aichat.core.model.ConversationSummary
 import com.example.aichat.core.ui.AppChrome
+import com.example.aichat.core.ui.ChatListRowPlaceholder
 import com.example.aichat.core.ui.MainPageHeader
 import com.example.aichat.core.ui.ScreenBackgroundBox
 import com.example.aichat.core.ui.screenContentPadding
 import com.example.aichat.core.util.formatRelativeTime
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+
+data class ChatListUiState(
+    val conversations: List<ConversationSummary> = emptyList(),
+    val isLoading: Boolean = true
+)
 
 private val previewWhitespace = "\\s+".toRegex()
 
@@ -57,16 +65,23 @@ class ChatListViewModel @Inject constructor(
     conversationRepository: ConversationRepository
 ) : ViewModel() {
     private val userId = authRepository.sessionState.value.profile?.userId.orEmpty()
-    val conversations: StateFlow<List<ConversationSummary>> =
-        conversationRepository.observeConversations(userId).stateIn(
+    private val isLoading = MutableStateFlow(true)
+    val uiState: StateFlow<ChatListUiState> =
+        combine(
+            conversationRepository.observeConversations(userId),
+            isLoading
+        ) { conversations, loading ->
+            ChatListUiState(conversations = conversations, isLoading = loading)
+        }.stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),
-            initialValue = emptyList()
+            initialValue = ChatListUiState()
         )
 
     init {
         viewModelScope.launch {
             conversationRepository.refreshConversations(userId)
+            isLoading.value = false
         }
     }
 }
@@ -79,7 +94,8 @@ fun ChatListRoute(
     onOpenConversation: (String) -> Unit,
     viewModel: ChatListViewModel = hiltViewModel()
 ) {
-    val conversations by viewModel.conversations.collectAsStateWithLifecycle()
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val conversations = state.conversations
 
     ScreenBackgroundBox {
         LazyColumn(
@@ -87,7 +103,11 @@ fun ChatListRoute(
         contentPadding = screenContentPadding(paddingValues)
     ) {
 
-        if (conversations.isEmpty()) {
+        if (state.isLoading && conversations.isEmpty()) {
+            items(8) {
+                ChatListRowPlaceholder()
+            }
+        } else if (conversations.isEmpty()) {
             item {
                 Column(modifier = Modifier.padding(top = AppChrome.bottomBarVerticalPadding)) {
                     Text("No Conversations Yet", style = MaterialTheme.typography.titleLarge)

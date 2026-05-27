@@ -24,23 +24,33 @@ import com.example.aichat.core.model.ThemeMode
 import com.example.aichat.core.ui.AppBackButton
 import com.example.aichat.core.ui.AppChrome
 import com.example.aichat.core.ui.ScreenBackgroundBox
+import com.example.aichat.core.ui.ShimmerBox
+import com.example.aichat.core.ui.ShimmerTextLine
 import com.example.aichat.core.ui.pageContentFrame
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+
+data class SettingsUiState(
+    val themeMode: ThemeMode = ThemeMode.DARK,
+    val isLoading: Boolean = true
+)
 
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     private val authRepository: AuthRepository,
     private val settingsRepository: SettingsRepository
 ) : ViewModel() {
-    val themeMode: StateFlow<ThemeMode> = settingsRepository.themeMode.stateIn(
+    val uiState: StateFlow<SettingsUiState> = settingsRepository.themeMode.map { themeMode ->
+        SettingsUiState(themeMode = themeMode, isLoading = false)
+    }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
-        initialValue = ThemeMode.DARK
+        initialValue = SettingsUiState()
     )
 
     fun setTheme(themeMode: ThemeMode) {
@@ -62,7 +72,8 @@ fun SettingsRoute(
     onBack: () -> Unit,
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
-    val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val themeMode = state.themeMode
 
     ScreenBackgroundBox {
         Column(
@@ -81,25 +92,29 @@ fun SettingsRoute(
                 Text("Settings", style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.onSurface)
             }
 
-            Text("App Theme", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface)
-            ThemeOptionRow(
-                text = "System",
-                selected = themeMode == ThemeMode.SYSTEM,
-                icon = { AppIcon(AppIcons.themeSystem, contentDescription = null) },
-                onClick = { viewModel.setTheme(ThemeMode.SYSTEM) }
-            )
-            ThemeOptionRow(
-                text = "Dark",
-                selected = themeMode == ThemeMode.DARK,
-                icon = { AppIcon(AppIcons.themeDark, contentDescription = null) },
-                onClick = { viewModel.setTheme(ThemeMode.DARK) }
-            )
-            ThemeOptionRow(
-                text = "Light",
-                selected = themeMode == ThemeMode.LIGHT,
-                icon = { AppIcon(AppIcons.themeLight, contentDescription = null) },
-                onClick = { viewModel.setTheme(ThemeMode.LIGHT) }
-            )
+            if (state.isLoading) {
+                SettingsPlaceholder()
+            } else {
+                Text("App Theme", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface)
+                ThemeOptionRow(
+                    text = "System",
+                    selected = themeMode == ThemeMode.SYSTEM,
+                    icon = { AppIcon(AppIcons.themeSystem, contentDescription = null) },
+                    onClick = { viewModel.setTheme(ThemeMode.SYSTEM) }
+                )
+                ThemeOptionRow(
+                    text = "Dark",
+                    selected = themeMode == ThemeMode.DARK,
+                    icon = { AppIcon(AppIcons.themeDark, contentDescription = null) },
+                    onClick = { viewModel.setTheme(ThemeMode.DARK) }
+                )
+                ThemeOptionRow(
+                    text = "Light",
+                    selected = themeMode == ThemeMode.LIGHT,
+                    icon = { AppIcon(AppIcons.themeLight, contentDescription = null) },
+                    onClick = { viewModel.setTheme(ThemeMode.LIGHT) }
+                )
+            }
             Spacer(modifier = Modifier.weight(1f))
             SecondaryButton(
                 text = "Log Out",
@@ -108,6 +123,21 @@ fun SettingsRoute(
                     AppIcon(AppIcons.logout, contentDescription = null)
                 },
                 onClick = viewModel::signOut
+            )
+        }
+    }
+}
+
+@Composable
+private fun SettingsPlaceholder() {
+    Column(verticalArrangement = Arrangement.spacedBy(AppChrome.sectionSpacing)) {
+        ShimmerTextLine(width = 116.dp, height = 22.dp)
+        repeat(3) {
+            ShimmerBox(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(58.dp),
+                shape = RoundedCornerShape(24.dp)
             )
         }
     }

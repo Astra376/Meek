@@ -58,8 +58,12 @@ import com.example.aichat.core.design.SecondaryButton
 import com.example.aichat.core.model.CharacterSummary
 import com.example.aichat.core.model.ConversationSummary
 import com.example.aichat.core.ui.AppChrome
+import com.example.aichat.core.ui.CharacterSummaryCardPlaceholder
 import com.example.aichat.core.ui.CharacterSummaryCard
+import com.example.aichat.core.ui.CircleAvatarPlaceholder
 import com.example.aichat.core.ui.ScreenBackgroundBox
+import com.example.aichat.core.ui.ShimmerBox
+import com.example.aichat.core.ui.ShimmerTextLine
 import com.example.aichat.core.ui.screenContentPadding
 import com.example.aichat.core.util.formatRelativeTimeWords
 import com.example.aichat.feature.chatlist.ConversationRepository
@@ -205,6 +209,11 @@ fun NewHomeRoute(
                         item {
                             CreateStoryNode(onClick = onOpenStudio)
                         }
+                        if (state.isFeedLoading && state.recentChats.isEmpty()) {
+                            items(3) {
+                                StoryNodePlaceholder()
+                            }
+                        }
                         items(state.recentChats, key = { it.id }) { chat ->
                             StoryNode(
                                 chat = chat,
@@ -213,7 +222,7 @@ fun NewHomeRoute(
                         }
                     }
 
-                    if (state.topPicks.isNotEmpty()) {
+                    if (state.topPicks.isNotEmpty() || state.isFeedLoading) {
                         Spacer(modifier = Modifier.height(24.dp))
                         SectionHeader(
                             title = "Top Picks",
@@ -225,6 +234,11 @@ fun NewHomeRoute(
                             horizontalArrangement = Arrangement.spacedBy(16.dp),
                             contentPadding = PaddingValues(horizontal = AppChrome.screenHorizontalPadding)
                         ) {
+                            if (state.isFeedLoading && state.topPicks.isEmpty()) {
+                                items(3) {
+                                    TopPickCardPlaceholder()
+                                }
+                            }
                             items(state.topPicks, key = { it.id }) { character ->
                                 TopPickCard(
                                     character = character,
@@ -279,6 +293,20 @@ fun NewHomeRoute(
                         color = MaterialTheme.colorScheme.error,
                         modifier = Modifier.padding(horizontal = AppChrome.screenHorizontalPadding)
                     )
+                }
+            }
+
+            if (state.isFeedLoading && state.recommendedFeed.isEmpty()) {
+                items(4) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = AppChrome.screenHorizontalPadding),
+                        horizontalArrangement = Arrangement.spacedBy(AppChrome.gridSpacing)
+                    ) {
+                        CharacterSummaryCardPlaceholder(modifier = Modifier.weight(1f))
+                        CharacterSummaryCardPlaceholder(modifier = Modifier.weight(1f))
+                    }
                 }
             }
 
@@ -442,6 +470,18 @@ fun StoryNode(chat: ConversationSummary, onClick: () -> Unit) {
 }
 
 @Composable
+fun StoryNodePlaceholder() {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.width(80.dp)
+    ) {
+        CircleAvatarPlaceholder(size = 76.dp)
+        Spacer(modifier = Modifier.height(8.dp))
+        ShimmerTextLine(width = 54.dp, height = 12.dp)
+    }
+}
+
+@Composable
 fun TopPickCard(character: CharacterSummary, onClick: () -> Unit) {
     val interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
     Column(
@@ -487,6 +527,29 @@ fun TopPickCard(character: CharacterSummary, onClick: () -> Unit) {
                     overflow = TextOverflow.Ellipsis
                 )
             }
+    }
+}
+
+@Composable
+fun TopPickCardPlaceholder() {
+    Column(modifier = Modifier.width(230.dp)) {
+        ShimmerBox(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(132.dp),
+            shape = RoundedCornerShape(12.dp)
+        )
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 0.dp, top = 8.dp, end = 12.dp, bottom = 12.dp)
+        ) {
+            ShimmerTextLine(width = 142.dp, height = 24.dp)
+            Spacer(modifier = Modifier.height(10.dp))
+            ShimmerTextLine(width = 190.dp, height = 15.dp)
+            Spacer(modifier = Modifier.height(7.dp))
+            ShimmerTextLine(width = 132.dp, height = 15.dp)
+        }
     }
 }
 

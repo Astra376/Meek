@@ -37,6 +37,12 @@ async function ensureConversationStreamingSchemaImpl(env: Env): Promise<void> {
   if (!existing.has("active_run_expires_at")) {
     statements.push(env.DB.prepare("ALTER TABLE conversations ADD COLUMN active_run_expires_at INTEGER"));
   }
+  if (!existing.has("unread_count")) {
+    statements.push(env.DB.prepare("ALTER TABLE conversations ADD COLUMN unread_count INTEGER NOT NULL DEFAULT 0"));
+  }
+  if (!existing.has("has_unread_badge")) {
+    statements.push(env.DB.prepare("ALTER TABLE conversations ADD COLUMN has_unread_badge INTEGER NOT NULL DEFAULT 0"));
+  }
 
   for (const statement of statements) {
     try {

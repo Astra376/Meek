@@ -1,6 +1,7 @@
 package com.example.aichat.feature.chat
 
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -51,7 +52,9 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.testTag
@@ -77,7 +80,11 @@ import com.example.aichat.core.model.MessageRole
 import com.example.aichat.core.model.MessageSendState
 import com.example.aichat.core.ui.AppBackButton
 import com.example.aichat.core.ui.AppChrome
+import com.example.aichat.core.ui.CircleAvatarPlaceholder
+import com.example.aichat.core.ui.ShimmerTextLine
 import com.example.aichat.core.ui.clearFocusOnTap
+import com.example.aichat.core.ui.shimmerPlaceholder
+import coil.compose.AsyncImage
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.Job
@@ -108,6 +115,7 @@ class ChatViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val chatRepository: ChatRepository,
     private val conversationRepository: com.example.aichat.feature.chatlist.ConversationRepository,
+    private val chatBackgroundRepository: ChatBackgroundRepository,
     private val authRepository: AuthRepository
 ) : ViewModel() {
     private val conversationId: String = checkNotNull(savedStateHandle["conversationId"])
@@ -120,6 +128,8 @@ class ChatViewModel @Inject constructor(
         viewModelScope.launch {
             chatRepository.refreshConversation(conversationId)
                 .onFailure { _events.emit(it.message ?: "Couldn't load conversation.") }
+            chatBackgroundRepository.ensureInitialBackground(conversationId)
+                .onFailure { _events.emit(it.message ?: "Couldn't generate background scene.") }
             conversationRepository.markConversationRead(conversationId)
         }
     }
@@ -160,6 +170,10 @@ class ChatViewModel @Inject constructor(
                     }
                     _events.emit(error.message ?: "Message send failed.")
                 }
+                .onSuccess {
+                    chatBackgroundRepository.refreshIfSceneChanged(conversationId)
+                        .onFailure { _events.emit(it.message ?: "Background scene update failed.") }
+                }
         }
     }
 
@@ -181,6 +195,10 @@ class ChatViewModel @Inject constructor(
         launchStreamingAction {
             chatRepository.regenerateLatestAssistant(messageId)
                 .onFailure { _events.emit(it.message ?: "Regeneration failed.") }
+                .onSuccess {
+                    chatBackgroundRepository.refreshIfSceneChanged(conversationId)
+                        .onFailure { _events.emit(it.message ?: "Background scene update failed.") }
+                }
         }
     }
 
@@ -427,65 +445,119 @@ internal fun ChatScreenContent(
 
     Scaffold(
         modifier = Modifier.clearFocusOnTap(),
-        containerColor = MaterialTheme.colorScheme.background,
+        containerColor = Color.Transparent,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             ChatHeader(
                 characterName = state.conversation?.character?.name ?: "Chat",
                 avatarUrl = state.conversation?.character?.avatarUrl,
+                isLoading = state.conversation == null,
                 onBack = onBack
             )
         },
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
     ) { innerPadding ->
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
                 .clearFocusOnTap()
                 .padding(top = paddingValues.calculateTopPadding())
         ) {
-            ChatTranscriptPane(
-                modifier = Modifier.weight(1f),
-                state = listState,
-                messages = messages,
-                activeStream = activeStream,
-                streamDisplayText = streamDisplayText,
-                isStreaming = state.isStreaming,
-                showSendDraft = showSendDraft,
-                showPausedIndicator = activeStream?.status == ActiveStreamStatus.PAUSED,
-                characterName = state.conversation?.character?.name ?: "Character",
-                characterAvatarUrl = state.conversation?.character?.avatarUrl,
-                currentUserName = state.currentUserName,
-                currentUserAvatarUrl = state.currentUserAvatarUrl,
-                showJumpToLatest = showJumpToLatest,
-                contentPadding = PaddingValues(
-                    start = AppChrome.screenHorizontalPadding,
-                    top = innerPadding.calculateTopPadding() + AppChrome.compactHeaderVerticalPadding,
-                    end = AppChrome.screenHorizontalPadding,
-                    bottom = AppChrome.gridSpacing +
-                        if (activeStream?.status == ActiveStreamStatus.PAUSED) 44.dp else 0.dp
-                ),
-                onJumpToLatest = {
-                    followLatest = true
-                    coroutineScope.launch {
-                        scrollToLatest(animated = true)
-                    }
-                },
-                onMessageTap = { focusManager.clearFocus(force = true) },
-                onMessageLongPress = onMessageLongPress,
-                onSelectPreviousVariant = onSelectPreviousVariant,
-                onSelectNextVariant = onSelectNextVariant
-            )
+            ChatSceneBackground(imageUrl = state.conversation?.backgroundSceneUrl)
+            Column(modifier = Modifier.fillMaxSize()) {
+                if (state.conversation == null) {
+                    ChatTranscriptPlaceholder(
+                        modifier = Modifier.weight(1f),
+                        contentPadding = PaddingValues(
+                            start = AppChrome.screenHorizontalPadding,
+                            top = innerPadding.calculateTopPadding() + AppChrome.compactHeaderVerticalPadding,
+                            end = AppChrome.screenHorizontalPadding,
+                            bottom = AppChrome.gridSpacing
+                        )
+                    )
+                } else {
+                    ChatTranscriptPane(
+                        modifier = Modifier.weight(1f),
+                        state = listState,
+                        messages = messages,
+                        activeStream = activeStream,
+                        streamDisplayText = streamDisplayText,
+                        isStreaming = state.isStreaming,
+                        showSendDraft = showSendDraft,
+                        showPausedIndicator = activeStream?.status == ActiveStreamStatus.PAUSED,
+                        characterName = state.conversation.character.name,
+                        characterAvatarUrl = state.conversation.character.avatarUrl,
+                        currentUserName = state.currentUserName,
+                        currentUserAvatarUrl = state.currentUserAvatarUrl,
+                        showJumpToLatest = showJumpToLatest,
+                        contentPadding = PaddingValues(
+                            start = AppChrome.screenHorizontalPadding,
+                            top = innerPadding.calculateTopPadding() + AppChrome.compactHeaderVerticalPadding,
+                            end = AppChrome.screenHorizontalPadding,
+                            bottom = AppChrome.gridSpacing +
+                                if (activeStream?.status == ActiveStreamStatus.PAUSED) 44.dp else 0.dp
+                        ),
+                        onJumpToLatest = {
+                            followLatest = true
+                            coroutineScope.launch {
+                                scrollToLatest(animated = true)
+                            }
+                        },
+                        onMessageTap = { focusManager.clearFocus(force = true) },
+                        onMessageLongPress = onMessageLongPress,
+                        onSelectPreviousVariant = onSelectPreviousVariant,
+                        onSelectNextVariant = onSelectNextVariant
+                    )
+                }
 
-            ChatComposerBar(
-                composerText = state.composerText,
-                isStreaming = state.isStreaming,
-                onComposerChanged = onComposerChanged,
-                onSend = {
-                    followLatest = true
-                    onSend()
-                },
-                onPause = onPause
+                ChatComposerBar(
+                    composerText = state.composerText,
+                    isStreaming = state.isStreaming,
+                    onComposerChanged = onComposerChanged,
+                    onSend = {
+                        followLatest = true
+                        onSend()
+                    },
+                    onPause = onPause
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ChatSceneBackground(imageUrl: String?) {
+    val fallback = MaterialTheme.colorScheme.background
+    Crossfade(targetState = imageUrl, label = "chat-scene-background") { url ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(fallback)
+        ) {
+            if (url?.startsWith("http") == true) {
+                AsyncImage(
+                    model = url,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.background.copy(alpha = 0.58f))
+            )
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(
+                                MaterialTheme.colorScheme.background.copy(alpha = 0.22f),
+                                MaterialTheme.colorScheme.background.copy(alpha = 0.78f)
+                            )
+                        )
+                    )
             )
         }
     }
@@ -658,6 +730,7 @@ private fun ChatComposerBar(
 private fun ChatHeader(
     characterName: String,
     avatarUrl: String?,
+    isLoading: Boolean,
     onBack: () -> Unit
 ) {
     val background = MaterialTheme.colorScheme.background
@@ -684,17 +757,22 @@ private fun ChatHeader(
                     horizontalArrangement = Arrangement.spacedBy(AppChrome.gridSpacing),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    CharacterPortrait(
-                        name = characterName,
-                        avatarUrl = avatarUrl,
-                        modifier = Modifier
-                            .size(40.dp)
-                            .aspectRatio(1f)
-                    )
-                    Text(
-                        text = characterName,
-                        style = MaterialTheme.typography.titleLarge
-                    )
+                    if (isLoading) {
+                        CircleAvatarPlaceholder(size = 40.dp)
+                        ShimmerTextLine(width = 128.dp, height = 22.dp)
+                    } else {
+                        CharacterPortrait(
+                            name = characterName,
+                            avatarUrl = avatarUrl,
+                            modifier = Modifier
+                                .size(40.dp)
+                                .aspectRatio(1f)
+                        )
+                        Text(
+                            text = characterName,
+                            style = MaterialTheme.typography.titleLarge
+                        )
+                    }
                 }
             }
             Box(
@@ -707,6 +785,49 @@ private fun ChatHeader(
                         )
                     )
             )
+        }
+    }
+}
+
+@Composable
+private fun ChatTranscriptPlaceholder(
+    modifier: Modifier = Modifier,
+    contentPadding: PaddingValues
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(contentPadding),
+        verticalArrangement = Arrangement.spacedBy(AppChrome.compactControlGap)
+    ) {
+        repeat(5) { index ->
+            val isUser = index % 2 == 1
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start,
+                verticalAlignment = Alignment.Bottom
+            ) {
+                if (!isUser) {
+                    CircleAvatarPlaceholder(size = 30.dp)
+                    Spacer(modifier = Modifier.size(8.dp))
+                }
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth(0.82f)
+                        .shimmerPlaceholder(RoundedCornerShape(24.dp))
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    ShimmerTextLine(width = if (isUser) 132.dp else 164.dp, height = 16.dp)
+                    if (!isUser) {
+                        ShimmerTextLine(width = 116.dp, height = 16.dp)
+                    }
+                }
+                if (isUser) {
+                    Spacer(modifier = Modifier.size(8.dp))
+                    CircleAvatarPlaceholder(size = 30.dp)
+                }
+            }
         }
     }
 }

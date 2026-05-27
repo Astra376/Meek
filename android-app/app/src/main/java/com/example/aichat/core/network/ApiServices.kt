@@ -97,5 +97,7 @@ interface ChatApi {
 interface ImageApi {
     @POST("v1/images/generate-character-portrait")
     suspend fun generatePortrait(@Body body: GeneratePortraitRequestDto): GeneratePortraitResponseDto
-}
 
+    @POST("v1/images/generate-chat-background")
+    suspend fun generateChatBackground(@Body body: GenerateChatBackgroundRequestDto): GenerateChatBackgroundResponseDto
+}

@@ -8,15 +8,17 @@ import androidx.room.RoomDatabase
         ProfileEntity::class,
         CharacterEntity::class,
         ConversationEntity::class,
+        ConversationSceneEntity::class,
         MessageEntity::class,
         AssistantRegenerationEntity::class
     ],
-    version = 8,
+    version = 9,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun profileDao(): ProfileDao
     abstract fun characterDao(): CharacterDao
+    abstract fun conversationSceneDao(): ConversationSceneDao
     abstract fun conversationDao(): ConversationDao
     abstract fun messageDao(): MessageDao
     abstract fun assistantRegenerationDao(): AssistantRegenerationDao

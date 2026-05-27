@@ -38,6 +38,7 @@ import com.example.aichat.core.ui.AppBackButton
 import com.example.aichat.core.ui.AppChrome
 import com.example.aichat.core.design.SecondaryButton
 import com.example.aichat.core.model.CharacterSummary
+import com.example.aichat.core.ui.CharacterSummaryCardPlaceholder
 import com.example.aichat.core.ui.CharacterSummaryCard
 import com.example.aichat.core.ui.ScreenBackgroundBox
 import com.example.aichat.core.ui.screenContentPadding
@@ -186,6 +187,11 @@ fun SearchRoute(
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                }
+            }
+            if (state.query.isNotBlank() && state.isLoading && state.results.isEmpty()) {
+                items(8) {
+                    CharacterSummaryCardPlaceholder(modifier = Modifier.fillMaxWidth())
                 }
             }
             items(state.results, key = { it.id }) { character ->

@@ -1,4 +1,4 @@
-import { generateCharacterPortrait } from "../services/images";
+import { generateCharacterPortrait, generateChatBackground } from "../services/images";
 import { json } from "../lib/response";
 import { parseJson, requireString } from "../lib/validation";
 import type { RouteDefinition } from "./types";
@@ -12,6 +12,14 @@ export const imageRoutes: RouteDefinition[] = [
       const body = await parseJson<{ prompt?: string }>(context.request);
       return json(await generateCharacterPortrait(context, requireString(body.prompt, "prompt", 1_000)));
     }
+  },
+  {
+    method: "POST",
+    path: "/v1/images/generate-chat-background",
+    auth: true,
+    handler: async (context) => {
+      const body = await parseJson<{ prompt?: string }>(context.request);
+      return json(await generateChatBackground(context, requireString(body.prompt, "prompt", 2_000)));
+    }
   }
 ];
-

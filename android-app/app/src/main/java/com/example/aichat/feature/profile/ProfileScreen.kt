@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -46,7 +47,10 @@ import com.example.aichat.core.design.IconPillButton
 import com.example.aichat.core.design.SelectionButton
 import com.example.aichat.core.model.CharacterSummary
 import com.example.aichat.core.ui.AppChrome
+import com.example.aichat.core.ui.CharacterSummaryCardPlaceholder
 import com.example.aichat.core.ui.CharacterSummaryCard
+import com.example.aichat.core.ui.ShimmerBox
+import com.example.aichat.core.ui.ShimmerTextLine
 import com.example.aichat.core.ui.ScreenBackgroundBox
 import com.example.aichat.core.ui.MainPageHeader
 import com.example.aichat.core.ui.screenContentPadding
@@ -54,6 +58,7 @@ import com.example.aichat.feature.character.CharacterRepository
 import com.example.aichat.feature.chatlist.ConversationRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -75,7 +80,8 @@ data class ProfileUiState(
     val owned: List<CharacterSummary> = emptyList(),
     val liked: List<CharacterSummary> = emptyList(),
     val recent: List<CharacterSummary> = emptyList(),
-    val interacted: List<CharacterSummary> = emptyList()
+    val interacted: List<CharacterSummary> = emptyList(),
+    val isLoading: Boolean = true
 )
 
 @HiltViewModel
@@ -86,13 +92,15 @@ class ProfileViewModel @Inject constructor(
     private val conversationRepository: ConversationRepository
 ) : ViewModel() {
     private val userId = authRepository.sessionState.value.profile?.userId.orEmpty()
+    private val isLoading = MutableStateFlow(true)
 
     val uiState: StateFlow<ProfileUiState> = combine(
         profileRepository.profile,
         characterRepository.observeOwnedCharacters(userId),
         characterRepository.observeLikedCharacters(),
-        conversationRepository.observeConversations(userId)
-    ) { profile, owned, liked, conversations ->
+        conversationRepository.observeConversations(userId),
+        isLoading
+    ) { profile, owned, liked, conversations, loading ->
         // For Recent and Interacted, we need to map conversations back to CharacterSummary.
         // We'll use the ones we already have in owned/liked or fetch missing ones if possible.
         // For simplicity in this UI refactor, we'll build the list from available data.
@@ -128,7 +136,8 @@ class ProfileViewModel @Inject constructor(
             owned = owned,
             liked = liked,
             recent = recentChars,
-            interacted = recentChars // Temporary proxy until message count is implemented
+            interacted = recentChars, // Temporary proxy until message count is implemented
+            isLoading = loading
         )
     }.stateIn(
         scope = viewModelScope,
@@ -140,6 +149,7 @@ class ProfileViewModel @Inject constructor(
         viewModelScope.launch {
             characterRepository.refreshOwnedCharacters()
             characterRepository.refreshLikedCharacters()
+            isLoading.value = false
         }
     }
 
@@ -174,6 +184,9 @@ fun ProfileRoute(
         ) {
 
             item(span = { GridItemSpan(maxLineSpan) }) {
+                if (state.isLoading) {
+                    ProfileHeaderPlaceholder()
+                } else {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(16.dp),
@@ -213,6 +226,7 @@ fun ProfileRoute(
                             }
                         }
                     }
+                }
                 }
             }
             state.bio?.takeIf { it.isNotBlank() }?.let { bio ->
@@ -294,7 +308,11 @@ fun ProfileRoute(
                 ProfileSection.RECENT -> state.recent
                 ProfileSection.INTERACTED -> state.interacted
             }
-            if (characters.isEmpty()) {
+            if (state.isLoading && characters.isEmpty()) {
+                items(6) {
+                    CharacterSummaryCardPlaceholder(modifier = Modifier.fillMaxWidth())
+                }
+            } else if (characters.isEmpty()) {
                 item(span = { GridItemSpan(maxLineSpan) }) {
                     Text(
                         text = when (section) {
@@ -317,6 +335,34 @@ fun ProfileRoute(
                         viewModel.ensureConversation(character.id)
                             .onSuccess(onOpenConversation)
                             .onFailure { snackbarHostState.showSnackbar(it.message ?: "Couldn't open chat.") }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProfileHeaderPlaceholder() {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+    ) {
+        ShimmerBox(modifier = Modifier.size(104.dp), shape = CircleShape)
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(AppChrome.gridSpacing)
+        ) {
+            ShimmerTextLine(width = 140.dp, height = 24.dp)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                repeat(3) {
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        ShimmerTextLine(width = 24.dp, height = 18.dp)
+                        ShimmerTextLine(width = 58.dp, height = 12.dp)
                     }
                 }
             }

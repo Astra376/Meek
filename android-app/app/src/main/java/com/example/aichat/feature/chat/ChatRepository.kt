@@ -8,6 +8,7 @@ import com.example.aichat.core.db.CharacterDao
 import com.example.aichat.core.db.CharacterEntity
 import com.example.aichat.core.db.ConversationDao
 import com.example.aichat.core.db.ConversationEntity
+import com.example.aichat.core.db.ConversationSceneDao
 import com.example.aichat.core.db.MessageDao
 import com.example.aichat.core.db.MessageEntity
 import com.example.aichat.core.db.toModel
@@ -67,6 +68,7 @@ class ChatRepository @Inject constructor(
     private val database: AppDatabase,
     private val conversationDao: ConversationDao,
     private val characterDao: CharacterDao,
+    private val conversationSceneDao: ConversationSceneDao,
     private val messageDao: MessageDao,
     private val regenerationDao: AssistantRegenerationDao,
     private val chatApi: ChatApi,
@@ -80,8 +82,9 @@ class ChatRepository @Inject constructor(
         return combine(
             conversationDao.observeById(conversationId),
             messageDao.observeMessages(conversationId),
-            regenerationDao.observeConversationRegenerations(conversationId)
-        ) { conversation, messages, regenerations ->
+            regenerationDao.observeConversationRegenerations(conversationId),
+            conversationSceneDao.observeByConversation(conversationId)
+        ) { conversation, messages, regenerations, scene ->
             if (conversation == null) return@combine null
             val character = characterDao.getById(conversation.characterId) ?: return@combine null
             val groupedRegenerations = regenerations.groupBy { it.messageId }
@@ -92,7 +95,9 @@ class ChatRepository @Inject constructor(
                 character = character.toModel(),
                 messages = messages.map { message ->
                     message.toModel(groupedRegenerations[message.id].orEmpty())
-                }
+                },
+                backgroundSceneUrl = scene?.imageUrl ?: character.initialSceneUrl,
+                backgroundSceneKey = scene?.sceneKey ?: character.initialSceneKey
             )
         }
     }
@@ -608,6 +613,8 @@ class ChatRepository @Inject constructor(
         systemPrompt = systemPrompt,
         visibility = visibility.uppercase(),
         avatarUrl = avatarUrl,
+        initialSceneUrl = initialSceneUrl,
+        initialSceneKey = initialSceneKey,
         publicChatCount = publicChatCount,
         likeCount = likeCount,
         likedByMe = likedByMe,

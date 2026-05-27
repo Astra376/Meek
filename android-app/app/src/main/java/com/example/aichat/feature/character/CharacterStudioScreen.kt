@@ -34,6 +34,7 @@ import com.example.aichat.core.design.SelectionButton
 import com.example.aichat.core.ui.AppChrome
 import com.example.aichat.core.ui.ScreenBackgroundBox
 import com.example.aichat.core.ui.MainPageHeader
+import com.example.aichat.core.ui.ShimmerBox
 import com.example.aichat.core.ui.screenContentPadding
 import com.example.aichat.core.model.CharacterDraft
 import com.example.aichat.core.model.CharacterVisibility
@@ -88,12 +89,14 @@ class CharacterStudioViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isSaving = true)
             characterRepository.saveCharacter(_uiState.value.draft)
-                .onSuccess {
+                .onSuccess { characterId ->
                     _uiState.value = _uiState.value.copy(
                         isSaving = false,
                         draft = CharacterDraft()
                     )
                     _events.emit("Character saved.")
+                    characterRepository.generateInitialScene(characterId)
+                        .onFailure { _events.emit(it.message ?: "Initial background generation failed.") }
                 }
                 .onFailure {
                     _uiState.value = _uiState.value.copy(isSaving = false)
@@ -131,13 +134,22 @@ fun CharacterStudioRoute(
 
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(AppChrome.gridSpacing)) {
-                    CharacterPortrait(
-                        name = state.draft.name.ifBlank { "New Character" },
-                        avatarUrl = state.draft.avatarUrl,
-                        modifier = Modifier
-                            .size(184.dp)
-                            .align(Alignment.CenterHorizontally)
-                    )
+                    if (state.isGeneratingPortrait) {
+                        ShimmerBox(
+                            modifier = Modifier
+                                .size(184.dp)
+                                .align(Alignment.CenterHorizontally),
+                            shape = RoundedCornerShape(12.dp)
+                        )
+                    } else {
+                        CharacterPortrait(
+                            name = state.draft.name.ifBlank { "New Character" },
+                            avatarUrl = state.draft.avatarUrl,
+                            modifier = Modifier
+                                .size(184.dp)
+                                .align(Alignment.CenterHorizontally)
+                        )
+                    }
                     Row(horizontalArrangement = Arrangement.spacedBy(AppChrome.compactControlGap)) {
                         PrimaryButton(
                             text = if (state.isGeneratingPortrait) "Generating..." else "Generate",

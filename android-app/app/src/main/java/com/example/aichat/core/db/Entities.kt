@@ -30,6 +30,8 @@ data class CharacterEntity(
     val systemPrompt: String,
     val visibility: String,
     val avatarUrl: String?,
+    val initialSceneUrl: String?,
+    val initialSceneKey: String?,
     val publicChatCount: Int,
     val likeCount: Int,
     val likedByMe: Boolean,
@@ -53,6 +55,26 @@ data class ConversationEntity(
     val previewText: String,
     val unreadCount: Int,
     val hasUnreadBadge: Boolean
+)
+
+@Entity(
+    tableName = "conversation_scenes",
+    foreignKeys = [
+        ForeignKey(
+            entity = ConversationEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["conversationId"],
+            onDelete = ForeignKey.CASCADE
+        )
+    ],
+    indices = [Index("conversationId")]
+)
+data class ConversationSceneEntity(
+    @PrimaryKey val conversationId: String,
+    val sceneKey: String,
+    val imageUrl: String,
+    val prompt: String,
+    val updatedAt: Long
 )
 
 @Entity(

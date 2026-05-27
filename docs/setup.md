@@ -95,6 +95,8 @@ Fill in these fields:
   Put the OpenRouter model slug you want to use
 - `FAL_MODEL`
   Put the fal model slug you want to use
+- `FAL_BACKGROUND_MODEL`
+  Optional. Put a landscape/background-friendly fal model slug here, or omit it to reuse `FAL_MODEL`
 - `R2_PUBLIC_BASE_URL`
   Put the public base URL for your bucket or asset domain
 
@@ -110,6 +112,7 @@ Commands:
 ```bash
 wrangler d1 execute character-chat --remote --file=src/db/migrations/0001_initial.sql
 wrangler d1 execute character-chat --remote --file=src/db/migrations/0002_conversation_streaming.sql
+wrangler d1 execute character-chat --remote --file=src/db/migrations/0003_offline_messaging.sql
 ```
 
 ### 4.4 Create Worker secrets

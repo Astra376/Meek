@@ -3,7 +3,9 @@ import {
   getCharacter,
   getMyCharacters,
   getMyLikedCharacters,
+  generateCharacterGreeting,
   likePublicCharacter,
+  parseCharacterVisibility,
   unlikePublicCharacter,
   updateOwnedCharacter
 } from "../services/characters";
@@ -23,10 +25,22 @@ export const characterRoutes: RouteDefinition[] = [
         tagline: requireString(body.tagline, "tagline", 140),
         description: requireString(body.description, "description", 1_200),
         systemPrompt: requireString(body.systemPrompt, "systemPrompt", 4_000),
-        visibility: requireString(body.visibility, "visibility", 20) === "private" ? "private" : "public",
+        visibility: parseCharacterVisibility(requireString(body.visibility, "visibility", 20)),
         avatarUrl: typeof body.avatarUrl === "string" ? body.avatarUrl : null
       });
       return json(created, { status: 201 });
+    }
+  },
+  {
+    method: "POST",
+    path: "/v1/characters/generate-greeting",
+    auth: true,
+    handler: async (context) => {
+      const body = await parseJson<Record<string, unknown>>(context.request);
+      return json(await generateCharacterGreeting(context, {
+        name: requireString(body.name, "name", 80),
+        description: requireString(body.description, "description", 1_200)
+      }));
     }
   },
   {
@@ -66,7 +80,7 @@ export const characterRoutes: RouteDefinition[] = [
         tagline: requireString(body.tagline, "tagline", 140),
         description: requireString(body.description, "description", 1_200),
         systemPrompt: requireString(body.systemPrompt, "systemPrompt", 4_000),
-        visibility: requireString(body.visibility, "visibility", 20) === "private" ? "private" : "public",
+        visibility: parseCharacterVisibility(requireString(body.visibility, "visibility", 20)),
         avatarUrl: typeof body.avatarUrl === "string" ? body.avatarUrl : null
       });
       return json(updated);

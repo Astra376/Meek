@@ -10,6 +10,7 @@ import {
 } from "../../db/queries/characters";
 import { AppError, assert, forbidden } from "../../lib/errors";
 import { createId } from "../../lib/ids";
+import { streamChatText } from "../../providers/openrouter";
 import { toCharacterDto } from "./characterDto";
 
 export interface CharacterWriteInput {
@@ -17,8 +18,13 @@ export interface CharacterWriteInput {
   tagline: string;
   description: string;
   systemPrompt: string;
-  visibility: "public" | "private";
+  visibility: "public" | "unlisted" | "private";
   avatarUrl: string | null;
+}
+
+export function parseCharacterVisibility(value: string): CharacterWriteInput["visibility"] {
+  if (value === "private" || value === "unlisted") return value;
+  return "public";
 }
 
 export async function createOwnedCharacter(context: RequestContext, input: CharacterWriteInput) {
@@ -94,6 +100,31 @@ export async function likePublicCharacter(context: RequestContext, characterId: 
   if (!record.liked_by_me) {
     await likeCharacter(context.env, context.user!.userId, characterId, Date.now());
   }
+}
+
+export async function generateCharacterGreeting(context: RequestContext, input: { name: string; description: string }) {
+  const messages = [
+    {
+      role: "system" as const,
+      content: [
+        "Write an in-character opening greeting for a roleplay AI character.",
+        "Return only the greeting text.",
+        "Use exactly two sentences.",
+        "Do not include quotation marks around the full response."
+      ].join(" ")
+    },
+    {
+      role: "user" as const,
+      content: `Character name: ${input.name}\nCharacter description: ${input.description}`
+    }
+  ];
+
+  let greeting = "";
+  for await (const chunk of streamChatText(context.env, messages, context.request.signal)) {
+    greeting += chunk;
+  }
+
+  return { greeting: greeting.trim() };
 }
 
 export async function unlikePublicCharacter(context: RequestContext, characterId: string) {

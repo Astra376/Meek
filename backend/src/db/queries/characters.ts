@@ -9,7 +9,7 @@ export interface CharacterRecord {
   tagline: string;
   description: string;
   system_prompt: string;
-  visibility: "public" | "private";
+  visibility: "public" | "unlisted" | "private";
   avatar_url: string | null;
   public_chat_count: number;
   like_count: number;
@@ -26,7 +26,7 @@ export async function insertCharacter(env: Env, input: {
   tagline: string;
   description: string;
   systemPrompt: string;
-  visibility: "public" | "private";
+  visibility: "public" | "unlisted" | "private";
   avatarUrl: string | null;
   now: number;
 }): Promise<void> {
@@ -62,7 +62,7 @@ export async function updateCharacter(env: Env, input: {
   tagline: string;
   description: string;
   systemPrompt: string;
-  visibility: "public" | "private";
+  visibility: "public" | "unlisted" | "private";
   avatarUrl: string | null;
   now: number;
 }): Promise<void> {

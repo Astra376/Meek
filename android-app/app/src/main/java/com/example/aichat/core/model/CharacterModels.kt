@@ -2,6 +2,7 @@ package com.example.aichat.core.model
 
 enum class CharacterVisibility {
     PUBLIC,
+    UNLISTED,
     PRIVATE
 }
 

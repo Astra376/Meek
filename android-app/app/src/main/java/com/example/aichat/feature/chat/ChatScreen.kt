@@ -54,6 +54,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
@@ -770,7 +771,8 @@ private fun ChatHeader(
                         )
                         Text(
                             text = characterName,
-                            style = MaterialTheme.typography.titleLarge
+                            style = MaterialTheme.typography.titleLarge,
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                     }
                 }
@@ -978,7 +980,8 @@ private fun DraftBubble(
                     } else {
                         Text(
                             text = content,
-                            style = MaterialTheme.typography.bodyLarge
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                     }
                 }
@@ -991,7 +994,7 @@ private fun DraftBubble(
 private fun TypingDotsIndicator(modifier: Modifier = Modifier) {
     val transition = rememberInfiniteTransition()
     Row(
-        modifier = modifier,
+        modifier = modifier.height(18.dp),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -1012,7 +1015,11 @@ private fun TypingDotsIndicator(modifier: Modifier = Modifier) {
             )
             Box(
                 modifier = Modifier
-                    .size((8.dp * scale))
+                    .size(8.dp)
+                    .graphicsLayer {
+                        scaleX = scale
+                        scaleY = scale
+                    }
                     .background(
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
                         shape = RoundedCornerShape(999.dp)

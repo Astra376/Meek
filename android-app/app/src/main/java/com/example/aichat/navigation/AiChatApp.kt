@@ -130,6 +130,7 @@ private val bottomDestinations = listOf(
 
 private val subpageRoutes = setOf(
     "chat/{conversationId}",
+    "create-character",
     "edit-profile",
     "search",
     "settings",
@@ -146,6 +147,7 @@ fun AiChatApp(appViewModel: AppViewModel) {
         session.isLoading -> LoadingScreen()
         !session.isSignedIn -> SignInRoute()
         else -> MainShell(
+            ownerUserId = activeProfile?.userId.orEmpty(),
             profileName = activeProfile?.displayName.orEmpty(),
             profileAvatarUrl = activeProfile?.avatarUrl
         )
@@ -154,6 +156,7 @@ fun AiChatApp(appViewModel: AppViewModel) {
 
 @Composable
 private fun MainShell(
+    ownerUserId: String,
     profileName: String,
     profileAvatarUrl: String?
 ) {
@@ -187,6 +190,45 @@ private fun MainShell(
     ) {
         composable("main_tabs") {
             MainTabs(profileName, profileAvatarUrl, rootNavController)
+        }
+
+        composable(
+            route = "create-character",
+            enterTransition = {
+                slideInHorizontally(
+                    initialOffsetX = { it },
+                    animationSpec = tween(durationMillis = 220)
+                )
+            },
+            exitTransition = {
+                slideOutHorizontally(
+                    targetOffsetX = { -it },
+                    animationSpec = tween(durationMillis = 220)
+                )
+            },
+            popEnterTransition = {
+                slideInHorizontally(
+                    initialOffsetX = { -it },
+                    animationSpec = tween(durationMillis = 220)
+                )
+            },
+            popExitTransition = {
+                slideOutHorizontally(
+                    targetOffsetX = { it },
+                    animationSpec = tween(durationMillis = 220)
+                )
+            }
+        ) {
+            CharacterStudioRoute(
+                paddingValues = androidx.compose.foundation.layout.PaddingValues(),
+                ownerUserId = ownerUserId,
+                onBack = { rootNavController.popBackStack() },
+                onCreated = { id ->
+                    rootNavController.navigate("chat/$id") {
+                        popUpTo("main_tabs")
+                    }
+                }
+            )
         }
         
         composable(
@@ -442,12 +484,16 @@ private fun MainTabs(
                                 val nextIndex = if (swipeDistance < 0) currentIndex + 1 else currentIndex - 1
                                 if (nextIndex in bottomDestinations.indices) {
                                     val nextRoute = bottomDestinations[nextIndex].route
-                                    bottomNavController.navigate(nextRoute) {
-                                        popUpTo(bottomNavController.graph.findStartDestination().id) {
-                                            saveState = true
+                                    if (nextRoute == MainDestination.Studio.route) {
+                                        rootNavController.navigate("create-character")
+                                    } else {
+                                        bottomNavController.navigate(nextRoute) {
+                                            popUpTo(bottomNavController.graph.findStartDestination().id) {
+                                                saveState = true
+                                            }
+                                            launchSingleTop = true
+                                            restoreState = true
                                         }
-                                        launchSingleTop = true
-                                        restoreState = true
                                     }
                                 }
                             }
@@ -465,6 +511,10 @@ private fun MainTabs(
                 profileName = profileName,
                 profileAvatarUrl = profileAvatarUrl,
                 onNavigate = { route ->
+                    if (route == MainDestination.Studio.route) {
+                        rootNavController.navigate("create-character")
+                        return@BottomIconBar
+                    }
                     bottomNavController.navigate(route) {
                         popUpTo(bottomNavController.graph.findStartDestination().id) {
                             saveState = true
@@ -488,15 +538,7 @@ private fun MainTabs(
                 NewHomeRoute(
                     paddingValues = routePaddingValues,
                     onOpenConversation = { id -> rootNavController.navigate("chat/$id") },
-                    onOpenStudio = { 
-                        bottomNavController.navigate(MainDestination.Studio.route) {
-                            popUpTo(bottomNavController.graph.findStartDestination().id) {
-                                saveState = true
-                            }
-                            launchSingleTop = true
-                            restoreState = true
-                        }
-                    },
+                    onOpenStudio = { rootNavController.navigate("create-character") },
                     onOpenChats = {
                         bottomNavController.navigate(MainDestination.Chats.route) {
                             popUpTo(bottomNavController.graph.findStartDestination().id) {
@@ -517,9 +559,7 @@ private fun MainTabs(
                 )
             }
             composable(MainDestination.Studio.route) {
-                CharacterStudioRoute(
-                    paddingValues = routePaddingValues
-                )
+                Box(modifier = Modifier.fillMaxSize())
             }
             composable(MainDestination.Chats.route) {
                 ChatListRoute(

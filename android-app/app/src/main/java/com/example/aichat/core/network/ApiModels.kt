@@ -146,6 +146,17 @@ data class GeneratePortraitResponseDto(
 )
 
 @Serializable
+data class GenerateGreetingRequestDto(
+    val name: String,
+    val description: String
+)
+
+@Serializable
+data class GenerateGreetingResponseDto(
+    val greeting: String
+)
+
+@Serializable
 data class GenerateChatBackgroundRequestDto(
     val prompt: String
 )

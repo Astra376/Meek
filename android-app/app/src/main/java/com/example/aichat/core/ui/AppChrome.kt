@@ -28,8 +28,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.composed
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.unit.dp
 import com.example.aichat.core.design.AppIcon
@@ -115,7 +113,6 @@ fun ScreenBackgroundBox(
     content: @Composable BoxScope.() -> Unit
 ) {
     val background = MaterialTheme.colorScheme.background
-    val topGlow = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.52f).compositeOver(background)
     Surface(
         modifier = modifier
             .fillMaxSize()
@@ -126,15 +123,7 @@ fun ScreenBackgroundBox(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(
-                        Brush.verticalGradient(
-                            colors = listOf(
-                                topGlow,
-                                background,
-                                background
-                            )
-                        )
-                    )
+                    .background(background)
             )
             snackbarHostState?.let {
                 SnackbarHost(hostState = it)
@@ -164,7 +153,8 @@ fun AppBackButton(
         AppIcon(
             icon = AppIcons.back,
             contentDescription = "Back",
-            size = AppChrome.headerActionIconSize
+            size = AppChrome.headerActionIconSize,
+            tint = MaterialTheme.colorScheme.onSurface
         )
     }
 }

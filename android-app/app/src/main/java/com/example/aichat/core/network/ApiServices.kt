@@ -31,6 +31,9 @@ interface CharacterApi {
     @POST("v1/characters")
     suspend fun createCharacter(@Body body: CharacterWriteRequestDto): CharacterDto
 
+    @POST("v1/characters/generate-greeting")
+    suspend fun generateGreeting(@Body body: GenerateGreetingRequestDto): GenerateGreetingResponseDto
+
     @PATCH("v1/characters/{characterId}")
     suspend fun updateCharacter(
         @Path("characterId") characterId: String,

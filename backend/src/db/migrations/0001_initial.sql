@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS characters (
   tagline TEXT NOT NULL,
   description TEXT NOT NULL,
   system_prompt TEXT NOT NULL,
-  visibility TEXT NOT NULL CHECK (visibility IN ('public', 'private')),
+  visibility TEXT NOT NULL CHECK (visibility IN ('public', 'unlisted', 'private')),
   avatar_url TEXT,
   public_chat_count INTEGER NOT NULL DEFAULT 0,
   like_count INTEGER NOT NULL DEFAULT 0,

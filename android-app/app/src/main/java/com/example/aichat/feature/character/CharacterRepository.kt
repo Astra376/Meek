@@ -8,6 +8,7 @@ import com.example.aichat.core.model.CharacterSummary
 import com.example.aichat.core.model.CharacterVisibility
 import com.example.aichat.core.network.CharacterApi
 import com.example.aichat.core.network.CharacterWriteRequestDto
+import com.example.aichat.core.network.GenerateGreetingRequestDto
 import com.example.aichat.core.network.GenerateChatBackgroundRequestDto
 import com.example.aichat.core.network.GeneratePortraitRequestDto
 import com.example.aichat.core.network.ImageApi
@@ -47,15 +48,23 @@ class CharacterRepository @Inject constructor(
 
     suspend fun saveCharacter(draft: CharacterDraft): Result<String> {
         if (draft.name.isBlank()) return Result.failure(IllegalArgumentException("Name is required."))
-        if (draft.tagline.isBlank()) return Result.failure(IllegalArgumentException("Tagline is required."))
-        if (draft.systemPrompt.isBlank()) return Result.failure(IllegalArgumentException("System prompt is required."))
+        if (draft.avatarUrl.isNullOrBlank()) return Result.failure(IllegalArgumentException("Choose an image first."))
 
         return runCatching {
+            val bio = draft.bio.trim().ifBlank { "Uploaded character image." }
+            val tagline = draft.tagline.ifBlank { bio.lineSequence().firstOrNull().orEmpty().take(140) }
+            val systemPrompt = draft.systemPrompt.ifBlank {
+                buildString {
+                    append("You are ${draft.name.trim()}, an AI character in a roleplay chat. ")
+                    append("Stay in character, respond naturally, and keep replies conversational.")
+                    append("\n\nAppearance and character notes: $bio")
+                }
+            }
             val payload = CharacterWriteRequestDto(
                 name = draft.name.trim(),
-                tagline = draft.tagline.trim(),
-                bio = draft.bio.trim(),
-                systemPrompt = draft.systemPrompt.trim(),
+                tagline = tagline.ifBlank { "Original character" },
+                bio = bio,
+                systemPrompt = systemPrompt,
                 visibility = draft.visibility.name.lowercase(),
                 avatarUrl = draft.avatarUrl
             )
@@ -98,6 +107,19 @@ class CharacterRepository @Inject constructor(
         if (seedSource.isBlank()) return Result.failure(IllegalArgumentException("Add a name or prompt first."))
         return runCatching {
             imageApi.generatePortrait(GeneratePortraitRequestDto(seedSource.trim())).avatarUrl
+        }
+    }
+
+    suspend fun generateGreeting(name: String, description: String): Result<String> {
+        if (name.isBlank()) return Result.failure(IllegalArgumentException("Name is required."))
+        if (description.isBlank()) return Result.failure(IllegalArgumentException("Description is required."))
+        return runCatching {
+            characterApi.generateGreeting(
+                GenerateGreetingRequestDto(
+                    name = name.trim(),
+                    description = description.trim()
+                )
+            ).greeting
         }
     }
 

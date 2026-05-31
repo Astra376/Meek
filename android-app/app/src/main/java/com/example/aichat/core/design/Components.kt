@@ -431,7 +431,7 @@ fun CharacterPortrait(
 ) {
     val palette = avatarPalette(avatarUrl ?: name)
     when {
-        avatarUrl?.startsWith("http") == true -> {
+        avatarUrl.isNullOrBlank().not() -> {
             AsyncImage(
                 model = avatarUrl,
                 contentDescription = name,
@@ -468,7 +468,7 @@ fun CircleAvatar(
 ) {
     val palette = avatarPalette(avatarUrl ?: name)
     when {
-        avatarUrl?.startsWith("http") == true -> {
+        avatarUrl.isNullOrBlank().not() -> {
             AsyncImage(
                 model = avatarUrl,
                 contentDescription = name,

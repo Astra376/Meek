@@ -57,6 +57,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
@@ -438,6 +439,7 @@ internal fun ChatScreenContent(
     }
     val showJumpToLatest = transcriptItemCount > 0 && !followLatest && !isNearBottom
     val imeBottom = WindowInsets.ime.getBottom(density)
+    val isActiveStream = activeStream != null
 
     suspend fun scrollToLatest(animated: Boolean) {
         autoScrolling = true
@@ -472,7 +474,7 @@ internal fun ChatScreenContent(
         imeBottom
     ) {
         if (followLatest) {
-            scrollToLatest(animated = false)
+            scrollToLatest(animated = !isActiveStream)
         }
     }
 
@@ -540,14 +542,7 @@ internal fun ChatScreenContent(
                         onMessageLongPress = onMessageLongPress,
                         onSelectVariant = onSelectVariant,
                         onSelectPreviousVariant = onSelectPreviousVariant,
-                        onSelectNextVariant = onSelectNextVariant,
-                        onVariantSettled = {
-                            if (followLatest) {
-                                coroutineScope.launch {
-                                    scrollToLatest(animated = true)
-                                }
-                            }
-                        }
+                        onSelectNextVariant = onSelectNextVariant
                     )
                 }
 
@@ -663,8 +658,7 @@ internal fun ChatTranscriptPane(
     onMessageLongPress: (ChatMessage) -> Unit,
     onSelectVariant: (ChatMessage, Int) -> Unit,
     onSelectPreviousVariant: (ChatMessage) -> Unit,
-    onSelectNextVariant: (ChatMessage) -> Unit,
-    onVariantSettled: () -> Unit
+    onSelectNextVariant: (ChatMessage) -> Unit
 ) {
     val latestAssistantId = messages.lastOrNull {
         it.role == MessageRole.ASSISTANT && it.sendState == MessageSendState.SENT
@@ -703,6 +697,7 @@ internal fun ChatTranscriptPane(
                     else -> message.visibleContent
                 }
                 MessageBubble(
+                    modifier = Modifier.animateItem(),
                     message = message,
                     displayContent = displayContent,
                     showTypingIndicator = (isActiveSendMessage || isActiveRegenerate) &&
@@ -719,14 +714,14 @@ internal fun ChatTranscriptPane(
                     onLongPress = { onMessageLongPress(message) },
                     onSelectVariant = { index -> onSelectVariant(message, index) },
                     onSelectPreviousVariant = { onSelectPreviousVariant(message) },
-                    onSelectNextVariant = { onSelectNextVariant(message) },
-                    onVariantSettled = onVariantSettled
+                    onSelectNextVariant = { onSelectNextVariant(message) }
                 )
             }
 
             if (showSendDraft) {
                 item(key = activeStream?.draftKey ?: "send-draft") {
                     DraftBubble(
+                        modifier = Modifier.animateItem(),
                         content = streamDisplayText,
                         showTypingIndicator = streamDisplayText.isBlank() &&
                             activeStream?.status != ActiveStreamStatus.PAUSED,
@@ -940,6 +935,7 @@ private fun ChatTranscriptPlaceholder(
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun MessageBubble(
+    modifier: Modifier = Modifier,
     message: ChatMessage,
     displayContent: String,
     showTypingIndicator: Boolean,
@@ -954,8 +950,7 @@ private fun MessageBubble(
     onLongPress: () -> Unit,
     onSelectVariant: (Int) -> Unit,
     onSelectPreviousVariant: () -> Unit,
-    onSelectNextVariant: () -> Unit,
-    onVariantSettled: () -> Unit
+    onSelectNextVariant: () -> Unit
 ) {
     val isUser = message.role == MessageRole.USER
     val background = MaterialTheme.colorScheme.background
@@ -990,10 +985,11 @@ private fun MessageBubble(
             onSelectVariant = onSelectVariant,
             onSelectPreviousVariant = onSelectPreviousVariant,
             onSelectNextVariant = onSelectNextVariant,
-            onVariantSettled = onVariantSettled
+            modifier = modifier
         )
     } else {
         MessageVariantPage(
+            modifier = modifier,
             text = displayContent,
             pageIndex = currentIndex,
             pageCount = variants.size,
@@ -1014,6 +1010,7 @@ private fun MessageBubble(
 
 @Composable
 private fun VariantMessagePager(
+    modifier: Modifier = Modifier,
     variants: List<String>,
     currentIndex: Int,
     isUser: Boolean,
@@ -1025,10 +1022,13 @@ private fun VariantMessagePager(
     onLongPress: () -> Unit,
     onSelectVariant: (Int) -> Unit,
     onSelectPreviousVariant: () -> Unit,
-    onSelectNextVariant: () -> Unit,
-    onVariantSettled: () -> Unit
+    onSelectNextVariant: () -> Unit
 ) {
-    val pagerState = rememberPagerState(initialPage = currentIndex, pageCount = { variants.size })
+    val generationPage = variants.size
+    val pagerState = rememberPagerState(
+        initialPage = currentIndex,
+        pageCount = { variants.size + if (variantControlsEnabled) 1 else 0 }
+    )
     val coroutineScope = rememberCoroutineScope()
 
     LaunchedEffect(currentIndex, variants.size) {
@@ -1037,54 +1037,59 @@ private fun VariantMessagePager(
         }
     }
 
-    LaunchedEffect(pagerState, variants.size) {
+    LaunchedEffect(pagerState, variants.size, currentIndex, variantControlsEnabled) {
         snapshotFlow { pagerState.settledPage }.collect { page ->
-            if (page in variants.indices && page != currentIndex) {
-                onSelectVariant(page)
+            when {
+                page == generationPage && variantControlsEnabled -> onSelectNextVariant()
+                page in variants.indices && page != currentIndex -> onSelectVariant(page)
             }
-            onVariantSettled()
         }
     }
 
-    HorizontalPager(
-        state = pagerState,
-        modifier = Modifier.fillMaxWidth(),
-        pageSpacing = 16.dp,
-        verticalAlignment = Alignment.Top
-    ) { page ->
-        MessageVariantPage(
-            text = variants[page],
-            pageIndex = page,
-            pageCount = variants.size,
-            isUser = isUser,
-            avatarName = avatarName,
-            avatarUrl = avatarUrl,
-            bubbleColor = bubbleColor,
-            showTypingIndicator = false,
-            showVariantControls = true,
-            variantControlsEnabled = variantControlsEnabled,
-            onTap = onTap,
-            onLongPress = onLongPress,
-            onPrevious = {
-                if (pagerState.currentPage > 0) {
-                    coroutineScope.launch { pagerState.animateScrollToPage(pagerState.currentPage - 1) }
-                } else {
-                    onSelectPreviousVariant()
+    Box(modifier = modifier.fillMaxWidth().clipToBounds()) {
+        HorizontalPager(
+            state = pagerState,
+            modifier = Modifier.fillMaxWidth(),
+            pageSpacing = 16.dp,
+            beyondViewportPageCount = 0,
+            verticalAlignment = Alignment.Top
+        ) { page ->
+            val isGenerationPage = page == generationPage
+            MessageVariantPage(
+                text = if (isGenerationPage) "" else variants[page],
+                pageIndex = page.coerceAtMost(variants.lastIndex),
+                pageCount = variants.size,
+                isUser = isUser,
+                avatarName = avatarName,
+                avatarUrl = avatarUrl,
+                bubbleColor = bubbleColor,
+                showTypingIndicator = isGenerationPage,
+                showVariantControls = !isGenerationPage,
+                variantControlsEnabled = variantControlsEnabled,
+                onTap = onTap,
+                onLongPress = onLongPress,
+                onPrevious = {
+                    if (pagerState.currentPage > 0) {
+                        coroutineScope.launch { pagerState.animateScrollToPage(pagerState.currentPage - 1) }
+                    } else {
+                        onSelectPreviousVariant()
+                    }
+                },
+                onNext = {
+                    if (pagerState.currentPage < variants.lastIndex) {
+                        coroutineScope.launch { pagerState.animateScrollToPage(pagerState.currentPage + 1) }
+                    } else {
+                        coroutineScope.launch { pagerState.animateScrollToPage(generationPage) }
+                    }
                 }
-            },
-            onNext = {
-                if (pagerState.currentPage < variants.lastIndex) {
-                    coroutineScope.launch { pagerState.animateScrollToPage(pagerState.currentPage + 1) }
-                } else {
-                    onSelectNextVariant()
-                }
-            }
-        )
+            )
+        }
     }
 }
 
 @Composable
 private fun MessageVariantPage(
+    modifier: Modifier = Modifier,
     text: String,
     pageIndex: Int,
     pageCount: Int,
@@ -1101,7 +1106,7 @@ private fun MessageVariantPage(
     onNext: () -> Unit
 ) {
     Column(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         horizontalAlignment = if (isUser) Alignment.End else Alignment.Start
     ) {
         Row(
@@ -1205,13 +1210,14 @@ private fun MessageSurfaceContent(
 
 @Composable
 private fun DraftBubble(
+    modifier: Modifier = Modifier,
     content: String,
     showTypingIndicator: Boolean,
     characterName: String,
     characterAvatarUrl: String?
 ) {
     val background = MaterialTheme.colorScheme.background
-    Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.Start) {
+    Column(modifier = modifier.fillMaxWidth(), horizontalAlignment = Alignment.Start) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.Start,

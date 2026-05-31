@@ -541,7 +541,14 @@ internal fun ChatScreenContent(
                         onMessageTap = { focusManager.clearFocus(force = true) },
                         onMessageLongPress = onMessageLongPress,
                         onSelectPreviousVariant = onSelectPreviousVariant,
-                        onSelectNextVariant = onSelectNextVariant
+                        onSelectNextVariant = onSelectNextVariant,
+                        onVariantSettled = {
+                            if (followLatest) {
+                                coroutineScope.launch {
+                                    scrollToLatest(animated = true)
+                                }
+                            }
+                        }
                     )
                 }
 
@@ -656,7 +663,8 @@ internal fun ChatTranscriptPane(
     onMessageTap: () -> Unit,
     onMessageLongPress: (ChatMessage) -> Unit,
     onSelectPreviousVariant: (ChatMessage) -> Unit,
-    onSelectNextVariant: (ChatMessage) -> Unit
+    onSelectNextVariant: (ChatMessage) -> Unit,
+    onVariantSettled: () -> Unit
 ) {
     val latestAssistantId = messages.lastOrNull {
         it.role == MessageRole.ASSISTANT && it.sendState == MessageSendState.SENT
@@ -710,7 +718,8 @@ internal fun ChatTranscriptPane(
                     onTap = onMessageTap,
                     onLongPress = { onMessageLongPress(message) },
                     onSelectPreviousVariant = { onSelectPreviousVariant(message) },
-                    onSelectNextVariant = { onSelectNextVariant(message) }
+                    onSelectNextVariant = { onSelectNextVariant(message) },
+                    onVariantSettled = onVariantSettled
                 )
             }
 
@@ -943,7 +952,8 @@ private fun MessageBubble(
     onTap: () -> Unit,
     onLongPress: () -> Unit,
     onSelectPreviousVariant: () -> Unit,
-    onSelectNextVariant: () -> Unit
+    onSelectNextVariant: () -> Unit,
+    onVariantSettled: () -> Unit
 ) {
     val isUser = message.role == MessageRole.USER
     val background = MaterialTheme.colorScheme.background
@@ -984,10 +994,18 @@ private fun MessageBubble(
                 Spacer(modifier = Modifier.size(8.dp))
             }
 
-            Surface(
+            VariantBubbleSurface(
+                bubbleColor = bubbleColor,
+                variants = variants,
+                currentIndex = currentIndex,
+                showTypingIndicator = showTypingIndicator,
+                dragOffset = dragOffset,
+                slideDirection = slideDirection,
+                onTap = onTap,
+                onLongPress = onLongPress,
+                onVariantSettled = onVariantSettled,
                 modifier = Modifier
                     .weight(1f)
-                    .clip(RoundedCornerShape(24.dp))
                     .pointerInput(message.id, message.selectedRegenerationId, message.regenerations.size, actionsEnabled, currentIndex) {
                         detectHorizontalDragGestures(
                             onDragStart = { dragOffset = 0f },
@@ -1011,31 +1029,7 @@ private fun MessageBubble(
                             }
                         )
                     }
-                    .combinedClickable(
-                        onClick = onTap,
-                        onLongClick = {
-                            if (actionsEnabled) {
-                                onLongPress()
-                            }
-                        }
-                    ),
-                shape = RoundedCornerShape(24.dp),
-                color = bubbleColor
-            ) {
-                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
-                    if (showTypingIndicator) {
-                        TypingDotsIndicator()
-                    } else {
-                        VariantMessageText(
-                            variants = variants,
-                            currentIndex = currentIndex,
-                            dragOffset = dragOffset,
-                            slideDirection = slideDirection,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-                }
-            }
+            )
 
             if (isUser) {
                 Spacer(modifier = Modifier.size(8.dp))
@@ -1079,11 +1073,16 @@ private fun MessageBubble(
 }
 
 @Composable
-private fun VariantMessageText(
+private fun VariantBubbleSurface(
+    bubbleColor: Color,
     variants: List<String>,
     currentIndex: Int,
+    showTypingIndicator: Boolean,
     dragOffset: Float,
     slideDirection: Int,
+    onTap: () -> Unit,
+    onLongPress: () -> Unit,
+    onVariantSettled: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     BoxWithConstraints(
@@ -1092,22 +1091,26 @@ private fun VariantMessageText(
         val widthPx = with(LocalDensity.current) { maxWidth.toPx() }
         val current = variants.getOrElse(currentIndex) { variants.firstOrNull().orEmpty() }
         if (dragOffset != 0f) {
-            Text(
-                text = roleplayAnnotatedText(current),
+            MessageSurfaceContent(
+                bubbleColor = bubbleColor,
+                text = current,
+                showTypingIndicator = showTypingIndicator,
                 modifier = Modifier.graphicsLayer { translationX = dragOffset },
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurface
+                onTap = onTap,
+                onLongPress = onLongPress
             )
             val adjacentIndex = if (dragOffset < 0f) currentIndex + 1 else currentIndex - 1
             val adjacent = variants.getOrNull(adjacentIndex)
             if (adjacent != null) {
-                Text(
-                    text = roleplayAnnotatedText(adjacent),
+                MessageSurfaceContent(
+                    bubbleColor = bubbleColor,
+                    text = adjacent,
+                    showTypingIndicator = false,
                     modifier = Modifier.graphicsLayer {
                         translationX = dragOffset + if (dragOffset < 0f) widthPx else -widthPx
                     },
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurface
+                    onTap = onTap,
+                    onLongPress = onLongPress
                 )
             }
         } else {
@@ -1122,8 +1125,48 @@ private fun VariantMessageText(
                 },
                 label = "message-variant-slide"
             ) { index ->
+                LaunchedEffect(index) {
+                    onVariantSettled()
+                }
+                MessageSurfaceContent(
+                    bubbleColor = bubbleColor,
+                    text = variants.getOrElse(index) { current },
+                    showTypingIndicator = showTypingIndicator,
+                    onTap = onTap,
+                    onLongPress = onLongPress
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun MessageSurfaceContent(
+    bubbleColor: Color,
+    text: String,
+    showTypingIndicator: Boolean,
+    modifier: Modifier = Modifier,
+    onTap: () -> Unit,
+    onLongPress: () -> Unit
+) {
+    Surface(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(24.dp))
+            .combinedClickable(
+                onClick = onTap,
+                onLongClick = onLongPress
+            ),
+        shape = RoundedCornerShape(24.dp),
+        color = bubbleColor
+    ) {
+        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
+            if (showTypingIndicator) {
+                TypingDotsIndicator()
+            } else {
                 Text(
-                    text = roleplayAnnotatedText(variants.getOrElse(index) { current }),
+                    text = roleplayAnnotatedText(text),
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurface
                 )

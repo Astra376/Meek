@@ -29,6 +29,12 @@ sealed interface ChatStreamEvent {
         val assistantMessageId: String
     ) : ChatStreamEvent
 
+    data class AcceptedContinue(
+        val runId: String,
+        val conversationVersion: Long,
+        val assistantMessageId: String
+    ) : ChatStreamEvent
+
     data class Delta(
         val runId: String,
         val textDelta: String
@@ -59,6 +65,7 @@ sealed interface ChatStreamEvent {
 
 interface ChatStreamingClient {
     fun sendMessage(conversationId: String, userMessageId: String, content: String): Flow<ChatStreamEvent>
+    fun continueAssistant(conversationId: String): Flow<ChatStreamEvent>
     fun regenerateLatestAssistant(messageId: String): Flow<ChatStreamEvent>
 }
 
@@ -85,6 +92,11 @@ class WorkerStreamingClient @Inject constructor(
 
     override fun regenerateLatestAssistant(messageId: String): Flow<ChatStreamEvent> {
         val url = "${baseUrl}v1/messages/$messageId/regenerate/stream"
+        return stream(Request.Builder().url(url).post("{}".toRequestBody(jsonMediaType)).build())
+    }
+
+    override fun continueAssistant(conversationId: String): Flow<ChatStreamEvent> {
+        val url = "${baseUrl}v1/conversations/$conversationId/continue/stream"
         return stream(Request.Builder().url(url).post("{}".toRequestBody(jsonMediaType)).build())
     }
 
@@ -145,6 +157,12 @@ class WorkerStreamingClient @Inject constructor(
             runId = requireNotNull(runId),
             conversationVersion = requireNotNull(conversationVersion),
             messageId = requireNotNull(messageId),
+            assistantMessageId = requireNotNull(assistantMessageId)
+        )
+
+        "accepted_continue" -> ChatStreamEvent.AcceptedContinue(
+            runId = requireNotNull(runId),
+            conversationVersion = requireNotNull(conversationVersion),
             assistantMessageId = requireNotNull(assistantMessageId)
         )
 

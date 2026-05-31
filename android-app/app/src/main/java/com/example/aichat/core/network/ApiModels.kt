@@ -132,7 +132,7 @@ data class EditMessageRequestDto(
 
 @Serializable
 data class SelectRegenerationRequestDto(
-    val regenerationId: String
+    val regenerationId: String? = null
 )
 
 @Serializable

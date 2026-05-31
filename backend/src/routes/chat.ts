@@ -1,4 +1,5 @@
 import {
+  continueAssistantAndStream,
   editMessage,
   regenerateLatestAssistantAndStream,
   rewindConversation,
@@ -23,6 +24,12 @@ export const chatRoutes: RouteDefinition[] = [
         requireString(body.content, "content", 8_000)
       );
     }
+  },
+  {
+    method: "POST",
+    path: "/v1/conversations/:conversationId/continue/stream",
+    auth: true,
+    handler: async (context) => continueAssistantAndStream(context, context.params.conversationId)
   },
   {
     method: "PATCH",
@@ -54,8 +61,12 @@ export const chatRoutes: RouteDefinition[] = [
     path: "/v1/messages/:messageId/select-regeneration",
     auth: true,
     handler: async (context) => {
-      const body = await parseJson<{ regenerationId?: string }>(context.request);
-      await selectRegeneration(context, context.params.messageId, requireString(body.regenerationId, "regenerationId"));
+      const body = await parseJson<{ regenerationId?: string | null }>(context.request);
+      await selectRegeneration(
+        context,
+        context.params.messageId,
+        typeof body.regenerationId === "string" ? body.regenerationId : null
+      );
       return noContent();
     }
   }

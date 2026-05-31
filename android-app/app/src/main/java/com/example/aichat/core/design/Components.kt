@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -235,7 +236,8 @@ fun AppTextField(
     minLines: Int = 1,
     maxLines: Int = Int.MAX_VALUE,
     shape: RoundedCornerShape = RoundedCornerShape(DesignMetrics.fieldCorner),
-    leadingIcon: (@Composable () -> Unit)? = null
+    leadingIcon: (@Composable () -> Unit)? = null,
+    keyboardOptions: KeyboardOptions = KeyboardOptions.Default
 ) {
     val containerColor = controlSurfaceColor(selected = false)
     val alignTextToTop = !singleLine && minLines > 1
@@ -244,6 +246,7 @@ fun AppTextField(
         onValueChange = onValueChange,
         modifier = modifier,
         enabled = enabled,
+        keyboardOptions = keyboardOptions,
         singleLine = singleLine,
         minLines = minLines,
         maxLines = maxLines,

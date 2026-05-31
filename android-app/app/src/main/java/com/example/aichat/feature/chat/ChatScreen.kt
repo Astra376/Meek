@@ -6,6 +6,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -29,6 +30,7 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -41,6 +43,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.animation.Crossfade
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -57,11 +60,16 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.SavedStateHandle
@@ -207,6 +215,17 @@ class ChatViewModel @Inject constructor(
         }
     }
 
+    fun continueAssistant() {
+        launchStreamingAction {
+            chatRepository.continueAssistant(conversationId)
+                .onFailure { _events.emit(it.message ?: "Couldn't continue chat.") }
+                .onSuccess {
+                    chatBackgroundRepository.refreshIfSceneChanged(conversationId)
+                        .onFailure { _events.emit(it.message ?: "Background scene update failed.") }
+                }
+        }
+    }
+
     fun pauseStreaming() {
         val activeStream = uiState.value.activeStream ?: return
         if (activeStream.status == ActiveStreamStatus.COMPLETED) {
@@ -275,19 +294,23 @@ fun ChatRoute(
         snackbarHostState = snackbarHostState,
         onComposerChanged = viewModel::onComposerChanged,
         onSend = viewModel::send,
+        onContinue = viewModel::continueAssistant,
         onPause = viewModel::pauseStreaming,
         onStreamPresentationSettled = viewModel::dismissSettledStream,
         onMessageLongPress = { actionMessage = it },
         onSelectPreviousVariant = { message ->
             val index = message.regenerations.indexOfFirst { it.id == message.selectedRegenerationId }.coerceAtLeast(0)
             if (index > 0) {
-                viewModel.selectRegeneration(message.id, message.regenerations[index - 1].id)
+                val previousId = if (index == 1) ChatRepository.ORIGINAL_VARIANT_ID else message.regenerations[index - 2].id
+                viewModel.selectRegeneration(message.id, previousId)
             }
         },
         onSelectNextVariant = { message ->
-            val index = message.regenerations.indexOfFirst { it.id == message.selectedRegenerationId }.coerceAtLeast(0)
-            if (index < message.regenerations.lastIndex) {
-                viewModel.selectRegeneration(message.id, message.regenerations[index + 1].id)
+            val index = message.variantIndex()
+            if (index < message.variantCount() - 1) {
+                viewModel.selectRegeneration(message.id, message.regenerations[index].id)
+            } else {
+                viewModel.regenerateLatestAssistant(message.id)
             }
         }
     )
@@ -354,6 +377,7 @@ internal fun ChatScreenContent(
     snackbarHostState: SnackbarHostState,
     onComposerChanged: (String) -> Unit,
     onSend: () -> Unit,
+    onContinue: () -> Unit,
     onPause: () -> Unit = {},
     onStreamPresentationSettled: (String) -> Unit = {},
     onMessageLongPress: (ChatMessage) -> Unit,
@@ -518,10 +542,15 @@ internal fun ChatScreenContent(
                 ChatComposerBar(
                     composerText = state.composerText,
                     isStreaming = state.isStreaming,
+                    canContinue = state.conversation?.messages?.lastOrNull { it.sendState == MessageSendState.SENT }?.role == MessageRole.ASSISTANT,
                     onComposerChanged = onComposerChanged,
                     onSend = {
                         followLatest = true
                         onSend()
+                    },
+                    onContinue = {
+                        followLatest = true
+                        onContinue()
                     },
                     onPause = onPause
                 )
@@ -724,8 +753,10 @@ internal fun ChatTranscriptPane(
 private fun ChatComposerBar(
     composerText: String,
     isStreaming: Boolean,
+    canContinue: Boolean,
     onComposerChanged: (String) -> Unit,
     onSend: () -> Unit,
+    onContinue: () -> Unit,
     onPause: () -> Unit
 ) {
     Row(
@@ -748,18 +779,37 @@ private fun ChatComposerBar(
                 .heightIn(min = 46.dp, max = 160.dp),
             minLines = 1,
             maxLines = 6,
-            shape = RoundedCornerShape(999.dp)
+            shape = RoundedCornerShape(24.dp),
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Default)
         )
         val canSend = composerText.isNotBlank()
+        val useContinue = !isStreaming && !canSend && canContinue
         IconCircleButton(
-            selected = if (isStreaming) true else canSend,
-            enabled = if (isStreaming) true else canSend,
-            onClick = if (isStreaming) onPause else onSend
+            selected = isStreaming || canSend || useContinue,
+            enabled = isStreaming || canSend || useContinue,
+            onClick = when {
+                isStreaming -> onPause
+                canSend -> onSend
+                else -> onContinue
+            }
         ) {
-            AppIcon(
-                if (isStreaming) AppIcons.stop else AppIcons.send,
-                contentDescription = if (isStreaming) "Pause response" else "Send"
-            )
+            Crossfade(
+                targetState = when {
+                    isStreaming -> AppIcons.stop
+                    useContinue -> AppIcons.forward
+                    else -> AppIcons.send
+                },
+                label = "chat-send-icon"
+            ) { icon ->
+                AppIcon(
+                    icon,
+                    contentDescription = when {
+                        isStreaming -> "Pause response"
+                        useContinue -> "Continue"
+                        else -> "Send"
+                    }
+                )
+            }
         }
     }
 }
@@ -919,8 +969,22 @@ private fun MessageBubble(
 
             Surface(
                 modifier = Modifier
-                    .fillMaxWidth(0.82f)
+                    .fillMaxWidth(0.92f)
                     .clip(RoundedCornerShape(24.dp))
+                    .pointerInput(message.id, message.selectedRegenerationId, message.regenerations.size, actionsEnabled) {
+                        var drag = 0f
+                        detectHorizontalDragGestures(
+                            onDragStart = { drag = 0f },
+                            onHorizontalDrag = { _, amount -> drag += amount },
+                            onDragEnd = {
+                                if (!actionsEnabled) return@detectHorizontalDragGestures
+                                when {
+                                    drag < -80f -> onSelectNextVariant()
+                                    drag > 80f -> onSelectPreviousVariant()
+                                }
+                            }
+                        )
+                    }
                     .combinedClickable(
                         onClick = onTap,
                         onLongClick = {
@@ -937,7 +1001,7 @@ private fun MessageBubble(
                         TypingDotsIndicator()
                     } else {
                         Text(
-                            text = displayContent,
+                            text = roleplayAnnotatedText(displayContent),
                             style = MaterialTheme.typography.bodyLarge,
                             color = MaterialTheme.colorScheme.onSurface
                         )
@@ -955,8 +1019,8 @@ private fun MessageBubble(
             }
         }
 
-        if (isLatestAssistant && message.regenerations.size > 1) {
-            val currentIndex = message.regenerations.indexOfFirst { it.id == message.selectedRegenerationId }.coerceAtLeast(0)
+        if (isLatestAssistant && message.variantCount() > 1) {
+            val currentIndex = message.variantIndex()
             Row(
                 modifier = Modifier.padding(top = 6.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -970,13 +1034,14 @@ private fun MessageBubble(
                     AppIcon(AppIcons.previous, contentDescription = "Previous variant", size = 20.dp)
                 }
                 Text(
-                    text = "Variant ${currentIndex + 1}/${message.regenerations.size}",
+                    text = "Variant ${currentIndex + 1}/${message.variantCount()}",
                     style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Medium
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 IconCircleButton(
                     containerSize = 36.dp,
-                    enabled = variantControlsEnabled && currentIndex < message.regenerations.lastIndex,
+                    enabled = variantControlsEnabled,
                     onClick = onSelectNextVariant
                 ) {
                     AppIcon(AppIcons.next, contentDescription = "Next variant", size = 20.dp)
@@ -1007,7 +1072,7 @@ private fun DraftBubble(
             )
             Spacer(modifier = Modifier.size(8.dp))
             Surface(
-                modifier = Modifier.fillMaxWidth(0.82f),
+                modifier = Modifier.fillMaxWidth(0.92f),
                 shape = RoundedCornerShape(24.dp),
                 color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.96f).compositeOver(background)
             ) {
@@ -1016,7 +1081,7 @@ private fun DraftBubble(
                         TypingDotsIndicator()
                     } else {
                         Text(
-                            text = content,
+                            text = roleplayAnnotatedText(content),
                             style = MaterialTheme.typography.bodyLarge,
                             color = MaterialTheme.colorScheme.onSurface
                         )
@@ -1024,6 +1089,50 @@ private fun DraftBubble(
                 }
             }
         }
+    }
+}
+
+private fun ChatMessage.variantCount(): Int = 1 + regenerations.size
+
+private fun ChatMessage.variantIndex(): Int {
+    val selected = selectedRegenerationId ?: return 0
+    val regenIndex = regenerations.indexOfFirst { it.id == selected }
+    return if (regenIndex == -1) 0 else regenIndex + 1
+}
+
+@Composable
+private fun roleplayAnnotatedText(value: String) = buildAnnotatedString {
+    var index = 0
+    while (index < value.length) {
+        val triple = value.indexOf("***", index)
+        val double = value.indexOf("**", index).let { if (it >= 0 && it != triple) it else -1 }
+        val single = value.indexOf("*", index).let { if (it >= 0 && it != triple && it != double) it else -1 }
+        val next = listOf(triple, double, single).filter { it >= 0 }.minOrNull() ?: -1
+        if (next == -1) {
+            append(value.substring(index))
+            break
+        }
+        append(value.substring(index, next))
+        val marker = when (next) {
+            triple -> "***"
+            double -> "**"
+            else -> "*"
+        }
+        val end = value.indexOf(marker, next + marker.length)
+        if (end == -1) {
+            append(marker)
+            index = next + marker.length
+            continue
+        }
+        val style = when (marker) {
+            "***" -> SpanStyle(fontWeight = FontWeight.Bold, fontStyle = FontStyle.Italic)
+            "**" -> SpanStyle(fontWeight = FontWeight.Bold)
+            else -> SpanStyle(fontStyle = FontStyle.Italic)
+        }
+        pushStyle(style)
+        append(value.substring(next + marker.length, end))
+        pop()
+        index = end + marker.length
     }
 }
 

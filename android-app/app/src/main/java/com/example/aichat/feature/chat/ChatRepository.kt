@@ -75,6 +75,9 @@ class ChatRepository @Inject constructor(
     private val conversationApi: ConversationApi,
     private val streamingClient: ChatStreamingClient
 ) {
+    companion object {
+        const val ORIGINAL_VARIANT_ID = "__original__"
+    }
     private val activeStreams = MutableStateFlow<Map<String, ActiveAssistantStream>>(emptyMap())
     private val pauseRequests = ConcurrentHashMap.newKeySet<String>()
 
@@ -219,11 +222,33 @@ class ChatRepository @Inject constructor(
         }
     }
 
+    suspend fun continueAssistant(conversationId: String): Result<Unit> = withContext(Dispatchers.IO) {
+        captureResult {
+            clearPauseRequest(conversationId)
+            dismissSettledStream(conversationId)
+            ensureNotStreaming(conversationId)
+
+            setActiveStream(
+                conversationId,
+                ActiveAssistantStream(
+                    conversationId = conversationId,
+                    draftKey = "continue-draft-${System.currentTimeMillis()}",
+                    mode = ActiveStreamMode.SEND
+                )
+            )
+
+            consumeContinueStream(conversationId)
+        }
+    }
+
     suspend fun selectRegeneration(messageId: String, regenerationId: String): Result<Unit> = withContext(Dispatchers.IO) {
         captureResult {
             val message = requireMutableMessage(messageId)
             ensureLatestAssistant(message)
-            chatApi.selectRegeneration(messageId, SelectRegenerationRequestDto(regenerationId))
+            chatApi.selectRegeneration(
+                messageId,
+                SelectRegenerationRequestDto(regenerationId.takeUnless { it == ORIGINAL_VARIANT_ID })
+            )
 
             database.withTransaction {
                 messageDao.update(
@@ -366,6 +391,56 @@ class ChatRepository @Inject constructor(
                 keepStream = currentActiveStream(conversationId) != null
             }
             throw error
+        } catch (error: Throwable) {
+            clearPauseRequest(conversationId)
+            throw error
+        } finally {
+            if (!keepStream) {
+                clearActiveStream(conversationId)
+            }
+        }
+    }
+
+    private suspend fun consumeContinueStream(conversationId: String) {
+        var keepStream = false
+        try {
+            streamingClient.continueAssistant(conversationId).collect { event ->
+                when (event) {
+                    is ChatStreamEvent.AcceptedContinue -> {
+                        updateActiveStream(conversationId) { stream ->
+                            stream?.copy(
+                                runId = event.runId,
+                                assistantMessageId = event.assistantMessageId,
+                                accepted = true,
+                                status = ActiveStreamStatus.STREAMING
+                            )
+                        }
+                    }
+
+                    is ChatStreamEvent.Delta -> {
+                        val active = currentActiveStream(conversationId) ?: return@collect
+                        if (active.runId != null && active.runId != event.runId) return@collect
+                        updateActiveStream(conversationId) { stream ->
+                            stream?.copy(text = stream.text + event.textDelta)
+                        }
+                    }
+
+                    is ChatStreamEvent.CompletedSend -> {
+                        val active = currentActiveStream(conversationId) ?: return@collect
+                        if (active.runId != event.runId) return@collect
+                        applyCompletedSend(conversationId, event)
+                        keepStream = true
+                    }
+
+                    is ChatStreamEvent.Failed -> {
+                        val active = currentActiveStream(conversationId)
+                        if (event.runId != null && active?.runId != event.runId) return@collect
+                        throw StreamFailedException(event.message)
+                    }
+
+                    else -> Unit
+                }
+            }
         } catch (error: Throwable) {
             clearPauseRequest(conversationId)
             throw error

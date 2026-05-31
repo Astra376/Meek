@@ -58,6 +58,7 @@ object AppIcons {
     val lock = Iconsax.Linear.LockOne
     val send = Iconsax.Linear.Send
     val stop = Iconsax.Bold.Stop
+    val forward = Iconsax.Linear.Forward
     val previous = Iconsax.Linear.ArrowLeft
     val next = Iconsax.Linear.ArrowRight
 

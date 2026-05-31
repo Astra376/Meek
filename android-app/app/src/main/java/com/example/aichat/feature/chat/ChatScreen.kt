@@ -99,7 +99,6 @@ import com.example.aichat.core.ui.AppChrome
 import com.example.aichat.core.ui.CircleAvatarPlaceholder
 import com.example.aichat.core.ui.ShimmerTextLine
 import com.example.aichat.core.ui.clearFocusOnTap
-import com.example.aichat.core.ui.shimmerPlaceholder
 import coil.compose.AsyncImage
 import coil.compose.AsyncImagePainter
 import coil.compose.rememberAsyncImagePainter
@@ -535,15 +534,7 @@ internal fun ChatScreenContent(
             ChatSceneBackground(imageUrl = state.conversation?.backgroundSceneUrl)
             Column(modifier = Modifier.fillMaxSize()) {
                 if (state.conversation == null) {
-                    ChatTranscriptPlaceholder(
-                        modifier = Modifier.weight(1f),
-                        contentPadding = PaddingValues(
-                            start = AppChrome.screenHorizontalPadding,
-                            top = innerPadding.calculateTopPadding() + AppChrome.compactHeaderVerticalPadding,
-                            end = AppChrome.screenHorizontalPadding,
-                            bottom = AppChrome.gridSpacing
-                        )
-                    )
+                    Spacer(modifier = Modifier.weight(1f))
                 } else {
                     ChatTranscriptPane(
                         modifier = Modifier.weight(1f),
@@ -914,49 +905,6 @@ private fun ChatHeader(
                         )
                     )
             )
-        }
-    }
-}
-
-@Composable
-private fun ChatTranscriptPlaceholder(
-    modifier: Modifier = Modifier,
-    contentPadding: PaddingValues
-) {
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(contentPadding),
-        verticalArrangement = Arrangement.spacedBy(AppChrome.compactControlGap)
-    ) {
-        repeat(5) { index ->
-            val isUser = index % 2 == 1
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start,
-                verticalAlignment = Alignment.Bottom
-            ) {
-                if (!isUser) {
-                    CircleAvatarPlaceholder(size = 30.dp)
-                    Spacer(modifier = Modifier.size(8.dp))
-                }
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth(0.82f)
-                        .shimmerPlaceholder(RoundedCornerShape(24.dp))
-                        .padding(horizontal = 16.dp, vertical = 14.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    ShimmerTextLine(width = if (isUser) 132.dp else 164.dp, height = 16.dp)
-                    if (!isUser) {
-                        ShimmerTextLine(width = 116.dp, height = 16.dp)
-                    }
-                }
-                if (isUser) {
-                    Spacer(modifier = Modifier.size(8.dp))
-                    CircleAvatarPlaceholder(size = 30.dp)
-                }
-            }
         }
     }
 }

@@ -1036,6 +1036,9 @@ private fun VariantMessagePager(
     var committedPage by remember(variants.size) {
         mutableStateOf(currentIndex.coerceIn(variants.indices))
     }
+    var settledVisualPage by remember(variants.size, variantControlsEnabled) {
+        mutableStateOf(currentIndex.coerceIn(variants.indices))
+    }
     var generationRequested by remember(variants.size, variantControlsEnabled) {
         mutableStateOf(false)
     }
@@ -1046,21 +1049,27 @@ private fun VariantMessagePager(
     LaunchedEffect(pagerState, variants.size, variantControlsEnabled) {
         snapshotFlow { pagerState.settledPage }.collect { page ->
             when {
-                page == generationPage && variantControlsEnabled && !generationRequested -> {
-                    generationRequested = true
-                    onSelectNextVariant()
+                page == generationPage && variantControlsEnabled -> {
+                    settledVisualPage = page
+                    if (!generationRequested) {
+                        generationRequested = true
+                        onSelectNextVariant()
+                    }
                 }
-                page in variants.indices && page != committedPage -> {
-                    val previousHeight = pageHeights.getOrElse(committedPage) { 0 }
+                page in variants.indices -> {
+                    val previousHeight = pageHeights.getOrElse(settledVisualPage) { 0 }
                     val nextHeight = pageHeights.getOrElse(page) { 0 }
-                    committedPage = page
+                    val shouldPersistSelection = page != committedPage
+                    settledVisualPage = page
                     generationRequested = false
-                    onSelectVariant(page)
+                    if (shouldPersistSelection) {
+                        committedPage = page
+                        onSelectVariant(page)
+                    }
                     if (nextHeight > previousHeight) {
                         bringIntoViewRequester.bringIntoView()
                     }
                 }
-                page in variants.indices -> generationRequested = false
             }
         }
     }

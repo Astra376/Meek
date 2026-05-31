@@ -9,6 +9,7 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.ui.draw.clip
@@ -44,6 +45,11 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.animation.Crossfade
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -299,16 +305,16 @@ fun ChatRoute(
         onStreamPresentationSettled = viewModel::dismissSettledStream,
         onMessageLongPress = { actionMessage = it },
         onSelectPreviousVariant = { message ->
-            val index = message.regenerations.indexOfFirst { it.id == message.selectedRegenerationId }.coerceAtLeast(0)
+            val index = message.variantIndex()
             if (index > 0) {
-                val previousId = if (index == 1) ChatRepository.ORIGINAL_VARIANT_ID else message.regenerations[index - 2].id
+                val previousId = message.variantIdAt(index - 1)
                 viewModel.selectRegeneration(message.id, previousId)
             }
         },
         onSelectNextVariant = { message ->
             val index = message.variantIndex()
             if (index < message.variantCount() - 1) {
-                viewModel.selectRegeneration(message.id, message.regenerations[index].id)
+                viewModel.selectRegeneration(message.id, message.variantIdAt(index + 1))
             } else {
                 viewModel.regenerateLatestAssistant(message.id)
             }
@@ -768,7 +774,7 @@ private fun ChatComposerBar(
                 vertical = AppChrome.screenTopPadding
             ),
         horizontalArrangement = Arrangement.spacedBy(AppChrome.compactControlGap),
-        verticalAlignment = Alignment.CenterVertically
+        verticalAlignment = Alignment.Bottom
     ) {
         AppTextField(
             value = composerText,
@@ -948,6 +954,17 @@ private fun MessageBubble(
     }
     val avatarName = if (isUser) currentUserName else characterName
     val avatarUrl = if (isUser) currentUserAvatarUrl else characterAvatarUrl
+    var dragOffset by remember(message.id, message.selectedRegenerationId) { mutableStateOf(0f) }
+    var slideDirection by remember(message.id) { mutableStateOf(0) }
+    val variants = remember(message.content, message.regenerations, displayContent, showTypingIndicator) {
+        if (showTypingIndicator) {
+            listOf(displayContent)
+        } else {
+            val generated = message.variantTexts()
+            if (displayContent != message.visibleContent) listOf(displayContent) else generated
+        }
+    }
+    val currentIndex = if (variants.size == message.variantCount()) message.variantIndex() else 0
 
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -969,19 +986,28 @@ private fun MessageBubble(
 
             Surface(
                 modifier = Modifier
-                    .fillMaxWidth(0.92f)
+                    .weight(1f)
                     .clip(RoundedCornerShape(24.dp))
-                    .pointerInput(message.id, message.selectedRegenerationId, message.regenerations.size, actionsEnabled) {
-                        var drag = 0f
+                    .pointerInput(message.id, message.selectedRegenerationId, message.regenerations.size, actionsEnabled, currentIndex) {
                         detectHorizontalDragGestures(
-                            onDragStart = { drag = 0f },
-                            onHorizontalDrag = { _, amount -> drag += amount },
+                            onDragStart = { dragOffset = 0f },
+                            onHorizontalDrag = { _, amount -> dragOffset += amount },
                             onDragEnd = {
-                                if (!actionsEnabled) return@detectHorizontalDragGestures
-                                when {
-                                    drag < -80f -> onSelectNextVariant()
-                                    drag > 80f -> onSelectPreviousVariant()
+                                if (!actionsEnabled) {
+                                    dragOffset = 0f
+                                    return@detectHorizontalDragGestures
                                 }
+                                when {
+                                    dragOffset < -80f -> {
+                                        slideDirection = 1
+                                        onSelectNextVariant()
+                                    }
+                                    dragOffset > 80f && currentIndex > 0 -> {
+                                        slideDirection = -1
+                                        onSelectPreviousVariant()
+                                    }
+                                }
+                                dragOffset = 0f
                             }
                         )
                     }
@@ -1000,10 +1026,12 @@ private fun MessageBubble(
                     if (showTypingIndicator) {
                         TypingDotsIndicator()
                     } else {
-                        Text(
-                            text = roleplayAnnotatedText(displayContent),
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurface
+                        VariantMessageText(
+                            variants = variants,
+                            currentIndex = currentIndex,
+                            dragOffset = dragOffset,
+                            slideDirection = slideDirection,
+                            modifier = Modifier.fillMaxWidth()
                         )
                     }
                 }
@@ -1020,7 +1048,6 @@ private fun MessageBubble(
         }
 
         if (isLatestAssistant && message.variantCount() > 1) {
-            val currentIndex = message.variantIndex()
             Row(
                 modifier = Modifier.padding(top = 6.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -1052,6 +1079,60 @@ private fun MessageBubble(
 }
 
 @Composable
+private fun VariantMessageText(
+    variants: List<String>,
+    currentIndex: Int,
+    dragOffset: Float,
+    slideDirection: Int,
+    modifier: Modifier = Modifier
+) {
+    BoxWithConstraints(
+        modifier = modifier.graphicsLayer { clip = true }
+    ) {
+        val widthPx = with(LocalDensity.current) { maxWidth.toPx() }
+        val current = variants.getOrElse(currentIndex) { variants.firstOrNull().orEmpty() }
+        if (dragOffset != 0f) {
+            Text(
+                text = roleplayAnnotatedText(current),
+                modifier = Modifier.graphicsLayer { translationX = dragOffset },
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            val adjacentIndex = if (dragOffset < 0f) currentIndex + 1 else currentIndex - 1
+            val adjacent = variants.getOrNull(adjacentIndex)
+            if (adjacent != null) {
+                Text(
+                    text = roleplayAnnotatedText(adjacent),
+                    modifier = Modifier.graphicsLayer {
+                        translationX = dragOffset + if (dragOffset < 0f) widthPx else -widthPx
+                    },
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+        } else {
+            AnimatedContent(
+                targetState = currentIndex,
+                transitionSpec = {
+                    val direction = slideDirection.takeIf { it != 0 }
+                        ?: if (targetState > initialState) 1 else -1
+                    (slideInHorizontally(animationSpec = tween(240)) { fullWidth -> direction * fullWidth } togetherWith
+                        slideOutHorizontally(animationSpec = tween(240)) { fullWidth -> -direction * fullWidth })
+                        .using(SizeTransform(clip = false))
+                },
+                label = "message-variant-slide"
+            ) { index ->
+                Text(
+                    text = roleplayAnnotatedText(variants.getOrElse(index) { current }),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun DraftBubble(
     content: String,
     showTypingIndicator: Boolean,
@@ -1072,7 +1153,7 @@ private fun DraftBubble(
             )
             Spacer(modifier = Modifier.size(8.dp))
             Surface(
-                modifier = Modifier.fillMaxWidth(0.92f),
+                modifier = Modifier.weight(1f),
                 shape = RoundedCornerShape(24.dp),
                 color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.96f).compositeOver(background)
             ) {
@@ -1099,6 +1180,12 @@ private fun ChatMessage.variantIndex(): Int {
     val regenIndex = regenerations.indexOfFirst { it.id == selected }
     return if (regenIndex == -1) 0 else regenIndex + 1
 }
+
+private fun ChatMessage.variantIdAt(index: Int): String {
+    return if (index <= 0) ChatRepository.ORIGINAL_VARIANT_ID else regenerations[index - 1].id
+}
+
+private fun ChatMessage.variantTexts(): List<String> = listOf(content) + regenerations.map { it.content }
 
 @Composable
 private fun roleplayAnnotatedText(value: String) = buildAnnotatedString {

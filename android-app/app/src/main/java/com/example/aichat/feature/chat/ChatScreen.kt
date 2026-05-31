@@ -6,10 +6,8 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.ui.draw.clip
@@ -30,6 +28,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.animation.core.RepeatMode
@@ -45,11 +45,6 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.animation.Crossfade
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.SizeTransform
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.togetherWith
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -66,7 +61,6 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
@@ -304,6 +298,9 @@ fun ChatRoute(
         onPause = viewModel::pauseStreaming,
         onStreamPresentationSettled = viewModel::dismissSettledStream,
         onMessageLongPress = { actionMessage = it },
+        onSelectVariant = { message, index ->
+            viewModel.selectRegeneration(message.id, message.variantIdAt(index))
+        },
         onSelectPreviousVariant = { message ->
             val index = message.variantIndex()
             if (index > 0) {
@@ -387,6 +384,7 @@ internal fun ChatScreenContent(
     onPause: () -> Unit = {},
     onStreamPresentationSettled: (String) -> Unit = {},
     onMessageLongPress: (ChatMessage) -> Unit,
+    onSelectVariant: (ChatMessage, Int) -> Unit,
     onSelectPreviousVariant: (ChatMessage) -> Unit,
     onSelectNextVariant: (ChatMessage) -> Unit
 ) {
@@ -540,6 +538,7 @@ internal fun ChatScreenContent(
                         },
                         onMessageTap = { focusManager.clearFocus(force = true) },
                         onMessageLongPress = onMessageLongPress,
+                        onSelectVariant = onSelectVariant,
                         onSelectPreviousVariant = onSelectPreviousVariant,
                         onSelectNextVariant = onSelectNextVariant,
                         onVariantSettled = {
@@ -662,6 +661,7 @@ internal fun ChatTranscriptPane(
     onJumpToLatest: () -> Unit,
     onMessageTap: () -> Unit,
     onMessageLongPress: (ChatMessage) -> Unit,
+    onSelectVariant: (ChatMessage, Int) -> Unit,
     onSelectPreviousVariant: (ChatMessage) -> Unit,
     onSelectNextVariant: (ChatMessage) -> Unit,
     onVariantSettled: () -> Unit
@@ -717,6 +717,7 @@ internal fun ChatTranscriptPane(
                     currentUserAvatarUrl = currentUserAvatarUrl,
                     onTap = onMessageTap,
                     onLongPress = { onMessageLongPress(message) },
+                    onSelectVariant = { index -> onSelectVariant(message, index) },
                     onSelectPreviousVariant = { onSelectPreviousVariant(message) },
                     onSelectNextVariant = { onSelectNextVariant(message) },
                     onVariantSettled = onVariantSettled
@@ -951,6 +952,7 @@ private fun MessageBubble(
     currentUserAvatarUrl: String?,
     onTap: () -> Unit,
     onLongPress: () -> Unit,
+    onSelectVariant: (Int) -> Unit,
     onSelectPreviousVariant: () -> Unit,
     onSelectNextVariant: () -> Unit,
     onVariantSettled: () -> Unit
@@ -964,8 +966,6 @@ private fun MessageBubble(
     }
     val avatarName = if (isUser) currentUserName else characterName
     val avatarUrl = if (isUser) currentUserAvatarUrl else characterAvatarUrl
-    var dragOffset by remember(message.id, message.selectedRegenerationId) { mutableStateOf(0f) }
-    var slideDirection by remember(message.id) { mutableStateOf(0) }
     val variants = remember(message.content, message.regenerations, displayContent, showTypingIndicator) {
         if (showTypingIndicator) {
             listOf(displayContent)
@@ -976,6 +976,130 @@ private fun MessageBubble(
     }
     val currentIndex = if (variants.size == message.variantCount()) message.variantIndex() else 0
 
+    if (isLatestAssistant && variants.size > 1) {
+        VariantMessagePager(
+            variants = variants,
+            currentIndex = currentIndex,
+            isUser = isUser,
+            avatarName = avatarName,
+            avatarUrl = avatarUrl,
+            bubbleColor = bubbleColor,
+            variantControlsEnabled = variantControlsEnabled,
+            onTap = onTap,
+            onLongPress = onLongPress,
+            onSelectVariant = onSelectVariant,
+            onSelectPreviousVariant = onSelectPreviousVariant,
+            onSelectNextVariant = onSelectNextVariant,
+            onVariantSettled = onVariantSettled
+        )
+    } else {
+        MessageVariantPage(
+            text = displayContent,
+            pageIndex = currentIndex,
+            pageCount = variants.size,
+            isUser = isUser,
+            avatarName = avatarName,
+            avatarUrl = avatarUrl,
+            bubbleColor = bubbleColor,
+            showTypingIndicator = showTypingIndicator,
+            showVariantControls = false,
+            variantControlsEnabled = variantControlsEnabled,
+            onTap = onTap,
+            onLongPress = onLongPress,
+            onPrevious = onSelectPreviousVariant,
+            onNext = onSelectNextVariant
+        )
+    }
+}
+
+@Composable
+private fun VariantMessagePager(
+    variants: List<String>,
+    currentIndex: Int,
+    isUser: Boolean,
+    avatarName: String,
+    avatarUrl: String?,
+    bubbleColor: Color,
+    variantControlsEnabled: Boolean,
+    onTap: () -> Unit,
+    onLongPress: () -> Unit,
+    onSelectVariant: (Int) -> Unit,
+    onSelectPreviousVariant: () -> Unit,
+    onSelectNextVariant: () -> Unit,
+    onVariantSettled: () -> Unit
+) {
+    val pagerState = rememberPagerState(initialPage = currentIndex, pageCount = { variants.size })
+    val coroutineScope = rememberCoroutineScope()
+
+    LaunchedEffect(currentIndex, variants.size) {
+        if (!pagerState.isScrollInProgress && pagerState.currentPage != currentIndex) {
+            pagerState.animateScrollToPage(currentIndex)
+        }
+    }
+
+    LaunchedEffect(pagerState, variants.size) {
+        snapshotFlow { pagerState.settledPage }.collect { page ->
+            if (page in variants.indices && page != currentIndex) {
+                onSelectVariant(page)
+            }
+            onVariantSettled()
+        }
+    }
+
+    HorizontalPager(
+        state = pagerState,
+        modifier = Modifier.fillMaxWidth(),
+        pageSpacing = 16.dp,
+        verticalAlignment = Alignment.Top
+    ) { page ->
+        MessageVariantPage(
+            text = variants[page],
+            pageIndex = page,
+            pageCount = variants.size,
+            isUser = isUser,
+            avatarName = avatarName,
+            avatarUrl = avatarUrl,
+            bubbleColor = bubbleColor,
+            showTypingIndicator = false,
+            showVariantControls = true,
+            variantControlsEnabled = variantControlsEnabled,
+            onTap = onTap,
+            onLongPress = onLongPress,
+            onPrevious = {
+                if (pagerState.currentPage > 0) {
+                    coroutineScope.launch { pagerState.animateScrollToPage(pagerState.currentPage - 1) }
+                } else {
+                    onSelectPreviousVariant()
+                }
+            },
+            onNext = {
+                if (pagerState.currentPage < variants.lastIndex) {
+                    coroutineScope.launch { pagerState.animateScrollToPage(pagerState.currentPage + 1) }
+                } else {
+                    onSelectNextVariant()
+                }
+            }
+        )
+    }
+}
+
+@Composable
+private fun MessageVariantPage(
+    text: String,
+    pageIndex: Int,
+    pageCount: Int,
+    isUser: Boolean,
+    avatarName: String,
+    avatarUrl: String?,
+    bubbleColor: Color,
+    showTypingIndicator: Boolean,
+    showVariantControls: Boolean,
+    variantControlsEnabled: Boolean,
+    onTap: () -> Unit,
+    onLongPress: () -> Unit,
+    onPrevious: () -> Unit,
+    onNext: () -> Unit
+) {
     Column(
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = if (isUser) Alignment.End else Alignment.Start
@@ -994,41 +1118,13 @@ private fun MessageBubble(
                 Spacer(modifier = Modifier.size(8.dp))
             }
 
-            VariantBubbleSurface(
+            MessageSurfaceContent(
                 bubbleColor = bubbleColor,
-                variants = variants,
-                currentIndex = currentIndex,
+                text = text,
                 showTypingIndicator = showTypingIndicator,
-                dragOffset = dragOffset,
-                slideDirection = slideDirection,
                 onTap = onTap,
                 onLongPress = onLongPress,
-                onVariantSettled = onVariantSettled,
-                modifier = Modifier
-                    .weight(1f)
-                    .pointerInput(message.id, message.selectedRegenerationId, message.regenerations.size, actionsEnabled, currentIndex) {
-                        detectHorizontalDragGestures(
-                            onDragStart = { dragOffset = 0f },
-                            onHorizontalDrag = { _, amount -> dragOffset += amount },
-                            onDragEnd = {
-                                if (!actionsEnabled) {
-                                    dragOffset = 0f
-                                    return@detectHorizontalDragGestures
-                                }
-                                when {
-                                    dragOffset < -80f -> {
-                                        slideDirection = 1
-                                        onSelectNextVariant()
-                                    }
-                                    dragOffset > 80f && currentIndex > 0 -> {
-                                        slideDirection = -1
-                                        onSelectPreviousVariant()
-                                    }
-                                }
-                                dragOffset = 0f
-                            }
-                        )
-                    }
+                modifier = Modifier.weight(1f)
             )
 
             if (isUser) {
@@ -1041,7 +1137,7 @@ private fun MessageBubble(
             }
         }
 
-        if (isLatestAssistant && message.variantCount() > 1) {
+        if (showVariantControls) {
             Row(
                 modifier = Modifier.padding(top = 6.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -1049,13 +1145,13 @@ private fun MessageBubble(
             ) {
                 IconCircleButton(
                     containerSize = 36.dp,
-                    enabled = variantControlsEnabled && currentIndex > 0,
-                    onClick = onSelectPreviousVariant
+                    enabled = variantControlsEnabled && pageIndex > 0,
+                    onClick = onPrevious
                 ) {
                     AppIcon(AppIcons.previous, contentDescription = "Previous variant", size = 20.dp)
                 }
                 Text(
-                    text = "Variant ${currentIndex + 1}/${message.variantCount()}",
+                    text = "Variant ${pageIndex + 1}/$pageCount",
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Medium,
                     color = MaterialTheme.colorScheme.onSurface
@@ -1063,78 +1159,10 @@ private fun MessageBubble(
                 IconCircleButton(
                     containerSize = 36.dp,
                     enabled = variantControlsEnabled,
-                    onClick = onSelectNextVariant
+                    onClick = onNext
                 ) {
                     AppIcon(AppIcons.next, contentDescription = "Next variant", size = 20.dp)
                 }
-            }
-        }
-    }
-}
-
-@Composable
-private fun VariantBubbleSurface(
-    bubbleColor: Color,
-    variants: List<String>,
-    currentIndex: Int,
-    showTypingIndicator: Boolean,
-    dragOffset: Float,
-    slideDirection: Int,
-    onTap: () -> Unit,
-    onLongPress: () -> Unit,
-    onVariantSettled: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    BoxWithConstraints(
-        modifier = modifier.graphicsLayer { clip = true }
-    ) {
-        val widthPx = with(LocalDensity.current) { maxWidth.toPx() }
-        val current = variants.getOrElse(currentIndex) { variants.firstOrNull().orEmpty() }
-        if (dragOffset != 0f) {
-            MessageSurfaceContent(
-                bubbleColor = bubbleColor,
-                text = current,
-                showTypingIndicator = showTypingIndicator,
-                modifier = Modifier.graphicsLayer { translationX = dragOffset },
-                onTap = onTap,
-                onLongPress = onLongPress
-            )
-            val adjacentIndex = if (dragOffset < 0f) currentIndex + 1 else currentIndex - 1
-            val adjacent = variants.getOrNull(adjacentIndex)
-            if (adjacent != null) {
-                MessageSurfaceContent(
-                    bubbleColor = bubbleColor,
-                    text = adjacent,
-                    showTypingIndicator = false,
-                    modifier = Modifier.graphicsLayer {
-                        translationX = dragOffset + if (dragOffset < 0f) widthPx else -widthPx
-                    },
-                    onTap = onTap,
-                    onLongPress = onLongPress
-                )
-            }
-        } else {
-            AnimatedContent(
-                targetState = currentIndex,
-                transitionSpec = {
-                    val direction = slideDirection.takeIf { it != 0 }
-                        ?: if (targetState > initialState) 1 else -1
-                    (slideInHorizontally(animationSpec = tween(240)) { fullWidth -> direction * fullWidth } togetherWith
-                        slideOutHorizontally(animationSpec = tween(240)) { fullWidth -> -direction * fullWidth })
-                        .using(SizeTransform(clip = false))
-                },
-                label = "message-variant-slide"
-            ) { index ->
-                LaunchedEffect(index) {
-                    onVariantSettled()
-                }
-                MessageSurfaceContent(
-                    bubbleColor = bubbleColor,
-                    text = variants.getOrElse(index) { current },
-                    showTypingIndicator = showTypingIndicator,
-                    onTap = onTap,
-                    onLongPress = onLongPress
-                )
             }
         }
     }

@@ -165,6 +165,24 @@ interface MessageDao {
         SELECT * FROM messages
         WHERE conversationId = :conversationId
         ORDER BY
+            CASE WHEN sendState != 'SENT' THEN 0 ELSE 1 END ASC,
+            CASE WHEN sendState != 'SENT' THEN createdAt END DESC,
+            CASE WHEN sendState != 'SENT' THEN updatedAt END DESC,
+            CASE WHEN sendState = 'SENT' THEN position END DESC,
+            id DESC
+        LIMIT :limit
+        """
+    )
+    fun observeNewestMessages(conversationId: String, limit: Int): Flow<List<MessageEntity>>
+
+    @Query("SELECT COUNT(*) FROM messages WHERE conversationId = :conversationId")
+    fun observeMessageCount(conversationId: String): Flow<Int>
+
+    @Query(
+        """
+        SELECT * FROM messages
+        WHERE conversationId = :conversationId
+        ORDER BY
             CASE WHEN sendState = 'SENT' THEN 0 ELSE 1 END ASC,
             CASE WHEN sendState = 'SENT' THEN position END ASC,
             CASE WHEN sendState != 'SENT' THEN createdAt END ASC,

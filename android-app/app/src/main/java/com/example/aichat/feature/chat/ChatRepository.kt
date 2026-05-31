@@ -81,10 +81,10 @@ class ChatRepository @Inject constructor(
     private val activeStreams = MutableStateFlow<Map<String, ActiveAssistantStream>>(emptyMap())
     private val pauseRequests = ConcurrentHashMap.newKeySet<String>()
 
-    fun observeConversation(conversationId: String): Flow<ConversationDetail?> {
+    fun observeConversation(conversationId: String, messageLimit: Int): Flow<ConversationDetail?> {
         return combine(
             conversationDao.observeById(conversationId),
-            messageDao.observeMessages(conversationId),
+            messageDao.observeNewestMessages(conversationId, messageLimit),
             regenerationDao.observeConversationRegenerations(conversationId),
             conversationSceneDao.observeByConversation(conversationId)
         ) { conversation, messages, regenerations, scene ->
@@ -103,6 +103,10 @@ class ChatRepository @Inject constructor(
                 backgroundSceneKey = scene?.sceneKey ?: character.initialSceneKey
             )
         }
+    }
+
+    fun observeMessageCount(conversationId: String): Flow<Int> {
+        return messageDao.observeMessageCount(conversationId)
     }
 
     fun observeActiveStream(conversationId: String): Flow<ActiveAssistantStream?> {

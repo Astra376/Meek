@@ -105,6 +105,7 @@ import coil.compose.AsyncImagePainter
 import coil.compose.rememberAsyncImagePainter
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -114,20 +115,25 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+
+private const val CHAT_MESSAGE_PAGE_SIZE = 20
 
 data class ChatUiState(
     val conversation: ConversationDetail? = null,
     val activeStream: ActiveAssistantStream? = null,
     val composerText: String = "",
     val currentUserName: String = "You",
-    val currentUserAvatarUrl: String? = null
+    val currentUserAvatarUrl: String? = null,
+    val canLoadOlderMessages: Boolean = false
 ) {
     val isStreaming: Boolean
         get() = activeStream != null && activeStream.status != ActiveStreamStatus.PAUSED
 }
 
+@OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class ChatViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
@@ -138,6 +144,7 @@ class ChatViewModel @Inject constructor(
 ) : ViewModel() {
     private val conversationId: String = checkNotNull(savedStateHandle["conversationId"])
     private val composerText = MutableStateFlow("")
+    private val loadedMessageLimit = MutableStateFlow(CHAT_MESSAGE_PAGE_SIZE)
     private val _events = MutableSharedFlow<String>()
     private var activeStreamJob: Job? = null
     val events = _events.asSharedFlow()
@@ -153,17 +160,21 @@ class ChatViewModel @Inject constructor(
     }
 
     val uiState: StateFlow<ChatUiState> = combine(
-        chatRepository.observeConversation(conversationId),
+        loadedMessageLimit.flatMapLatest { limit ->
+            chatRepository.observeConversation(conversationId, limit)
+        },
         chatRepository.observeActiveStream(conversationId),
         composerText,
-        authRepository.sessionState
-    ) { conversation, activeStream, composer, session ->
+        authRepository.sessionState,
+        chatRepository.observeMessageCount(conversationId)
+    ) { conversation, activeStream, composer, session, messageCount ->
         ChatUiState(
             conversation = conversation,
             activeStream = activeStream,
             composerText = composer,
             currentUserName = session.profile?.displayName ?: "You",
-            currentUserAvatarUrl = session.profile?.avatarUrl
+            currentUserAvatarUrl = session.profile?.avatarUrl,
+            canLoadOlderMessages = conversation != null && conversation.messages.size < messageCount
         )
     }.stateIn(
         scope = viewModelScope,
@@ -173,6 +184,10 @@ class ChatViewModel @Inject constructor(
 
     fun onComposerChanged(value: String) {
         composerText.value = value
+    }
+
+    fun loadOlderMessages() {
+        loadedMessageLimit.value += CHAT_MESSAGE_PAGE_SIZE
     }
 
     fun send() {
@@ -302,6 +317,7 @@ fun ChatRoute(
         onContinue = viewModel::continueAssistant,
         onPause = viewModel::pauseStreaming,
         onStreamPresentationSettled = viewModel::dismissSettledStream,
+        onLoadOlderMessages = viewModel::loadOlderMessages,
         onMessageLongPress = { actionMessage = it },
         onSelectVariant = { message, index ->
             viewModel.selectRegeneration(message.id, message.variantIdAt(index))
@@ -324,7 +340,7 @@ fun ChatRoute(
     )
 
     actionMessage?.let { message ->
-        val isLatestAssistant = messages.lastOrNull { it.role == MessageRole.ASSISTANT && it.sendState == MessageSendState.SENT }?.id == message.id
+        val isLatestAssistant = messages.firstOrNull { it.role == MessageRole.ASSISTANT && it.sendState == MessageSendState.SENT }?.id == message.id
         MessageActionsDialog(
             canRegenerate = isLatestAssistant,
             onDismiss = { actionMessage = null },
@@ -388,6 +404,7 @@ internal fun ChatScreenContent(
     onContinue: () -> Unit,
     onPause: () -> Unit = {},
     onStreamPresentationSettled: (String) -> Unit = {},
+    onLoadOlderMessages: () -> Unit,
     onMessageLongPress: (ChatMessage) -> Unit,
     onSelectVariant: (ChatMessage, Int) -> Unit,
     onSelectPreviousVariant: (ChatMessage) -> Unit,
@@ -399,9 +416,7 @@ internal fun ChatScreenContent(
     val focusManager = LocalFocusManager.current
     var followLatest by rememberSaveable { mutableStateOf(true) }
     var autoScrolling by remember { mutableStateOf(false) }
-    var initiallyPositionedConversationId by rememberSaveable { mutableStateOf<String?>(null) }
 
-    val conversationId = state.conversation?.id
     val messages = state.conversation?.messages.orEmpty()
     val activeStream = state.activeStream
     val committedSendMessage = activeStream?.assistantMessageId?.let { assistantMessageId ->
@@ -435,44 +450,43 @@ internal fun ChatScreenContent(
         onSettled = onStreamPresentationSettled
     )
     val showSendDraft = activeStream?.mode == ActiveStreamMode.SEND && committedSendMessage == null
-    val transcriptItemCount = messages.size + if (showSendDraft) 1 else 0
-    val bottomAnchorIndex = transcriptItemCount
-    val isNearBottom by remember(listState, bottomAnchorIndex) {
+    val latestItemIndex = 0
+    val oldestLoadedItemIndex = messages.size + (if (showSendDraft) 1 else 0) - 1
+    val isNearBottom by remember(listState) {
         derivedStateOf {
-            val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1
-            lastVisible >= bottomAnchorIndex - 1
+            listState.firstVisibleItemIndex <= 0 && listState.firstVisibleItemScrollOffset < 24
         }
     }
-    val showJumpToLatest = transcriptItemCount > 0 && !followLatest && !isNearBottom
+    val isNearOldestLoaded by remember(listState, oldestLoadedItemIndex, state.canLoadOlderMessages) {
+        derivedStateOf {
+            if (!state.canLoadOlderMessages || oldestLoadedItemIndex < 0) {
+                false
+            } else {
+                val lastVisibleIndex = listState.layoutInfo.visibleItemsInfo.maxOfOrNull { it.index } ?: -1
+                lastVisibleIndex >= oldestLoadedItemIndex - 4
+            }
+        }
+    }
+    val showJumpToLatest = messages.isNotEmpty() && !followLatest && !isNearBottom
     val imeBottom = WindowInsets.ime.getBottom(density)
     val isActiveStream = activeStream != null
-    val transcriptInitiallyPositioned =
-        conversationId == null ||
-            transcriptItemCount == 0 ||
-            initiallyPositionedConversationId == conversationId
 
     suspend fun scrollToLatest(animated: Boolean) {
         autoScrolling = true
         try {
             if (animated) {
-                listState.animateScrollToItem(bottomAnchorIndex)
+                listState.animateScrollToItem(latestItemIndex)
             } else {
-                listState.scrollToItem(bottomAnchorIndex)
+                listState.scrollToItem(latestItemIndex)
             }
         } finally {
             autoScrolling = false
         }
     }
 
-    LaunchedEffect(conversationId, transcriptItemCount) {
-        if (
-            conversationId != null &&
-            transcriptItemCount > 0 &&
-            initiallyPositionedConversationId != conversationId
-        ) {
-            followLatest = true
-            scrollToLatest(animated = false)
-            initiallyPositionedConversationId = conversationId
+    LaunchedEffect(isNearOldestLoaded, messages.size) {
+        if (isNearOldestLoaded) {
+            onLoadOlderMessages()
         }
     }
 
@@ -487,14 +501,13 @@ internal fun ChatScreenContent(
 
     LaunchedEffect(
         followLatest,
-        bottomAnchorIndex,
         streamDisplayText.length,
         activeStream?.status,
         showSendDraft,
-        messages.lastOrNull()?.id,
+        messages.firstOrNull()?.id,
         imeBottom
     ) {
-        if (followLatest && transcriptInitiallyPositioned) {
+        if (followLatest) {
             scrollToLatest(animated = !isActiveStream)
         }
     }
@@ -533,11 +546,7 @@ internal fun ChatScreenContent(
                     )
                 } else {
                     ChatTranscriptPane(
-                        modifier = Modifier
-                            .weight(1f)
-                            .graphicsLayer {
-                                alpha = if (transcriptInitiallyPositioned) 1f else 0f
-                            },
+                        modifier = Modifier.weight(1f),
                         state = listState,
                         messages = messages,
                         activeStream = activeStream,
@@ -574,7 +583,7 @@ internal fun ChatScreenContent(
                 ChatComposerBar(
                     composerText = state.composerText,
                     isStreaming = state.isStreaming,
-                    canContinue = state.conversation?.messages?.lastOrNull { it.sendState == MessageSendState.SENT }?.role == MessageRole.ASSISTANT,
+                    canContinue = state.conversation?.messages?.firstOrNull { it.sendState == MessageSendState.SENT }?.role == MessageRole.ASSISTANT,
                     onComposerChanged = onComposerChanged,
                     onSend = {
                         followLatest = true
@@ -685,7 +694,7 @@ internal fun ChatTranscriptPane(
     onSelectPreviousVariant: (ChatMessage) -> Unit,
     onSelectNextVariant: (ChatMessage) -> Unit
 ) {
-    val latestAssistantId = messages.lastOrNull {
+    val latestAssistantId = messages.firstOrNull {
         it.role == MessageRole.ASSISTANT && it.sendState == MessageSendState.SENT
     }?.id
 
@@ -696,8 +705,21 @@ internal fun ChatTranscriptPane(
                 .testTag("chat-transcript"),
             state = state,
             contentPadding = contentPadding,
+            reverseLayout = true,
             verticalArrangement = Arrangement.spacedBy(AppChrome.compactControlGap)
         ) {
+            if (showSendDraft) {
+                item(key = activeStream?.draftKey ?: "send-draft") {
+                    DraftBubble(
+                        content = streamDisplayText,
+                        showTypingIndicator = streamDisplayText.isBlank() &&
+                            activeStream?.status != ActiveStreamStatus.PAUSED,
+                        characterName = characterName,
+                        characterAvatarUrl = characterAvatarUrl
+                    )
+                }
+            }
+
             items(
                 items = messages,
                 key = { message ->
@@ -740,22 +762,6 @@ internal fun ChatTranscriptPane(
                     onSelectPreviousVariant = { onSelectPreviousVariant(message) },
                     onSelectNextVariant = { onSelectNextVariant(message) }
                 )
-            }
-
-            if (showSendDraft) {
-                item(key = activeStream?.draftKey ?: "send-draft") {
-                    DraftBubble(
-                        content = streamDisplayText,
-                        showTypingIndicator = streamDisplayText.isBlank() &&
-                            activeStream?.status != ActiveStreamStatus.PAUSED,
-                        characterName = characterName,
-                        characterAvatarUrl = characterAvatarUrl
-                    )
-                }
-            }
-
-            item(key = "bottom-anchor") {
-                Spacer(modifier = Modifier.height(1.dp))
             }
         }
 

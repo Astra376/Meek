@@ -13,6 +13,11 @@ import { json, noContent } from "../lib/response";
 import { clampPageSize, parseCursor, parseJson, requireString } from "../lib/validation";
 import type { RouteDefinition } from "./types";
 
+function optionalTrimmedString(value: unknown, field: string, maxLength: number): string {
+  if (value == null || value === "") return "";
+  return requireString(value, field, maxLength);
+}
+
 export const characterRoutes: RouteDefinition[] = [
   {
     method: "POST",
@@ -22,9 +27,11 @@ export const characterRoutes: RouteDefinition[] = [
       const body = await parseJson<Record<string, unknown>>(context.request);
       const created = await createOwnedCharacter(context, {
         name: requireString(body.name, "name", 80),
-        tagline: requireString(body.tagline, "tagline", 140),
-        description: requireString(body.description, "description", 1_200),
-        systemPrompt: requireString(body.systemPrompt, "systemPrompt", 4_000),
+        tagline: optionalTrimmedString(body.tagline, "tagline", 50),
+        greeting: requireString(body.greeting, "greeting", 1_200),
+        description: optionalTrimmedString(body.description, "description", 500),
+        systemPrompt: requireString(body.systemPrompt, "systemPrompt", 32_000),
+        definitionPrivate: body.definitionPrivate === true,
         visibility: parseCharacterVisibility(requireString(body.visibility, "visibility", 20)),
         avatarUrl: typeof body.avatarUrl === "string" ? body.avatarUrl : null
       });
@@ -77,9 +84,11 @@ export const characterRoutes: RouteDefinition[] = [
       const body = await parseJson<Record<string, unknown>>(context.request);
       const updated = await updateOwnedCharacter(context, context.params.characterId, {
         name: requireString(body.name, "name", 80),
-        tagline: requireString(body.tagline, "tagline", 140),
-        description: requireString(body.description, "description", 1_200),
-        systemPrompt: requireString(body.systemPrompt, "systemPrompt", 4_000),
+        tagline: optionalTrimmedString(body.tagline, "tagline", 50),
+        greeting: requireString(body.greeting, "greeting", 1_200),
+        description: optionalTrimmedString(body.description, "description", 500),
+        systemPrompt: requireString(body.systemPrompt, "systemPrompt", 32_000),
+        definitionPrivate: body.definitionPrivate === true,
         visibility: parseCharacterVisibility(requireString(body.visibility, "visibility", 20)),
         avatarUrl: typeof body.avatarUrl === "string" ? body.avatarUrl : null
       });

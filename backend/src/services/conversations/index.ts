@@ -79,7 +79,7 @@ export async function createConversation(context: RequestContext, characterId: s
     characterId,
     now
   });
-  const greeting = character.tagline.trim();
+  const greeting = character.greeting.trim();
   if (greeting) {
     await insertMessage(context.env, {
       id: createId("message"),

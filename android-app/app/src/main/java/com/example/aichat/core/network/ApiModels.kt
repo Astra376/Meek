@@ -50,8 +50,10 @@ data class CharacterDto(
     val authorUsername: String = "",
     val name: String,
     val tagline: String,
+    val greeting: String = "",
     @SerialName("description") val bio: String,
     val systemPrompt: String,
+    val definitionPrivate: Boolean = false,
     val visibility: String,
     val avatarUrl: String? = null,
     val initialSceneUrl: String? = null,
@@ -68,8 +70,10 @@ data class CharacterDto(
 data class CharacterWriteRequestDto(
     val name: String,
     val tagline: String,
+    val greeting: String,
     @SerialName("description") val bio: String,
     val systemPrompt: String,
+    val definitionPrivate: Boolean,
     val visibility: String,
     val avatarUrl: String? = null
 )

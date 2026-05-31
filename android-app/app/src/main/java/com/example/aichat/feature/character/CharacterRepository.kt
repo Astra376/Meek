@@ -28,14 +28,22 @@ class CharacterRepository @Inject constructor(
     private val imageApi: ImageApi
 ) {
     fun buildSystemPrompt(draft: CharacterDraft): String {
-        val bio = draft.bio.trim().ifBlank { "Uploaded character image." }
+        val bio = draft.appearance.trim().ifBlank { "Uploaded character image." }
         return buildString {
             append(readGenericSystemPrompt())
             append("\n\nCharacter profile:")
             append("\nName: ${draft.name.trim()}")
             append("\nAppearance and description: $bio")
-            if (draft.tagline.isNotBlank()) {
-                append("\nOpening greeting: ${draft.tagline.trim()}")
+            if (draft.bio.isNotBlank()) {
+                append("\nPublic profile description: ${draft.bio.trim()}")
+            }
+            if (draft.greeting.isNotBlank()) {
+                append("\nOpening greeting: ${draft.greeting.trim()}")
+            }
+            if (draft.characterDefinition.isNotBlank()) {
+                append("\n\nCharacter definition:")
+                append("\nFollow these details as high-priority character instructions for how the character thinks, speaks, behaves, remembers, and reacts.")
+                append("\n${draft.characterDefinition.trim()}")
             }
         }
     }
@@ -73,16 +81,18 @@ class CharacterRepository @Inject constructor(
         if (draft.avatarUrl.isNullOrBlank()) return Result.failure(IllegalArgumentException("Choose an image first."))
 
         return runCatching {
-            val bio = draft.bio.trim().ifBlank { "Uploaded character image." }
-            val tagline = draft.tagline.ifBlank { bio.lineSequence().firstOrNull().orEmpty().take(140) }
+            val appearance = draft.appearance.trim().ifBlank { "Uploaded character image." }
+            val bio = draft.bio.trim().ifBlank { appearance }
             val systemPrompt = draft.systemPrompt.ifBlank {
                 buildSystemPrompt(draft)
             }
             val payload = CharacterWriteRequestDto(
                 name = draft.name.trim(),
-                tagline = tagline.ifBlank { "Original character" },
+                tagline = draft.tagline.trim(),
+                greeting = draft.greeting.trim(),
                 bio = bio,
                 systemPrompt = systemPrompt,
+                definitionPrivate = draft.definitionPrivate,
                 visibility = draft.visibility.name.lowercase(),
                 avatarUrl = draft.avatarUrl
             )

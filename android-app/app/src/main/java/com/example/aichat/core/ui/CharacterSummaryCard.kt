@@ -49,6 +49,7 @@ fun CharacterSummaryCard(
     onClick: () -> Unit
 ) {
     val interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    val teaser = character.tagline.ifBlank { character.greeting }
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -110,7 +111,7 @@ fun CharacterSummaryCard(
                 )
                 Spacer(modifier = Modifier.height(CharacterCardMetrics.titleGap))
                 Text(
-                    text = character.tagline,
+                    text = teaser,
                     style = MaterialTheme.typography.bodyMedium.copy(
                         fontSize = 12.sp,
                         lineHeight = 16.sp

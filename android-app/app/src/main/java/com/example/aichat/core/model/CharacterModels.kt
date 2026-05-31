@@ -12,8 +12,10 @@ data class CharacterSummary(
     val authorUsername: String = "",
     val name: String,
     val tagline: String,
+    val greeting: String,
     val bio: String,
     val systemPrompt: String,
+    val definitionPrivate: Boolean = false,
     val visibility: CharacterVisibility,
     val avatarUrl: String?,
     val initialSceneUrl: String? = null,
@@ -30,8 +32,12 @@ data class CharacterDraft(
     val id: String? = null,
     val name: String = "",
     val tagline: String = "",
+    val greeting: String = "",
+    val appearance: String = "",
     val bio: String = "",
     val systemPrompt: String = "",
+    val characterDefinition: String = "",
+    val definitionPrivate: Boolean = false,
     val visibility: CharacterVisibility = CharacterVisibility.PUBLIC,
     val avatarUrl: String? = null
 )

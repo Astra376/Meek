@@ -114,6 +114,7 @@ class ProfileViewModel @Inject constructor(
                     ownerUserId = "",
                     name = conv.characterName,
                     tagline = "",
+                    greeting = "",
                     bio = "",
                     systemPrompt = "",
                     visibility = com.example.aichat.core.model.CharacterVisibility.PUBLIC,

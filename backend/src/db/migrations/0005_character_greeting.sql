@@ -1,0 +1,2 @@
+ALTER TABLE characters ADD COLUMN greeting TEXT NOT NULL DEFAULT '';
+ALTER TABLE characters ADD COLUMN definition_private INTEGER NOT NULL DEFAULT 0;

@@ -28,6 +28,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -74,7 +75,11 @@ enum class CharacterCreateStep {
     NAME,
     APPEARANCE,
     GREETING,
-    VISIBILITY
+    VISIBILITY,
+    DETAILS,
+    TAGLINE,
+    DESCRIPTION,
+    DEFINITION
 }
 
 data class CharacterStudioUiState(
@@ -109,6 +114,10 @@ class CharacterStudioViewModel @Inject constructor(
             CharacterCreateStep.APPEARANCE -> _uiState.value.copy(step = CharacterCreateStep.NAME)
             CharacterCreateStep.GREETING -> _uiState.value.copy(step = CharacterCreateStep.APPEARANCE)
             CharacterCreateStep.VISIBILITY -> _uiState.value.copy(step = CharacterCreateStep.GREETING)
+            CharacterCreateStep.DETAILS -> _uiState.value.copy(step = CharacterCreateStep.VISIBILITY)
+            CharacterCreateStep.TAGLINE,
+            CharacterCreateStep.DESCRIPTION,
+            CharacterCreateStep.DEFINITION -> _uiState.value.copy(step = CharacterCreateStep.DETAILS)
         }
     }
 
@@ -118,14 +127,22 @@ class CharacterStudioViewModel @Inject constructor(
             CharacterCreateStep.NAME -> CharacterCreateStep.APPEARANCE
             CharacterCreateStep.APPEARANCE -> CharacterCreateStep.GREETING
             CharacterCreateStep.GREETING -> CharacterCreateStep.VISIBILITY
-            CharacterCreateStep.VISIBILITY -> CharacterCreateStep.VISIBILITY
+            CharacterCreateStep.VISIBILITY -> CharacterCreateStep.DETAILS
+            CharacterCreateStep.DETAILS -> CharacterCreateStep.DETAILS
+            CharacterCreateStep.TAGLINE,
+            CharacterCreateStep.DESCRIPTION,
+            CharacterCreateStep.DEFINITION -> CharacterCreateStep.DETAILS
         }
         _uiState.value = current.copy(step = nextStep)
     }
 
+    fun openDetailsStep(step: CharacterCreateStep) {
+        _uiState.value = _uiState.value.copy(step = step)
+    }
+
     fun generatePortraits() {
         val state = _uiState.value
-        val prompt = state.draft.bio.ifBlank { state.draft.name }
+        val prompt = state.draft.appearance.ifBlank { state.draft.name }
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isGeneratingPortraits = true)
             runCatching {
@@ -164,11 +181,11 @@ class CharacterStudioViewModel @Inject constructor(
         val state = _uiState.value
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isGeneratingGreeting = true)
-            characterRepository.generateGreeting(state.draft.name, state.draft.bio)
+            characterRepository.generateGreeting(state.draft.name, state.draft.appearance)
                 .onSuccess { greeting ->
                     _uiState.value = _uiState.value.copy(
                         isGeneratingGreeting = false,
-                        draft = _uiState.value.draft.copy(tagline = greeting)
+                        draft = _uiState.value.draft.copy(greeting = greeting)
                     )
                 }
                 .onFailure {
@@ -243,9 +260,14 @@ fun CharacterStudioRoute(
             CharacterCreateStepContent(
                 state = state,
                 onNameChanged = { value -> viewModel.updateDraft { it.copy(name = value) } },
-                onAppearanceChanged = { value -> viewModel.updateDraft { it.copy(bio = value) } },
-                onGreetingChanged = { value -> viewModel.updateDraft { it.copy(tagline = value) } },
+                onAppearanceChanged = { value -> viewModel.updateDraft { it.copy(appearance = value) } },
+                onGreetingChanged = { value -> viewModel.updateDraft { it.copy(greeting = value) } },
                 onVisibilityChanged = { value -> viewModel.updateDraft { it.copy(visibility = value) } },
+                onTaglineChanged = { value -> viewModel.updateDraft { it.copy(tagline = value.take(50)) } },
+                onPublicDescriptionChanged = { value -> viewModel.updateDraft { it.copy(bio = value.take(500)) } },
+                onDefinitionChanged = { value -> viewModel.updateDraft { it.copy(characterDefinition = value.take(32_000)) } },
+                onDefinitionPrivateChanged = { value -> viewModel.updateDraft { it.copy(definitionPrivate = value) } },
+                onOpenDetailsStep = viewModel::openDetailsStep,
                 onGeneratePortraits = viewModel::generatePortraits,
                 onSelectPortrait = viewModel::selectPortrait,
                 onUploadPortrait = viewModel::uploadPortrait,
@@ -263,8 +285,14 @@ fun CharacterStudioRoute(
             CharacterCreateBottomAction(
                 state = state,
                 onNext = {
-                    if (state.step == CharacterCreateStep.VISIBILITY) {
+                    if (state.step == CharacterCreateStep.DETAILS) {
                         viewModel.createCharacter(ownerUserId, onCreated)
+                    } else if (
+                        state.step == CharacterCreateStep.TAGLINE ||
+                        state.step == CharacterCreateStep.DESCRIPTION ||
+                        state.step == CharacterCreateStep.DEFINITION
+                    ) {
+                        viewModel.openDetailsStep(CharacterCreateStep.DETAILS)
                     } else {
                         viewModel.goNext()
                     }
@@ -303,6 +331,11 @@ private fun CharacterCreateStepContent(
     onAppearanceChanged: (String) -> Unit,
     onGreetingChanged: (String) -> Unit,
     onVisibilityChanged: (CharacterVisibility) -> Unit,
+    onTaglineChanged: (String) -> Unit,
+    onPublicDescriptionChanged: (String) -> Unit,
+    onDefinitionChanged: (String) -> Unit,
+    onDefinitionPrivateChanged: (Boolean) -> Unit,
+    onOpenDetailsStep: (CharacterCreateStep) -> Unit,
     onGeneratePortraits: () -> Unit,
     onSelectPortrait: (String) -> Unit,
     onUploadPortrait: (Uri) -> Unit,
@@ -317,7 +350,7 @@ private fun CharacterCreateStepContent(
         )
         CharacterCreateStep.APPEARANCE -> AppearanceStep(
             name = state.draft.name,
-            description = state.draft.bio,
+            description = state.draft.appearance,
             selectedAvatarUrl = state.draft.avatarUrl,
             portraitOptions = state.portraitOptions,
             isGenerating = state.isGeneratingPortraits,
@@ -328,7 +361,7 @@ private fun CharacterCreateStepContent(
             modifier = modifier
         )
         CharacterCreateStep.GREETING -> GreetingStep(
-            greeting = state.draft.tagline,
+            greeting = state.draft.greeting,
             isGenerating = state.isGeneratingGreeting,
             onGreetingChanged = onGreetingChanged,
             onGenerateGreeting = onGenerateGreeting,
@@ -337,6 +370,39 @@ private fun CharacterCreateStepContent(
         CharacterCreateStep.VISIBILITY -> VisibilityStep(
             visibility = state.draft.visibility,
             onVisibilityChanged = onVisibilityChanged,
+            modifier = modifier
+        )
+        CharacterCreateStep.DETAILS -> OptionalDetailsStep(
+            onAddTagline = { onOpenDetailsStep(CharacterCreateStep.TAGLINE) },
+            onAddDescription = { onOpenDetailsStep(CharacterCreateStep.DESCRIPTION) },
+            onAddDefinition = { onOpenDetailsStep(CharacterCreateStep.DEFINITION) },
+            modifier = modifier
+        )
+        CharacterCreateStep.TAGLINE -> DetailTextStep(
+            value = state.draft.tagline,
+            onValueChanged = { onTaglineChanged(it.take(50)) },
+            placeholder = "A dangerous prince with a soft spot for trouble.",
+            description = "This is that people see before they tap to chat with your character",
+            limit = 50,
+            minLines = 2,
+            maxLines = 3,
+            modifier = modifier
+        )
+        CharacterCreateStep.DESCRIPTION -> DetailTextStep(
+            value = state.draft.bio,
+            onValueChanged = { onPublicDescriptionChanged(it.take(500)) },
+            placeholder = "Introduce who they are, what kind of story they invite, and why someone might want to meet them.",
+            description = "This helps introduce your Character to people and will appear on their profile.",
+            limit = 500,
+            minLines = 5,
+            maxLines = 9,
+            modifier = modifier
+        )
+        CharacterCreateStep.DEFINITION -> DefinitionStep(
+            value = state.draft.characterDefinition,
+            privateDefinition = state.draft.definitionPrivate,
+            onValueChanged = { onDefinitionChanged(it.take(32_000)) },
+            onPrivateChanged = onDefinitionPrivateChanged,
             modifier = modifier
         )
     }
@@ -626,6 +692,169 @@ private fun VisibilityOption(
 }
 
 @Composable
+private fun OptionalDetailsStep(
+    onAddTagline: () -> Unit,
+    onAddDescription: () -> Unit,
+    onAddDefinition: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        StepTitle("Add details")
+        DetailOptionButton(
+            title = "Add Tagline",
+            body = "This is that people see before they tap to chat with your character",
+            onClick = onAddTagline
+        )
+        DetailOptionButton(
+            title = "Add Description",
+            body = "This helps introduce your Character to people and will appear on their profile.",
+            onClick = onAddDescription
+        )
+        DetailOptionButton(
+            title = "Add Character Definition",
+            body = "The Character Definition shapes how your character thinks, speaks, or behaves. These details can be shown or hidden.",
+            onClick = onAddDefinition
+        )
+    }
+}
+
+@Composable
+private fun DetailOptionButton(
+    title: String,
+    body: String,
+    onClick: () -> Unit
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(18.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.Top
+        ) {
+            AppIcon(
+                AppIcons.createAction,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary
+            )
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = body,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun DetailTextStep(
+    value: String,
+    onValueChanged: (String) -> Unit,
+    placeholder: String,
+    description: String,
+    limit: Int,
+    minLines: Int,
+    maxLines: Int,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier.verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        AppTextField(
+            value = value,
+            onValueChange = { onValueChanged(it.take(limit)) },
+            placeholder = placeholder,
+            modifier = Modifier.fillMaxWidth(),
+            minLines = minLines,
+            maxLines = maxLines,
+            shape = RoundedCornerShape(24.dp)
+        )
+        Text(
+            text = description,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Text(
+            text = "${value.length}/$limit",
+            modifier = Modifier.align(Alignment.End),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+@Composable
+private fun DefinitionStep(
+    value: String,
+    privateDefinition: Boolean,
+    onValueChanged: (String) -> Unit,
+    onPrivateChanged: (Boolean) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier.verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Keep definition private",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = "This will hide definition from everyone.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Switch(checked = privateDefinition, onCheckedChange = onPrivateChanged)
+        }
+        AppTextField(
+            value = value,
+            onValueChange = { onValueChanged(it.take(32_000)) },
+            placeholder = "Example: Speaks in clipped sentences, distrusts easy kindness, and softens only when the user proves they are honest.",
+            modifier = Modifier.fillMaxWidth(),
+            minLines = 8,
+            maxLines = 18,
+            shape = RoundedCornerShape(24.dp)
+        )
+        Text(
+            text = "The Character Definition shapes how your character thinks, speaks, or behaves. These details can be shown or hidden.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Text(
+            text = "${value.length}/32000",
+            modifier = Modifier.align(Alignment.End),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+@Composable
 private fun StepTitle(text: String) {
     Text(
         text = text,
@@ -644,8 +873,12 @@ private fun CharacterCreateBottomAction(
     val enabled = when (state.step) {
         CharacterCreateStep.NAME -> state.draft.name.isNotBlank()
         CharacterCreateStep.APPEARANCE -> !state.draft.avatarUrl.isNullOrBlank()
-        CharacterCreateStep.GREETING -> state.draft.tagline.isNotBlank() && !state.isGeneratingGreeting
-        CharacterCreateStep.VISIBILITY -> !state.isSaving
+        CharacterCreateStep.GREETING -> state.draft.greeting.isNotBlank() && !state.isGeneratingGreeting
+        CharacterCreateStep.VISIBILITY -> true
+        CharacterCreateStep.DETAILS -> !state.isSaving
+        CharacterCreateStep.TAGLINE,
+        CharacterCreateStep.DESCRIPTION,
+        CharacterCreateStep.DEFINITION -> true
     } && !state.isGeneratingPortraits
 
     Surface(
@@ -667,12 +900,15 @@ private fun CharacterCreateBottomAction(
                 PrimaryButton(
                     text = when {
                         state.isSaving -> "Creating..."
-                        state.step == CharacterCreateStep.VISIBILITY -> "Create"
+                        state.step == CharacterCreateStep.DETAILS -> "Create"
+                        state.step == CharacterCreateStep.TAGLINE ||
+                            state.step == CharacterCreateStep.DESCRIPTION ||
+                            state.step == CharacterCreateStep.DEFINITION -> "Done"
                         else -> "Next"
                     },
                     enabled = enabled,
                     modifier = Modifier.fillMaxWidth(),
-                    leadingIcon = if (state.step == CharacterCreateStep.VISIBILITY) {
+                    leadingIcon = if (state.step == CharacterCreateStep.DETAILS) {
                         { AppIcon(AppIcons.createAction, contentDescription = null) }
                     } else {
                         null

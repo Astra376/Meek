@@ -519,7 +519,7 @@ fun TopPickCard(character: CharacterSummary, onClick: () -> Unit) {
                 )
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
-                    text = character.tagline,
+                    text = character.tagline.ifBlank { character.greeting },
                     style = MaterialTheme.typography.bodyMedium.copy(
                         fontSize = 13.sp,
                         lineHeight = 18.sp

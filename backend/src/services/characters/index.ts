@@ -16,8 +16,10 @@ import { toCharacterDto } from "./characterDto";
 export interface CharacterWriteInput {
   name: string;
   tagline: string;
+  greeting: string;
   description: string;
   systemPrompt: string;
+  definitionPrivate: boolean;
   visibility: "public" | "unlisted" | "private";
   avatarUrl: string | null;
 }
@@ -34,8 +36,10 @@ export async function createOwnedCharacter(context: RequestContext, input: Chara
     ownerUserId: context.user!.userId,
     name: input.name,
     tagline: input.tagline,
+    greeting: input.greeting,
     description: input.description,
     systemPrompt: input.systemPrompt,
+    definitionPrivate: input.definitionPrivate,
     visibility: input.visibility,
     avatarUrl: input.avatarUrl,
     now: Date.now()
@@ -57,8 +61,10 @@ export async function updateOwnedCharacter(context: RequestContext, characterId:
     ownerUserId: context.user!.userId,
     name: input.name,
     tagline: input.tagline,
+    greeting: input.greeting,
     description: input.description,
     systemPrompt: input.systemPrompt,
+    definitionPrivate: input.definitionPrivate,
     visibility: input.visibility,
     avatarUrl: input.avatarUrl,
     now: Date.now()

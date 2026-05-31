@@ -7,8 +7,10 @@ export interface CharacterRecord {
   owner_display_name: string | null;
   name: string;
   tagline: string;
+  greeting: string;
   description: string;
   system_prompt: string;
+  definition_private: number;
   visibility: "public" | "unlisted" | "private";
   avatar_url: string | null;
   public_chat_count: number;
@@ -24,8 +26,10 @@ export async function insertCharacter(env: Env, input: {
   ownerUserId: string;
   name: string;
   tagline: string;
+  greeting: string;
   description: string;
   systemPrompt: string;
+  definitionPrivate: boolean;
   visibility: "public" | "unlisted" | "private";
   avatarUrl: string | null;
   now: number;
@@ -34,18 +38,20 @@ export async function insertCharacter(env: Env, input: {
     env.DB.prepare(
       `
       INSERT INTO characters (
-        id, owner_user_id, name, tagline, description, system_prompt, visibility,
+        id, owner_user_id, name, tagline, greeting, description, system_prompt, definition_private, visibility,
         avatar_url, public_chat_count, like_count, last_active_at, created_at, updated_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?, ?)
       `
     ).bind(
       input.id,
       input.ownerUserId,
       input.name,
       input.tagline,
+      input.greeting,
       input.description,
       input.systemPrompt,
+      input.definitionPrivate ? 1 : 0,
       input.visibility,
       input.avatarUrl,
       input.now,
@@ -60,8 +66,10 @@ export async function updateCharacter(env: Env, input: {
   ownerUserId: string;
   name: string;
   tagline: string;
+  greeting: string;
   description: string;
   systemPrompt: string;
+  definitionPrivate: boolean;
   visibility: "public" | "unlisted" | "private";
   avatarUrl: string | null;
   now: number;
@@ -70,14 +78,16 @@ export async function updateCharacter(env: Env, input: {
     env.DB.prepare(
       `
       UPDATE characters
-      SET name = ?, tagline = ?, description = ?, system_prompt = ?, visibility = ?, avatar_url = ?, updated_at = ?
+      SET name = ?, tagline = ?, greeting = ?, description = ?, system_prompt = ?, definition_private = ?, visibility = ?, avatar_url = ?, updated_at = ?
       WHERE id = ? AND owner_user_id = ?
       `
     ).bind(
       input.name,
       input.tagline,
+      input.greeting,
       input.description,
       input.systemPrompt,
+      input.definitionPrivate ? 1 : 0,
       input.visibility,
       input.avatarUrl,
       input.now,

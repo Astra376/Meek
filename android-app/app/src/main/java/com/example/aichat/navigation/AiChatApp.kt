@@ -434,7 +434,9 @@ private fun MainTabs(
                             .statusBarsPadding()
                             .padding(
                                 start = com.example.aichat.core.ui.AppChrome.screenHorizontalPadding,
-                                end = com.example.aichat.core.ui.AppChrome.screenHorizontalPadding
+                                end = com.example.aichat.core.ui.AppChrome.screenHorizontalPadding,
+                                top = 6.dp,
+                                bottom = 6.dp
                             ),
                         titlePrefix = if (currentDestination?.route == MainDestination.Chats.route && totalUnread > 0) {
                             {
@@ -461,7 +463,7 @@ private fun MainTabs(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(18.dp)
+                            .height(6.dp)
                             .background(
                                 brush = Brush.verticalGradient(
                                     listOf(background, background.copy(alpha = 0f))

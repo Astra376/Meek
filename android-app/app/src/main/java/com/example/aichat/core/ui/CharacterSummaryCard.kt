@@ -45,6 +45,7 @@ private object CharacterCardMetrics {
 fun CharacterSummaryCard(
     character: CharacterSummary,
     modifier: Modifier = Modifier,
+    imageAspectRatio: Float = 1.25f,
     onClick: () -> Unit
 ) {
     val interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
@@ -56,7 +57,7 @@ fun CharacterSummaryCard(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .aspectRatio(1.25f)
+                .aspectRatio(imageAspectRatio)
         ) {
             CharacterPortrait(
                 name = character.name,

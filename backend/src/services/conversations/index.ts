@@ -6,9 +6,11 @@ import {
   getConversationById,
   getConversationSummaryById,
   insertConversation,
+  insertMessage,
   listConversationSummaries,
   listMessages,
-  listRegenerationsForConversation
+  listRegenerationsForConversation,
+  updateConversationActivity
 } from "../../db/queries/conversations";
 import { AppError, forbidden } from "../../lib/errors";
 import { createId } from "../../lib/ids";
@@ -77,6 +79,21 @@ export async function createConversation(context: RequestContext, characterId: s
     characterId,
     now
   });
+  const greeting = character.tagline.trim();
+  if (greeting) {
+    await insertMessage(context.env, {
+      id: createId("message"),
+      conversation_id: conversationId,
+      position: 0,
+      role: "assistant",
+      content: greeting,
+      edited: 0,
+      created_at: now,
+      updated_at: now,
+      selected_regeneration_id: null
+    });
+    await updateConversationActivity(context.env, conversationId, now);
+  }
 
   return {
     id: conversationId,
@@ -85,8 +102,8 @@ export async function createConversation(context: RequestContext, characterId: s
     characterAvatarUrl: character.avatar_url,
     updatedAt: now,
     startedAt: now,
-    lastMessageAt: null,
-    lastPreview: "",
+    lastMessageAt: greeting ? now : null,
+    lastPreview: greeting,
     unreadCount: 0,
     hasUnreadBadge: false
   };

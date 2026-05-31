@@ -427,7 +427,8 @@ fun CharacterPortrait(
     name: String,
     avatarUrl: String?,
     modifier: Modifier = Modifier,
-    shape: Shape = RoundedCornerShape(DesignMetrics.portraitCorner)
+    shape: Shape = RoundedCornerShape(DesignMetrics.portraitCorner),
+    alignment: Alignment = Alignment.Center
 ) {
     val palette = avatarPalette(avatarUrl ?: name)
     when {
@@ -436,6 +437,7 @@ fun CharacterPortrait(
                 model = avatarUrl,
                 contentDescription = name,
                 contentScale = ContentScale.Crop,
+                alignment = alignment,
                 modifier = modifier
                     .clip(shape)
                     .background(controlSurfaceColor(selected = false))

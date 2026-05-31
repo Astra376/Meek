@@ -149,7 +149,8 @@ fun HomeRoute(
             items(state.feed, key = { it.id }) { character ->
                 CharacterSummaryCard(
                     character = character,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    imageAspectRatio = 1f
                 ) {
                     scope.launch {
                         viewModel.ensureConversation(character.id)

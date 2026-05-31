@@ -497,7 +497,8 @@ fun TopPickCard(character: CharacterSummary, onClick: () -> Unit) {
             CharacterPortrait(
                 name = character.name,
                 avatarUrl = character.avatarUrl,
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier.fillMaxSize(),
+                alignment = Alignment.TopCenter
             )
         }
 
@@ -519,8 +520,8 @@ fun TopPickCard(character: CharacterSummary, onClick: () -> Unit) {
                 Text(
                     text = character.tagline,
                     style = MaterialTheme.typography.bodyMedium.copy(
-                        fontSize = 15.sp,
-                        lineHeight = 20.sp
+                        fontSize = 13.sp,
+                        lineHeight = 18.sp
                     ),
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.94f),
                     maxLines = 3,

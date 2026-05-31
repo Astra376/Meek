@@ -22,23 +22,47 @@ class ChatBackgroundRepository @Inject constructor(
 ) {
     suspend fun ensureInitialBackground(conversationId: String): Result<Unit> = withContext(Dispatchers.IO) {
         runCatching {
-            val character = database.withTransaction {
+            val detail = database.withTransaction {
                 val conversation = conversationDao.getById(conversationId) ?: return@withTransaction null
-                database.characterDao().getById(conversation.characterId)
+                val character = database.characterDao().getById(conversation.characterId) ?: return@withTransaction null
+                Pair(conversation, character)
             } ?: return@runCatching
-            if (character.initialSceneUrl != null && character.initialSceneKey != null) return@runCatching
+            val (conversation, character) = detail
+            if (character.initialSceneUrl != null && character.initialSceneKey != null) {
+                sceneDao.upsert(
+                    ConversationSceneEntity(
+                        conversationId = conversation.id,
+                        sceneKey = character.initialSceneKey,
+                        imageUrl = character.initialSceneUrl,
+                        prompt = "",
+                        updatedAt = System.currentTimeMillis()
+                    )
+                )
+                return@runCatching
+            }
 
             val scene = ChatScenePromptBuilder.initialScene(character)
             val imageUrl = imageApi.generateChatBackground(
                 GenerateChatBackgroundRequestDto(scene.prompt)
             ).imageUrl
-            database.characterDao().upsert(
-                character.copy(
-                    initialSceneUrl = imageUrl,
-                    initialSceneKey = scene.key,
-                    updatedAt = System.currentTimeMillis()
+            database.withTransaction {
+                database.characterDao().upsert(
+                    character.copy(
+                        initialSceneUrl = imageUrl,
+                        initialSceneKey = scene.key,
+                        updatedAt = System.currentTimeMillis()
+                    )
                 )
-            )
+                sceneDao.upsert(
+                    ConversationSceneEntity(
+                        conversationId = conversation.id,
+                        sceneKey = scene.key,
+                        imageUrl = imageUrl,
+                        prompt = scene.prompt,
+                        updatedAt = System.currentTimeMillis()
+                    )
+                )
+            }
         }
     }
 

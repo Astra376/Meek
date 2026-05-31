@@ -131,7 +131,11 @@ class CharacterStudioViewModel @Inject constructor(
             runCatching {
                 (1..4).map { index ->
                     async {
-                        val variantPrompt = "$prompt\nPortrait option $index, expressive character avatar."
+                        val variantPrompt = """
+                            $prompt
+                            Portrait option $index. Square full-bleed character image that fills the whole frame.
+                            No circular avatar crop, no round frame, no border, no blank background outside the character art.
+                        """.trimIndent()
                         characterRepository.generatePortrait(variantPrompt).getOrThrow()
                     }
                 }.awaitAll()
@@ -195,9 +199,6 @@ class CharacterStudioViewModel @Inject constructor(
                         .onSuccess { conversationId ->
                             _uiState.value = CharacterStudioUiState()
                             onCreated(conversationId)
-                            launch {
-                                characterRepository.generateInitialScene(characterId)
-                            }
                         }
                         .onFailure {
                             _uiState.value = _uiState.value.copy(isSaving = false)
@@ -279,10 +280,6 @@ fun CharacterStudioRoute(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .imePadding()
-                    .padding(
-                        horizontal = AppChrome.screenHorizontalPadding,
-                        vertical = AppChrome.screenBottomPadding
-                    )
             )
         }
     }
@@ -659,19 +656,38 @@ private fun CharacterCreateBottomAction(
         CharacterCreateStep.VISIBILITY -> !state.isSaving
     } && !state.isGeneratingPortraits
 
-    PrimaryButton(
-        text = when {
-            state.isSaving -> "Creating..."
-            state.step == CharacterCreateStep.VISIBILITY -> "Create"
-            else -> "Next"
-        },
-        enabled = enabled,
+    Surface(
         modifier = modifier.fillMaxWidth(),
-        leadingIcon = if (state.step == CharacterCreateStep.VISIBILITY) {
-            { AppIcon(AppIcons.createAction, contentDescription = null) }
-        } else {
-            null
-        },
-        onClick = onNext
-    )
+        color = MaterialTheme.colorScheme.background,
+        tonalElevation = 0.dp,
+        shadowElevation = 0.dp
+    ) {
+        Column {
+            HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(
+                        horizontal = AppChrome.screenHorizontalPadding,
+                        vertical = AppChrome.screenBottomPadding
+                    )
+            ) {
+                PrimaryButton(
+                    text = when {
+                        state.isSaving -> "Creating..."
+                        state.step == CharacterCreateStep.VISIBILITY -> "Create"
+                        else -> "Next"
+                    },
+                    enabled = enabled,
+                    modifier = Modifier.fillMaxWidth(),
+                    leadingIcon = if (state.step == CharacterCreateStep.VISIBILITY) {
+                        { AppIcon(AppIcons.createAction, contentDescription = null) }
+                    } else {
+                        null
+                    },
+                    onClick = onNext
+                )
+            }
+        }
+    }
 }

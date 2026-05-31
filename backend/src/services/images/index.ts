@@ -4,7 +4,14 @@ import { generateChatBackgroundWithFal, generatePortraitWithFal } from "../../pr
 import { storeRemoteImageInR2 } from "../../providers/r2";
 
 export async function generateCharacterPortrait(context: RequestContext, prompt: string) {
-  const remoteUrl = await generatePortraitWithFal(context.env, prompt);
+  const remoteUrl = await generatePortraitWithFal(
+    context.env,
+    [
+      "Square full-bleed character portrait that fills the entire image frame.",
+      "Do not make a circular avatar, round crop, badge, medallion, border, or framed icon.",
+      prompt
+    ].join("\n")
+  );
   const key = `portraits/${context.user!.userId}/${createId("portrait")}.jpg`;
   const avatarUrl = await storeRemoteImageInR2(context.env, key, remoteUrl);
   return { avatarUrl };

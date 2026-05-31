@@ -30,6 +30,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.animation.core.RepeatMode
@@ -696,7 +698,6 @@ internal fun ChatTranscriptPane(
                     else -> message.visibleContent
                 }
                 MessageBubble(
-                    modifier = Modifier.animateItem(),
                     message = message,
                     displayContent = displayContent,
                     showTypingIndicator = (isActiveSendMessage || isActiveRegenerate) &&
@@ -720,7 +721,6 @@ internal fun ChatTranscriptPane(
             if (showSendDraft) {
                 item(key = activeStream?.draftKey ?: "send-draft") {
                     DraftBubble(
-                        modifier = Modifier.animateItem(),
                         content = streamDisplayText,
                         showTypingIndicator = streamDisplayText.isBlank() &&
                             activeStream?.status != ActiveStreamStatus.PAUSED,
@@ -1007,6 +1007,7 @@ private fun MessageBubble(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun VariantMessagePager(
     modifier: Modifier = Modifier,
@@ -1029,6 +1030,7 @@ private fun VariantMessagePager(
         pageCount = { variants.size + if (variantControlsEnabled) 1 else 0 }
     )
     val coroutineScope = rememberCoroutineScope()
+    val bringIntoViewRequester = remember { BringIntoViewRequester() }
     var committedPage by remember(variants.size) {
         mutableStateOf(currentIndex.coerceIn(variants.indices))
     }
@@ -1047,15 +1049,22 @@ private fun VariantMessagePager(
                     committedPage = page
                     generationRequested = false
                     onSelectVariant(page)
+                    bringIntoViewRequester.bringIntoView()
                 }
                 page in variants.indices -> {
                     generationRequested = false
+                    bringIntoViewRequester.bringIntoView()
                 }
             }
         }
     }
 
-    Box(modifier = modifier.fillMaxWidth().clipToBounds()) {
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .clipToBounds()
+            .bringIntoViewRequester(bringIntoViewRequester)
+    ) {
         HorizontalPager(
             state = pagerState,
             modifier = Modifier.fillMaxWidth(),
@@ -1121,7 +1130,7 @@ private fun MessageVariantPage(
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start,
-            verticalAlignment = Alignment.Bottom
+            verticalAlignment = Alignment.Top
         ) {
             if (!isUser) {
                 CircleAvatar(
@@ -1230,7 +1239,7 @@ private fun DraftBubble(
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.Start,
-            verticalAlignment = Alignment.Bottom
+            verticalAlignment = Alignment.Top
         ) {
             CircleAvatar(
                 name = characterName,

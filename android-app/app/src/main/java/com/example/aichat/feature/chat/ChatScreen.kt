@@ -1,6 +1,7 @@
 package com.example.aichat.feature.chat
 
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
@@ -1062,6 +1063,7 @@ private fun VariantMessagePager(
     Box(
         modifier = modifier
             .fillMaxWidth()
+            .animateContentSize(animationSpec = tween(durationMillis = 220))
             .clipToBounds()
             .bringIntoViewRequester(bringIntoViewRequester)
     ) {

@@ -740,6 +740,8 @@ internal fun ChatTranscriptPane(
                     showTypingIndicator = (isActiveSendMessage || isActiveRegenerate) &&
                         displayContent.isBlank() &&
                         activeStream?.status != ActiveStreamStatus.PAUSED,
+                    showGenerationPage = isActiveRegenerate &&
+                        activeStream?.status != ActiveStreamStatus.PAUSED,
                     isLatestAssistant = message.id == latestAssistantId,
                     actionsEnabled = !isStreaming && message.sendState == MessageSendState.SENT,
                     variantControlsEnabled = !isStreaming,
@@ -916,6 +918,7 @@ private fun MessageBubble(
     message: ChatMessage,
     displayContent: String,
     showTypingIndicator: Boolean,
+    showGenerationPage: Boolean,
     isLatestAssistant: Boolean,
     actionsEnabled: Boolean,
     variantControlsEnabled: Boolean,
@@ -938,20 +941,25 @@ private fun MessageBubble(
     }
     val avatarName = if (isUser) currentUserName else characterName
     val avatarUrl = if (isUser) currentUserAvatarUrl else characterAvatarUrl
-    val variants = remember(message.content, message.regenerations, displayContent, showTypingIndicator) {
-        if (showTypingIndicator) {
+    val variants = remember(message.content, message.regenerations, displayContent, showTypingIndicator, showGenerationPage) {
+        if (showTypingIndicator && !showGenerationPage) {
             listOf(displayContent)
         } else {
             val generated = message.variantTexts()
-            if (displayContent != message.visibleContent) listOf(displayContent) else generated
+            if (!showGenerationPage && displayContent != message.visibleContent) listOf(displayContent) else generated
         }
     }
     val currentIndex = if (variants.size == message.variantCount()) message.variantIndex() else 0
+    val hasGenerationPage = isLatestAssistant && !isUser && (variantControlsEnabled || showGenerationPage)
 
-    if (isLatestAssistant && variants.size > 1) {
+    if (isLatestAssistant && (variants.size > 1 || hasGenerationPage)) {
         VariantMessagePager(
             variants = variants,
             currentIndex = currentIndex,
+            hasGenerationPage = hasGenerationPage,
+            generationPageText = if (showGenerationPage) displayContent else "",
+            generationPageLoading = showGenerationPage && showTypingIndicator,
+            generationRequestEnabled = variantControlsEnabled,
             isUser = isUser,
             avatarName = avatarName,
             avatarUrl = avatarUrl,
@@ -991,6 +999,10 @@ private fun VariantMessagePager(
     modifier: Modifier = Modifier,
     variants: List<String>,
     currentIndex: Int,
+    hasGenerationPage: Boolean,
+    generationPageText: String,
+    generationPageLoading: Boolean,
+    generationRequestEnabled: Boolean,
     isUser: Boolean,
     avatarName: String,
     avatarUrl: String?,
@@ -1003,31 +1015,33 @@ private fun VariantMessagePager(
     onSelectNextVariant: () -> Unit
 ) {
     val generationPage = variants.size
+    val pageCount = variants.size + if (hasGenerationPage) 1 else 0
     val pagerState = rememberPagerState(
         initialPage = currentIndex,
-        pageCount = { variants.size + if (variantControlsEnabled) 1 else 0 }
+        pageCount = { pageCount }
     )
     val coroutineScope = rememberCoroutineScope()
     val bringIntoViewRequester = remember { BringIntoViewRequester() }
     var committedPage by remember(variants.size) {
         mutableStateOf(currentIndex.coerceIn(variants.indices))
     }
-    var settledVisualPage by remember(variants.size, variantControlsEnabled) {
+    var settledVisualPage by remember(variants.size, hasGenerationPage) {
         mutableStateOf(currentIndex.coerceIn(variants.indices))
     }
-    var generationRequested by remember(variants.size, variantControlsEnabled) {
+    var generationRequested by remember(variants.size, hasGenerationPage) {
         mutableStateOf(false)
     }
-    var pageHeights by remember(variants.size, variantControlsEnabled) {
-        mutableStateOf(List(variants.size + if (variantControlsEnabled) 1 else 0) { 0 })
+    var pageHeights by remember(pageCount) {
+        mutableStateOf(List(pageCount) { 0 })
     }
 
-    LaunchedEffect(pagerState, variants.size, variantControlsEnabled) {
-        snapshotFlow { pagerState.settledPage }.collect { page ->
+    LaunchedEffect(pagerState, variants.size, hasGenerationPage, generationRequestEnabled) {
+        snapshotFlow { pagerState.settledPage to pagerState.isScrollInProgress }.collect { (page, isScrollInProgress) ->
+            if (isScrollInProgress) return@collect
             when {
-                page == generationPage && variantControlsEnabled -> {
+                page == generationPage && hasGenerationPage -> {
                     settledVisualPage = page
-                    if (!generationRequested) {
+                    if (generationRequestEnabled && !generationRequested) {
                         generationRequested = true
                         onSelectNextVariant()
                     }
@@ -1073,14 +1087,14 @@ private fun VariantMessagePager(
                         }
                     }
                 },
-                text = if (isGenerationPage) "" else variants[page],
+                text = if (isGenerationPage) generationPageText else variants[page],
                 pageIndex = page.coerceAtMost(variants.lastIndex),
                 pageCount = variants.size,
                 isUser = isUser,
                 avatarName = avatarName,
                 avatarUrl = avatarUrl,
                 bubbleColor = bubbleColor,
-                showTypingIndicator = isGenerationPage,
+                showTypingIndicator = isGenerationPage && (generationPageLoading || generationPageText.isBlank()),
                 showVariantControls = !isGenerationPage,
                 variantControlsEnabled = variantControlsEnabled,
                 onTap = onTap,

@@ -182,16 +182,8 @@ class CharacterStudioViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isSaving = true)
             val draft = _uiState.value.draft
-            val appearance = draft.bio.trim().ifBlank { "Uploaded character image." }
             val finalDraft = draft.copy(
-                systemPrompt = buildString {
-                    append("You are ${draft.name.trim()}, an AI character in a roleplay chat. ")
-                    append("Stay in character and respond naturally.")
-                    append("\n\nAppearance: $appearance")
-                    if (draft.tagline.isNotBlank()) {
-                        append("\n\nOpening greeting: ${draft.tagline.trim()}")
-                    }
-                }
+                systemPrompt = characterRepository.buildSystemPrompt(draft)
             )
             characterRepository.saveCharacter(finalDraft)
                 .onSuccess { characterId ->

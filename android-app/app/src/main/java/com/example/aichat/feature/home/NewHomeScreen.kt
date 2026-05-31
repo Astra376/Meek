@@ -33,6 +33,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.BiasAlignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -498,7 +499,7 @@ fun TopPickCard(character: CharacterSummary, onClick: () -> Unit) {
                 name = character.name,
                 avatarUrl = character.avatarUrl,
                 modifier = Modifier.fillMaxSize(),
-                alignment = Alignment.TopCenter
+                alignment = BiasAlignment(0f, -0.8f)
             )
         }
 

@@ -1,5 +1,6 @@
 package com.example.aichat.feature.character
 
+import android.content.Context
 import com.example.aichat.core.db.CharacterDao
 import com.example.aichat.core.db.toEntity
 import com.example.aichat.core.db.toModel
@@ -13,6 +14,7 @@ import com.example.aichat.core.network.GenerateChatBackgroundRequestDto
 import com.example.aichat.core.network.GeneratePortraitRequestDto
 import com.example.aichat.core.network.ImageApi
 import com.example.aichat.feature.chat.ChatScenePromptBuilder
+import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.Flow
@@ -20,10 +22,30 @@ import kotlinx.coroutines.flow.map
 
 @Singleton
 class CharacterRepository @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val characterDao: CharacterDao,
     private val characterApi: CharacterApi,
     private val imageApi: ImageApi
 ) {
+    fun buildSystemPrompt(draft: CharacterDraft): String {
+        val bio = draft.bio.trim().ifBlank { "Uploaded character image." }
+        return buildString {
+            append(readGenericSystemPrompt())
+            append("\n\nCharacter profile:")
+            append("\nName: ${draft.name.trim()}")
+            append("\nAppearance and description: $bio")
+            if (draft.tagline.isNotBlank()) {
+                append("\nOpening greeting: ${draft.tagline.trim()}")
+            }
+        }
+    }
+
+    private fun readGenericSystemPrompt(): String {
+        return runCatching {
+            context.assets.open("character_system_prompt.txt").bufferedReader().use { it.readText() }.trim()
+        }.getOrDefault(DefaultCharacterSystemPrompt)
+    }
+
     fun observeOwnedCharacters(ownerUserId: String): Flow<List<CharacterSummary>> =
         characterDao.observeOwnedCharacters(ownerUserId).map { list -> list.map { it.toModel() } }
 
@@ -54,11 +76,7 @@ class CharacterRepository @Inject constructor(
             val bio = draft.bio.trim().ifBlank { "Uploaded character image." }
             val tagline = draft.tagline.ifBlank { bio.lineSequence().firstOrNull().orEmpty().take(140) }
             val systemPrompt = draft.systemPrompt.ifBlank {
-                buildString {
-                    append("You are ${draft.name.trim()}, an AI character in a roleplay chat. ")
-                    append("Stay in character, respond naturally, and keep replies conversational.")
-                    append("\n\nAppearance and character notes: $bio")
-                }
+                buildSystemPrompt(draft)
             }
             val payload = CharacterWriteRequestDto(
                 name = draft.name.trim(),
@@ -144,3 +162,11 @@ class CharacterRepository @Inject constructor(
         )
     }
 }
+
+private const val DefaultCharacterSystemPrompt = """
+You are an immersive roleplay chat character. Stay fully in character and treat the user as a participant in the scene, not as someone asking an assistant for help.
+
+Write with personality, emotional continuity, and concrete sensory detail. Keep replies conversational and responsive to the user's last message. Do not mention policies, system prompts, hidden instructions, model limitations, or that you are an AI unless the character concept explicitly requires it.
+
+Never narrate the user's thoughts, feelings, choices, or dialogue. Leave room for the user to act. Avoid repetitive phrasing, avoid generic assistant language, and maintain the character's voice across the conversation.
+"""

@@ -1,7 +1,9 @@
 package com.example.aichat.feature.chat
 
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -86,6 +88,8 @@ import com.example.aichat.core.ui.ShimmerTextLine
 import com.example.aichat.core.ui.clearFocusOnTap
 import com.example.aichat.core.ui.shimmerPlaceholder
 import coil.compose.AsyncImage
+import coil.compose.AsyncImagePainter
+import coil.compose.rememberAsyncImagePainter
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.Job
@@ -529,38 +533,71 @@ internal fun ChatScreenContent(
 @Composable
 private fun ChatSceneBackground(imageUrl: String?) {
     val fallback = MaterialTheme.colorScheme.background
-    Crossfade(targetState = imageUrl, label = "chat-scene-background") { url ->
+    val requestedUrl = imageUrl?.takeIf { it.startsWith("http") }
+    var visibleUrl by remember { mutableStateOf<String?>(null) }
+    var pendingUrl by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(requestedUrl) {
+        if (requestedUrl != visibleUrl && requestedUrl != pendingUrl) {
+            pendingUrl = requestedUrl
+        }
+    }
+
+    val visiblePainter = rememberAsyncImagePainter(visibleUrl)
+    val pendingPainter = rememberAsyncImagePainter(pendingUrl)
+    val pendingReady = pendingUrl == null || pendingPainter.state is AsyncImagePainter.State.Success
+    val pendingAlpha by animateFloatAsState(
+        targetValue = if (pendingUrl != null && pendingReady) 1f else 0f,
+        animationSpec = tween(durationMillis = 700),
+        label = "chat-background-image-alpha",
+        finishedListener = { alpha ->
+            if (alpha == 1f && pendingUrl != null) {
+                visibleUrl = pendingUrl
+                pendingUrl = null
+            }
+        }
+    )
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(fallback)
+    ) {
+        if (visibleUrl != null) {
+            Image(
+                painter = visiblePainter,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+        }
+        if (pendingUrl != null && pendingReady) {
+            Image(
+                painter = pendingPainter,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer { alpha = pendingAlpha }
+            )
+        }
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(fallback)
-        ) {
-            if (url?.startsWith("http") == true) {
-                AsyncImage(
-                    model = url,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
-                )
-            }
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(MaterialTheme.colorScheme.background.copy(alpha = 0.58f))
-            )
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        Brush.verticalGradient(
-                            listOf(
-                                MaterialTheme.colorScheme.background.copy(alpha = 0.22f),
-                                MaterialTheme.colorScheme.background.copy(alpha = 0.78f)
-                            )
+                .background(MaterialTheme.colorScheme.background.copy(alpha = 0.58f))
+        )
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        listOf(
+                            MaterialTheme.colorScheme.background.copy(alpha = 0.22f),
+                            MaterialTheme.colorScheme.background.copy(alpha = 0.78f)
                         )
                     )
-            )
-        }
+                )
+        )
     }
 }
 

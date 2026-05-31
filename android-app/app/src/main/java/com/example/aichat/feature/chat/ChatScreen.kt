@@ -399,7 +399,9 @@ internal fun ChatScreenContent(
     val focusManager = LocalFocusManager.current
     var followLatest by rememberSaveable { mutableStateOf(true) }
     var autoScrolling by remember { mutableStateOf(false) }
+    var initiallyPositionedConversationId by rememberSaveable { mutableStateOf<String?>(null) }
 
+    val conversationId = state.conversation?.id
     val messages = state.conversation?.messages.orEmpty()
     val activeStream = state.activeStream
     val committedSendMessage = activeStream?.assistantMessageId?.let { assistantMessageId ->
@@ -444,6 +446,10 @@ internal fun ChatScreenContent(
     val showJumpToLatest = transcriptItemCount > 0 && !followLatest && !isNearBottom
     val imeBottom = WindowInsets.ime.getBottom(density)
     val isActiveStream = activeStream != null
+    val transcriptInitiallyPositioned =
+        conversationId == null ||
+            transcriptItemCount == 0 ||
+            initiallyPositionedConversationId == conversationId
 
     suspend fun scrollToLatest(animated: Boolean) {
         autoScrolling = true
@@ -455,6 +461,18 @@ internal fun ChatScreenContent(
             }
         } finally {
             autoScrolling = false
+        }
+    }
+
+    LaunchedEffect(conversationId, transcriptItemCount) {
+        if (
+            conversationId != null &&
+            transcriptItemCount > 0 &&
+            initiallyPositionedConversationId != conversationId
+        ) {
+            followLatest = true
+            scrollToLatest(animated = false)
+            initiallyPositionedConversationId = conversationId
         }
     }
 
@@ -476,7 +494,7 @@ internal fun ChatScreenContent(
         messages.lastOrNull()?.id,
         imeBottom
     ) {
-        if (followLatest) {
+        if (followLatest && transcriptInitiallyPositioned) {
             scrollToLatest(animated = !isActiveStream)
         }
     }
@@ -515,7 +533,11 @@ internal fun ChatScreenContent(
                     )
                 } else {
                     ChatTranscriptPane(
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier
+                            .weight(1f)
+                            .graphicsLayer {
+                                alpha = if (transcriptInitiallyPositioned) 1f else 0f
+                            },
                         state = listState,
                         messages = messages,
                         activeStream = activeStream,

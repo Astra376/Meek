@@ -470,7 +470,6 @@ internal fun ChatScreenContent(
         activeStream?.status,
         showSendDraft,
         messages.lastOrNull()?.id,
-        messages.lastOrNull()?.visibleContent?.length ?: -1,
         imeBottom
     ) {
         if (followLatest) {
@@ -1030,18 +1029,28 @@ private fun VariantMessagePager(
         pageCount = { variants.size + if (variantControlsEnabled) 1 else 0 }
     )
     val coroutineScope = rememberCoroutineScope()
-
-    LaunchedEffect(currentIndex, variants.size) {
-        if (!pagerState.isScrollInProgress && pagerState.currentPage != currentIndex) {
-            pagerState.animateScrollToPage(currentIndex)
-        }
+    var committedPage by remember(variants.size) {
+        mutableStateOf(currentIndex.coerceIn(variants.indices))
+    }
+    var generationRequested by remember(variants.size, variantControlsEnabled) {
+        mutableStateOf(false)
     }
 
-    LaunchedEffect(pagerState, variants.size, currentIndex, variantControlsEnabled) {
+    LaunchedEffect(pagerState, variants.size, variantControlsEnabled) {
         snapshotFlow { pagerState.settledPage }.collect { page ->
             when {
-                page == generationPage && variantControlsEnabled -> onSelectNextVariant()
-                page in variants.indices && page != currentIndex -> onSelectVariant(page)
+                page == generationPage && variantControlsEnabled && !generationRequested -> {
+                    generationRequested = true
+                    onSelectNextVariant()
+                }
+                page in variants.indices && page != committedPage -> {
+                    committedPage = page
+                    generationRequested = false
+                    onSelectVariant(page)
+                }
+                page in variants.indices -> {
+                    generationRequested = false
+                }
             }
         }
     }

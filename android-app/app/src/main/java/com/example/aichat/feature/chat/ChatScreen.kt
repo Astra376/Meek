@@ -66,6 +66,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.testTag
@@ -1038,6 +1039,9 @@ private fun VariantMessagePager(
     var generationRequested by remember(variants.size, variantControlsEnabled) {
         mutableStateOf(false)
     }
+    var pageHeights by remember(variants.size, variantControlsEnabled) {
+        mutableStateOf(List(variants.size + if (variantControlsEnabled) 1 else 0) { 0 })
+    }
 
     LaunchedEffect(pagerState, variants.size, variantControlsEnabled) {
         snapshotFlow { pagerState.settledPage }.collect { page ->
@@ -1047,15 +1051,16 @@ private fun VariantMessagePager(
                     onSelectNextVariant()
                 }
                 page in variants.indices && page != committedPage -> {
+                    val previousHeight = pageHeights.getOrElse(committedPage) { 0 }
+                    val nextHeight = pageHeights.getOrElse(page) { 0 }
                     committedPage = page
                     generationRequested = false
                     onSelectVariant(page)
-                    bringIntoViewRequester.bringIntoView()
+                    if (nextHeight > previousHeight) {
+                        bringIntoViewRequester.bringIntoView()
+                    }
                 }
-                page in variants.indices -> {
-                    generationRequested = false
-                    bringIntoViewRequester.bringIntoView()
-                }
+                page in variants.indices -> generationRequested = false
             }
         }
     }
@@ -1076,6 +1081,13 @@ private fun VariantMessagePager(
         ) { page ->
             val isGenerationPage = page == generationPage
             MessageVariantPage(
+                modifier = Modifier.onSizeChanged { size ->
+                    if (page in pageHeights.indices && pageHeights[page] != size.height) {
+                        pageHeights = pageHeights.toMutableList().also { heights ->
+                            heights[page] = size.height
+                        }
+                    }
+                },
                 text = if (isGenerationPage) "" else variants[page],
                 pageIndex = page.coerceAtMost(variants.lastIndex),
                 pageCount = variants.size,

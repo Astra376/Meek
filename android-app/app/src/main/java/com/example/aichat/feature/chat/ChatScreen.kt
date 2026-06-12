@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
@@ -813,7 +814,7 @@ private fun ChatComposerBar(
             minLines = 1,
             maxLines = 6,
             shape = RoundedCornerShape(24.dp),
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Default)
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.None)
         )
         val canSend = composerText.isNotBlank()
         val useContinue = !isStreaming && !canSend && canContinue
@@ -1064,16 +1065,39 @@ private fun VariantMessagePager(
         }
     }
 
+    // The visible height is pinned to the settled page so the container only
+    // resizes once a swipe comes to rest (animateContentSize), not while an
+    // adjacent, taller variant is peeking in mid-drag. The pager measures its
+    // pages unbounded so onSizeChanged still reports each page's full height.
+    val density = LocalDensity.current
+    val settledHeightPx = pageHeights.getOrElse(settledVisualPage) { 0 }
+    val isSettledHeightMeasured = settledHeightPx > 0
+
     Box(
         modifier = modifier
             .fillMaxWidth()
             .animateContentSize(animationSpec = tween(durationMillis = 220))
+            .then(
+                if (isSettledHeightMeasured) {
+                    Modifier.height(with(density) { settledHeightPx.toDp() })
+                } else {
+                    Modifier
+                }
+            )
             .clipToBounds()
             .bringIntoViewRequester(bringIntoViewRequester)
     ) {
         HorizontalPager(
             state = pagerState,
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .then(
+                    if (isSettledHeightMeasured) {
+                        Modifier.wrapContentHeight(align = Alignment.Top, unbounded = true)
+                    } else {
+                        Modifier
+                    }
+                ),
             pageSpacing = 16.dp,
             beyondViewportPageCount = 0,
             verticalAlignment = Alignment.Top

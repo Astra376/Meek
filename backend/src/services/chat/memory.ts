@@ -25,6 +25,11 @@ type MemoryUpdate = {
   longTermAdditions?: unknown;
 };
 
+type AutomaticLongTermEntry = {
+  text: string;
+  sourcePosition: number;
+};
+
 async function requireOwnedConversation(context: RequestContext, conversationId: string) {
   const conversation = await getConversationById(context.env, conversationId);
   if (!conversation) {
@@ -140,12 +145,20 @@ function parseMemoryUpdate(value: string): MemoryUpdate {
 }
 
 export function appendLongTermMemory(current: string, additions: unknown): string {
-  if (!Array.isArray(additions)) return current;
+  return mergeLongTermMemory(current, additions).longTerm;
+}
+
+function mergeLongTermMemory(
+  current: string,
+  additions: unknown
+): { longTerm: string; added: string[] } {
+  if (!Array.isArray(additions)) return { longTerm: current, added: [] };
 
   const existing = new Set(
     current.split("\n").map((line) => line.replace(/^[-*]\s*/, "").trim().toLowerCase()).filter(Boolean)
   );
   let result = current.trim();
+  const added: string[] = [];
   for (const candidate of additions) {
     if (typeof candidate !== "string") continue;
     const normalized = candidate.replace(/\s+/g, " ").trim().slice(0, 1_000);
@@ -154,8 +167,44 @@ export function appendLongTermMemory(current: string, additions: unknown): strin
     if (next.length > LONG_TERM_MEMORY_LIMIT) break;
     result = next;
     existing.add(normalized.toLowerCase());
+    added.push(normalized);
   }
-  return result;
+  return { longTerm: result, added };
+}
+
+function parseAutomaticEntries(value: string): AutomaticLongTermEntry[] {
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed.flatMap((entry) => {
+      if (
+        typeof entry === "object" &&
+        entry != null &&
+        typeof (entry as AutomaticLongTermEntry).text === "string" &&
+        Number.isInteger((entry as AutomaticLongTermEntry).sourcePosition)
+      ) {
+        return [entry as AutomaticLongTermEntry];
+      }
+      return [];
+    });
+  } catch {
+    return [];
+  }
+}
+
+export function withoutAutomaticEntries(
+  longTerm: string,
+  entries: AutomaticLongTermEntry[]
+): string {
+  const automatic = new Set(entries.map((entry) => entry.text.trim().toLowerCase()));
+  return longTerm
+    .split("\n")
+    .filter((line) => {
+      const normalized = line.replace(/^[-*]\s*/, "").trim().toLowerCase();
+      return !automatic.has(normalized);
+    })
+    .join("\n")
+    .trim();
 }
 
 export async function consolidateCharacterMemory(
@@ -209,7 +258,14 @@ export async function consolidateCharacterMemory(
         role: "user",
         content: [
           `Character: ${character.name}`,
-          `Existing long-term memory:\n${memory.long_term || "(empty)"}`,
+          `Existing long-term memory:\n${
+            (force
+              ? withoutAutomaticEntries(
+                  memory.long_term,
+                  parseAutomaticEntries(memory.auto_long_term_entries)
+                )
+              : memory.long_term) || "(empty)"
+          }`,
           `Existing short-term memory:\n${memory.short_term || "(empty)"}`,
           `Transcript to consolidate:\n${newTranscript}`
         ].join("\n\n")
@@ -221,12 +277,21 @@ export async function consolidateCharacterMemory(
   const shortTerm = typeof update.shortTerm === "string"
     ? update.shortTerm.trim().slice(0, SHORT_TERM_MEMORY_LIMIT)
     : memory.short_term;
-  const longTerm = appendLongTermMemory(memory.long_term, update.longTermAdditions);
+  const previousAutomaticEntries = parseAutomaticEntries(memory.auto_long_term_entries);
+  const baseLongTerm = force
+    ? withoutAutomaticEntries(memory.long_term, previousAutomaticEntries)
+    : memory.long_term;
+  const merged = mergeLongTermMemory(baseLongTerm, update.longTermAdditions);
+  const automaticEntries = [
+    ...(force ? [] : previousAutomaticEntries),
+    ...merged.added.map((text) => ({ text, sourcePosition: latestPosition }))
+  ];
 
   await saveAutomaticConversationMemory(context.env, {
     conversationId,
     shortTerm,
-    longTerm,
+    longTerm: merged.longTerm,
+    autoLongTermEntries: JSON.stringify(automaticEntries),
     consolidatedPosition: latestPosition,
     expectedRevision: memory.revision,
     updatedAt: Date.now(),

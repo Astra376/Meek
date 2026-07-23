@@ -3,7 +3,8 @@ import {
   LONG_TERM_MEMORY_LIMIT,
   appendLongTermMemory,
   composeCharacterSystemPrompt,
-  formatCharacterMemoryPrompt
+  formatCharacterMemoryPrompt,
+  withoutAutomaticEntries
 } from "./memory";
 
 describe("character memory", () => {
@@ -46,5 +47,19 @@ describe("character memory", () => {
     const current = "x".repeat(LONG_TERM_MEMORY_LIMIT - 5);
     const updated = appendLongTermMemory(current, ["A new event"]);
     expect(updated.length).toBeLessThanOrEqual(LONG_TERM_MEMORY_LIMIT);
+  });
+
+  it("rebuilds automatic events without deleting user-maintained memory", () => {
+    const longTerm = [
+      "- The user manually noted Mara fears deep water.",
+      "- Mara found the crown in the abandoned branch."
+    ].join("\n");
+
+    const preserved = withoutAutomaticEntries(longTerm, [
+      { text: "Mara found the crown in the abandoned branch.", sourcePosition: 18 }
+    ]);
+
+    expect(preserved).toContain("Mara fears deep water.");
+    expect(preserved).not.toContain("found the crown");
   });
 });

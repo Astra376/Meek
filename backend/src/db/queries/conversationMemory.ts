@@ -5,6 +5,7 @@ export interface ConversationMemoryRecord {
   conversation_id: string;
   short_term: string;
   long_term: string;
+  auto_long_term_entries: string;
   last_consolidated_position: number;
   revision: number;
   updated_at: number;
@@ -30,9 +31,10 @@ export async function createConversationMemoryIfMissing(
     env.DB.prepare(
       `
       INSERT OR IGNORE INTO conversation_memories (
-        conversation_id, short_term, long_term, last_consolidated_position, revision, updated_at
+        conversation_id, short_term, long_term, auto_long_term_entries,
+        last_consolidated_position, revision, updated_at
       )
-      VALUES (?, '', '', -1, 0, ?)
+      VALUES (?, '', '', '[]', -1, 0, ?)
       `
     ).bind(conversationId, now)
   );
@@ -51,12 +53,14 @@ export async function saveConversationMemory(
     env.DB.prepare(
       `
       INSERT INTO conversation_memories (
-        conversation_id, short_term, long_term, last_consolidated_position, revision, updated_at
+        conversation_id, short_term, long_term, auto_long_term_entries,
+        last_consolidated_position, revision, updated_at
       )
-      VALUES (?, ?, ?, -1, 1, ?)
+      VALUES (?, ?, ?, '[]', -1, 1, ?)
       ON CONFLICT(conversation_id) DO UPDATE SET
         short_term = excluded.short_term,
         long_term = excluded.long_term,
+        auto_long_term_entries = '[]',
         revision = conversation_memories.revision + 1,
         updated_at = excluded.updated_at
       `
@@ -70,6 +74,7 @@ export async function saveAutomaticConversationMemory(
     conversationId: string;
     shortTerm: string;
     longTerm: string;
+    autoLongTermEntries: string;
     consolidatedPosition: number;
     expectedRevision: number;
     updatedAt: number;
@@ -83,6 +88,7 @@ export async function saveAutomaticConversationMemory(
       SET
         short_term = ?,
         long_term = ?,
+        auto_long_term_entries = ?,
         last_consolidated_position = ?,
         revision = revision + 1,
         updated_at = ?
@@ -93,6 +99,7 @@ export async function saveAutomaticConversationMemory(
     ).bind(
       input.shortTerm,
       input.longTerm,
+      input.autoLongTermEntries,
       input.consolidatedPosition,
       input.updatedAt,
       input.conversationId,

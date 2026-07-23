@@ -3,14 +3,13 @@ package com.example.aichat.feature.chat
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.ui.test.assertIsFocused
+import androidx.compose.ui.test.assertDoesNotExist
+import androidx.compose.ui.test.assertExists
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeDown
 import androidx.compose.foundation.layout.PaddingValues
@@ -28,46 +27,6 @@ import org.junit.Test
 class ChatScreenContentTest {
     @get:Rule
     val composeRule = createComposeRule()
-
-    @Test
-    fun composer_enterAddsNewLine_andKeepsFocus() {
-        val chatState = mutableStateOf(
-            ChatUiState(
-                conversation = conversationDetail(messages = emptyList()),
-                activeStream = null,
-                composerText = ""
-            )
-        )
-
-        composeRule.setContent {
-            val snackbarHostState = remember { SnackbarHostState() }
-
-            AppTheme(themeMode = ThemeMode.LIGHT) {
-                ChatScreenContent(
-                    paddingValues = PaddingValues(),
-                    onBack = {},
-                    state = chatState.value,
-                    snackbarHostState = snackbarHostState,
-                    onComposerChanged = { text ->
-                        chatState.value = chatState.value.copy(composerText = text)
-                    },
-                    onSend = {},
-                    onContinue = {},
-                    onLoadOlderMessages = {},
-                    onMessageLongPress = {},
-                    onSelectVariant = { _, _ -> },
-                    onSelectPreviousVariant = {},
-                    onSelectNextVariant = {}
-                )
-            }
-        }
-
-        val composer = composeRule.onNodeWithTag("chat-composer")
-        composer.performClick()
-        composer.performTextInput("First line\nSecond line")
-        composer.assertTextEquals("First line\nSecond line")
-        composer.assertIsFocused()
-    }
 
     @Test
     fun smartFollow_stopsOnManualScroll_andResumesFromJumpToLatest() {
@@ -106,10 +65,7 @@ class ChatScreenContentTest {
                     snackbarHostState = snackbarHostState,
                     onComposerChanged = {},
                     onSend = {},
-                    onContinue = {},
-                    onLoadOlderMessages = {},
                     onMessageLongPress = {},
-                    onSelectVariant = { _, _ -> },
                     onSelectPreviousVariant = {},
                     onSelectNextVariant = {}
                 )
@@ -147,8 +103,7 @@ class ChatScreenContentTest {
             ownerUserId = "user-1",
             name = "Astra",
             tagline = "",
-            greeting = "",
-            bio = "",
+            description = "",
             systemPrompt = "Be helpful",
             visibility = CharacterVisibility.PUBLIC,
             avatarUrl = null,

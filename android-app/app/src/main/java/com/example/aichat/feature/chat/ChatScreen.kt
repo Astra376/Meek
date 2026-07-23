@@ -97,7 +97,6 @@ import com.example.aichat.core.ui.AppBackButton
 import com.example.aichat.core.ui.AppChrome
 import com.example.aichat.core.ui.CircleAvatarPlaceholder
 import com.example.aichat.core.ui.ShimmerTextLine
-import com.example.aichat.core.ui.clearFocusOnTap
 import coil.compose.AsyncImage
 import coil.compose.AsyncImagePainter
 import coil.compose.rememberAsyncImagePainter
@@ -511,7 +510,6 @@ internal fun ChatScreenContent(
     }
 
     Scaffold(
-        modifier = Modifier.clearFocusOnTap(),
         containerColor = Color.Transparent,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
@@ -527,7 +525,6 @@ internal fun ChatScreenContent(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .clearFocusOnTap()
                 .padding(top = paddingValues.calculateTopPadding())
         ) {
             ChatSceneBackground(imageUrl = state.conversation?.backgroundSceneUrl)
@@ -807,7 +804,6 @@ private fun ChatComposerBar(
             onValueChange = onComposerChanged,
             placeholder = "Message...",
             modifier = Modifier
-                .testTag("chat-composer")
                 .weight(1f)
                 .heightIn(min = 46.dp, max = 160.dp),
             minLines = 1,

@@ -28,6 +28,8 @@ import {
 } from "./memory";
 
 const RUN_LOCK_WINDOW_MS = 2 * 60 * 1000;
+const MAX_MODEL_INPUT_CHARACTERS = 200_000;
+const MIN_RECENT_TRANSCRIPT_CHARACTERS = 16_000;
 
 type TranscriptMessage = {
   id: string;
@@ -146,6 +148,37 @@ function visibleContent(message: TranscriptMessage): string {
   );
 }
 
+export function selectRecentMessages<T extends { content: string }>(
+  messages: T[],
+  maxCharacters: number
+): T[] {
+  if (maxCharacters <= 0) return [];
+  const selected: T[] = [];
+  let usedCharacters = 0;
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    const estimatedSize = message.content.length + 24;
+    if (selected.length > 0 && usedCharacters + estimatedSize > maxCharacters) break;
+    selected.unshift(message);
+    usedCharacters += estimatedSize;
+  }
+  return selected;
+}
+
+export function messagesForContinuation(
+  messages: Array<{ role: "system" | "user" | "assistant"; content: string }>,
+  latestRole: "user" | "assistant" | undefined
+) {
+  if (latestRole === "user") return messages;
+  return [
+    ...messages,
+    {
+      role: "user" as const,
+      content: "Continue the scene naturally in character. Do not summarize. Do not wait for me to speak first."
+    }
+  ];
+}
+
 async function requireOwnedConversation(context: RequestContext, conversationId: string) {
   await ensureConversationStreamingSchema(context.env);
   const conversation = await getConversationById(context.env, conversationId);
@@ -192,7 +225,7 @@ async function buildAssistantContext(
     throw new AppError(404, "CHARACTER_NOT_FOUND", "Character not found.");
   }
   const transcript = await loadTranscript(context, conversationId);
-  const visibleTranscript = transcript
+  const fullVisibleTranscript = transcript
     .filter((message) => options.untilPosition == null || message.position < options.untilPosition)
     .map((message) => ({
       role: message.role,
@@ -200,12 +233,18 @@ async function buildAssistantContext(
     }));
 
   if (options.appendedUserContent) {
-    visibleTranscript.push({
+    fullVisibleTranscript.push({
       role: "user",
       content: options.appendedUserContent
     });
   }
   const memoryPrompt = await buildCharacterMemoryPrompt(context, conversationId);
+  const systemContent = composeCharacterSystemPrompt(character.system_prompt, memoryPrompt);
+  const transcriptBudget = Math.max(
+    MIN_RECENT_TRANSCRIPT_CHARACTERS,
+    MAX_MODEL_INPUT_CHARACTERS - systemContent.length
+  );
+  const visibleTranscript = selectRecentMessages(fullVisibleTranscript, transcriptBudget);
 
   return {
     conversation,
@@ -214,7 +253,7 @@ async function buildAssistantContext(
     messages: [
       {
         role: "system" as const,
-        content: composeCharacterSystemPrompt(character.system_prompt, memoryPrompt)
+        content: systemContent
       },
       ...visibleTranscript
     ]
@@ -350,6 +389,7 @@ export async function continueAssistantAndStream(context: RequestContext, conver
 
   try {
     const { character, transcript, messages } = await buildAssistantContext(context, conversationId);
+    const continuationMessages = messagesForContinuation(messages, transcript.at(-1)?.role);
     const assistantMessageId = createId("message");
     const assistantPosition = (transcript.at(-1)?.position ?? -1) + 1;
     const abortController = new AbortController();
@@ -366,13 +406,7 @@ export async function continueAssistantAndStream(context: RequestContext, conver
         try {
           const finalText = await streamAssistantReply(
             context,
-            [
-              ...messages,
-              {
-                role: "user" as const,
-                content: "Continue the scene naturally in character. Do not summarize. Do not wait for me to speak first."
-              }
-            ],
+            continuationMessages,
             (chunk) => {
               safeEnqueue(controller, {
                 type: "delta",

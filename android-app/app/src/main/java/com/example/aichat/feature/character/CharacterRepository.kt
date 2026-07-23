@@ -78,13 +78,23 @@ class CharacterRepository @Inject constructor(
 
     suspend fun saveCharacter(draft: CharacterDraft): Result<String> {
         if (draft.name.isBlank()) return Result.failure(IllegalArgumentException("Name is required."))
+        if (draft.name.trim().length > CHARACTER_NAME_LIMIT) {
+            return Result.failure(IllegalArgumentException("Name is too long."))
+        }
+        if (draft.greeting.isBlank()) return Result.failure(IllegalArgumentException("Greeting is required."))
+        if (draft.greeting.trim().length > CHARACTER_GREETING_LIMIT) {
+            return Result.failure(IllegalArgumentException("Greeting is too long."))
+        }
         if (draft.avatarUrl.isNullOrBlank()) return Result.failure(IllegalArgumentException("Choose an image first."))
 
         return runCatching {
             val appearance = draft.appearance.trim().ifBlank { "Uploaded character image." }
-            val bio = draft.bio.trim().ifBlank { appearance }
+            val bio = draft.bio.trim().ifBlank { appearance.take(CHARACTER_BIO_LIMIT) }
             val systemPrompt = draft.systemPrompt.ifBlank {
                 buildSystemPrompt(draft)
+            }
+            require(systemPrompt.length <= CHARACTER_SYSTEM_PROMPT_LIMIT) {
+                "Character definition is too long."
             }
             val payload = CharacterWriteRequestDto(
                 name = draft.name.trim(),
@@ -147,7 +157,7 @@ class CharacterRepository @Inject constructor(
                     name = name.trim(),
                     description = description.trim()
                 )
-            ).greeting
+            ).greeting.take(CHARACTER_GREETING_LIMIT)
         }
     }
 
@@ -172,6 +182,12 @@ class CharacterRepository @Inject constructor(
         )
     }
 }
+
+const val CHARACTER_NAME_LIMIT = 80
+const val CHARACTER_APPEARANCE_LIMIT = 1_200
+const val CHARACTER_GREETING_LIMIT = 1_200
+const val CHARACTER_BIO_LIMIT = 500
+const val CHARACTER_SYSTEM_PROMPT_LIMIT = 64_000
 
 private const val DefaultCharacterSystemPrompt = """
 You are an immersive roleplay chat character. Stay fully in character and treat the user as a participant in the scene, not as someone asking an assistant for help.

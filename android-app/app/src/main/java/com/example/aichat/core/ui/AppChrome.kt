@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHost
@@ -30,6 +31,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import com.example.aichat.core.design.AppIcon
 import com.example.aichat.core.design.AppIcons
 import com.example.aichat.core.design.appOutlineSurface
@@ -125,12 +127,32 @@ fun ScreenBackgroundBox(
                     .fillMaxSize()
                     .background(background)
             )
-            snackbarHostState?.let {
-                SnackbarHost(hostState = it)
-            }
             content()
+            snackbarHostState?.let {
+                TopSnackbarHost(hostState = it)
+            }
         }
     }
+}
+
+@Composable
+fun BoxScope.TopSnackbarHost(
+    hostState: SnackbarHostState,
+    modifier: Modifier = Modifier
+) {
+    SnackbarHost(
+        hostState = hostState,
+        modifier = modifier
+            .align(Alignment.TopCenter)
+            .zIndex(100f)
+            .statusBarsPadding()
+            .fillMaxWidth()
+            .padding(
+                start = AppChrome.screenHorizontalPadding,
+                top = AppChrome.compactHeaderVerticalPadding,
+                end = AppChrome.screenHorizontalPadding
+            )
+    )
 }
 
 @Composable

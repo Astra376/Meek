@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { streamChatText } from "./openrouter";
+import { completeChatText, streamChatText } from "./openrouter";
 import type { Env } from "../env";
 
 const env = {
@@ -20,6 +20,7 @@ function streamFromText(text: string): ReadableStream<Uint8Array> {
 describe("streamChatText", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
+    vi.restoreAllMocks();
   });
 
   it("parses OpenRouter SSE chunks with CRLF line endings", async () => {
@@ -46,5 +47,49 @@ describe("streamChatText", () => {
     }
 
     expect(chunks).toEqual(["hello", " there"]);
+  });
+
+  it("requests configured model fallbacks in priority order", async () => {
+    const fetchMock = vi.fn(async (_url: string, init?: RequestInit) => new Response(
+      JSON.stringify({ choices: [{ message: { content: "ready" } }] }),
+      { status: 200 }
+    ));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const value = await completeChatText(
+      { ...env, OPENROUTER_FALLBACK_MODELS: "fallback-one, fallback-two" },
+      [{ role: "user", content: "hi" }]
+    );
+
+    expect(value).toBe("ready");
+    const request = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body));
+    expect(request.models).toEqual(["test-model", "fallback-one", "fallback-two"]);
+    expect(request.provider).toEqual({ allow_fallbacks: true });
+  });
+
+  it("retries a transient provider response before streaming", async () => {
+    vi.stubGlobal("setTimeout", (callback: () => void) => {
+      callback();
+      return 0;
+    });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(
+        JSON.stringify({ error: { code: 503, message: "provider unavailable" } }),
+        { status: 503 }
+      ))
+      .mockResolvedValueOnce(new Response(
+        streamFromText('data: {"choices":[{"delta":{"content":"recovered"}}]}\n\ndata: [DONE]\n\n'),
+        { status: 200 }
+      ));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const chunks: string[] = [];
+    for await (const chunk of streamChatText(env, [{ role: "user", content: "hi" }])) {
+      chunks.push(chunk);
+    }
+
+    expect(chunks).toEqual(["recovered"]);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });

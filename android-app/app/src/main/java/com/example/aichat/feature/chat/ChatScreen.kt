@@ -43,7 +43,6 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -97,6 +96,8 @@ import com.example.aichat.core.ui.AppBackButton
 import com.example.aichat.core.ui.AppChrome
 import com.example.aichat.core.ui.CircleAvatarPlaceholder
 import com.example.aichat.core.ui.ShimmerTextLine
+import com.example.aichat.core.ui.TopSnackbarHost
+import com.example.aichat.core.network.userFacingMessage
 import coil.compose.AsyncImage
 import coil.compose.AsyncImagePainter
 import coil.compose.rememberAsyncImagePainter
@@ -149,9 +150,9 @@ class ChatViewModel @Inject constructor(
     init {
         viewModelScope.launch {
             chatRepository.refreshConversation(conversationId)
-                .onFailure { _events.emit(it.message ?: "Couldn't load conversation.") }
+                .onFailure { _events.emit(it.userFacingMessage("Couldn't load conversation.")) }
             chatBackgroundRepository.ensureInitialBackground(conversationId)
-                .onFailure { _events.emit(it.message ?: "Couldn't generate background scene.") }
+                .onFailure { _events.emit(it.userFacingMessage("Couldn't generate background scene.")) }
             conversationRepository.markConversationRead(conversationId)
         }
     }
@@ -198,11 +199,18 @@ class ChatViewModel @Inject constructor(
                     if (shouldRestoreComposer && composerText.value.isBlank()) {
                         composerText.value = text
                     }
-                    _events.emit(error.message ?: "Message send failed.")
+                    val message = error.userFacingMessage("Message send failed.")
+                    _events.emit(
+                        if (error is SendMessageFailedException && error.accepted) {
+                            "$message Tap send to retry the reply."
+                        } else {
+                            message
+                        }
+                    )
                 }
                 .onSuccess {
                     chatBackgroundRepository.refreshIfSceneChanged(conversationId)
-                        .onFailure { _events.emit(it.message ?: "Background scene update failed.") }
+                        .onFailure { _events.emit(it.userFacingMessage("Background scene update failed.")) }
                 }
         }
     }
@@ -210,24 +218,24 @@ class ChatViewModel @Inject constructor(
     fun editMessage(messageId: String, newContent: String) {
         viewModelScope.launch {
             chatRepository.editMessage(messageId, newContent)
-                .onFailure { _events.emit(it.message ?: "Edit failed.") }
+                .onFailure { _events.emit(it.userFacingMessage("Edit failed.")) }
         }
     }
 
     fun rewind(messageId: String) {
         viewModelScope.launch {
             chatRepository.rewind(messageId)
-                .onFailure { _events.emit(it.message ?: "Rewind failed.") }
+                .onFailure { _events.emit(it.userFacingMessage("Rewind failed.")) }
         }
     }
 
     fun regenerateLatestAssistant(messageId: String) {
         launchStreamingAction {
             chatRepository.regenerateLatestAssistant(messageId)
-                .onFailure { _events.emit(it.message ?: "Regeneration failed.") }
+                .onFailure { _events.emit(it.userFacingMessage("Regeneration failed.")) }
                 .onSuccess {
                     chatBackgroundRepository.refreshIfSceneChanged(conversationId)
-                        .onFailure { _events.emit(it.message ?: "Background scene update failed.") }
+                        .onFailure { _events.emit(it.userFacingMessage("Background scene update failed.")) }
                 }
         }
     }
@@ -235,10 +243,10 @@ class ChatViewModel @Inject constructor(
     fun continueAssistant() {
         launchStreamingAction {
             chatRepository.continueAssistant(conversationId)
-                .onFailure { _events.emit(it.message ?: "Couldn't continue chat.") }
+                .onFailure { _events.emit(it.userFacingMessage("Couldn't continue chat.")) }
                 .onSuccess {
                     chatBackgroundRepository.refreshIfSceneChanged(conversationId)
-                        .onFailure { _events.emit(it.message ?: "Background scene update failed.") }
+                        .onFailure { _events.emit(it.userFacingMessage("Background scene update failed.")) }
                 }
         }
     }
@@ -275,7 +283,7 @@ class ChatViewModel @Inject constructor(
     fun selectRegeneration(messageId: String, regenerationId: String) {
         viewModelScope.launch {
             chatRepository.selectRegeneration(messageId, regenerationId)
-                .onFailure { _events.emit(it.message ?: "Couldn't switch variant.") }
+                .onFailure { _events.emit(it.userFacingMessage("Couldn't switch variant.")) }
         }
     }
 }
@@ -512,82 +520,86 @@ internal fun ChatScreenContent(
         }
     }
 
-    Scaffold(
-        containerColor = Color.Transparent,
-        contentWindowInsets = WindowInsets(0, 0, 0, 0),
-        topBar = {
-            ChatHeader(
-                characterName = state.conversation?.character?.name ?: "Chat",
-                avatarUrl = state.conversation?.character?.avatarUrl,
-                isLoading = state.conversation == null,
-                onBack = onBack,
-                onOpenMemory = onOpenMemory
-            )
-        },
-        snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
-    ) { innerPadding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(top = paddingValues.calculateTopPadding())
-        ) {
-            ChatSceneBackground(imageUrl = state.conversation?.backgroundSceneUrl)
-            Column(modifier = Modifier.fillMaxSize()) {
-                if (state.conversation == null) {
-                    Spacer(modifier = Modifier.weight(1f))
-                } else {
-                    ChatTranscriptPane(
-                        modifier = Modifier.weight(1f),
-                        state = listState,
-                        messages = messages,
-                        activeStream = activeStream,
-                        streamDisplayText = streamDisplayText,
-                        isStreaming = state.isStreaming,
-                        showSendDraft = showSendDraft,
-                        showPausedIndicator = activeStream?.status == ActiveStreamStatus.PAUSED,
-                        characterName = state.conversation.character.name,
-                        characterAvatarUrl = state.conversation.character.avatarUrl,
-                        currentUserName = state.currentUserName,
-                        currentUserAvatarUrl = state.currentUserAvatarUrl,
-                        showJumpToLatest = showJumpToLatest,
-                        contentPadding = PaddingValues(
-                            start = AppChrome.screenHorizontalPadding,
-                            top = innerPadding.calculateTopPadding() + AppChrome.compactHeaderVerticalPadding,
-                            end = AppChrome.screenHorizontalPadding,
-                            bottom = AppChrome.gridSpacing +
-                                if (activeStream?.status == ActiveStreamStatus.PAUSED) 44.dp else 0.dp
-                        ),
-                        onJumpToLatest = {
-                            followLatest = true
-                            coroutineScope.launch {
-                                scrollToLatest(animated = true)
-                            }
-                        },
-                        onMessageTap = { focusManager.clearFocus(force = true) },
-                        onMessageLongPress = onMessageLongPress,
-                        onSelectVariant = onSelectVariant,
-                        onSelectPreviousVariant = onSelectPreviousVariant,
-                        onSelectNextVariant = onSelectNextVariant
-                    )
-                }
-
-                ChatComposerBar(
-                    composerText = state.composerText,
-                    isStreaming = state.isStreaming,
-                    canContinue = state.conversation?.messages?.firstOrNull { it.sendState == MessageSendState.SENT }?.role == MessageRole.ASSISTANT,
-                    onComposerChanged = onComposerChanged,
-                    onSend = {
-                        followLatest = true
-                        onSend()
-                    },
-                    onContinue = {
-                        followLatest = true
-                        onContinue()
-                    },
-                    onPause = onPause
+    Box(modifier = Modifier.fillMaxSize()) {
+        Scaffold(
+            containerColor = Color.Transparent,
+            contentWindowInsets = WindowInsets(0, 0, 0, 0),
+            topBar = {
+                ChatHeader(
+                    characterName = state.conversation?.character?.name ?: "Chat",
+                    avatarUrl = state.conversation?.character?.avatarUrl,
+                    isLoading = state.conversation == null,
+                    onBack = onBack,
+                    onOpenMemory = onOpenMemory
                 )
             }
+        ) { innerPadding ->
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(top = paddingValues.calculateTopPadding())
+            ) {
+                ChatSceneBackground(imageUrl = state.conversation?.backgroundSceneUrl)
+                Column(modifier = Modifier.fillMaxSize()) {
+                    if (state.conversation == null) {
+                        Spacer(modifier = Modifier.weight(1f))
+                    } else {
+                        ChatTranscriptPane(
+                            modifier = Modifier.weight(1f),
+                            state = listState,
+                            messages = messages,
+                            activeStream = activeStream,
+                            streamDisplayText = streamDisplayText,
+                            isStreaming = state.isStreaming,
+                            showSendDraft = showSendDraft,
+                            showPausedIndicator = activeStream?.status == ActiveStreamStatus.PAUSED,
+                            characterName = state.conversation.character.name,
+                            characterAvatarUrl = state.conversation.character.avatarUrl,
+                            currentUserName = state.currentUserName,
+                            currentUserAvatarUrl = state.currentUserAvatarUrl,
+                            showJumpToLatest = showJumpToLatest,
+                            contentPadding = PaddingValues(
+                                start = AppChrome.screenHorizontalPadding,
+                                top = innerPadding.calculateTopPadding() + AppChrome.compactHeaderVerticalPadding,
+                                end = AppChrome.screenHorizontalPadding,
+                                bottom = AppChrome.gridSpacing +
+                                    if (activeStream?.status == ActiveStreamStatus.PAUSED) 44.dp else 0.dp
+                            ),
+                            onJumpToLatest = {
+                                followLatest = true
+                                coroutineScope.launch {
+                                    scrollToLatest(animated = true)
+                                }
+                            },
+                            onMessageTap = { focusManager.clearFocus(force = true) },
+                            onMessageLongPress = onMessageLongPress,
+                            onSelectVariant = onSelectVariant,
+                            onSelectPreviousVariant = onSelectPreviousVariant,
+                            onSelectNextVariant = onSelectNextVariant
+                        )
+                    }
+
+                    ChatComposerBar(
+                        composerText = state.composerText,
+                        isStreaming = state.isStreaming,
+                        canContinue = state.conversation?.messages?.any {
+                            it.sendState == MessageSendState.SENT
+                        } == true,
+                        onComposerChanged = onComposerChanged,
+                        onSend = {
+                            followLatest = true
+                            onSend()
+                        },
+                        onContinue = {
+                            followLatest = true
+                            onContinue()
+                        },
+                        onPause = onPause
+                    )
+                }
+            }
         }
+        TopSnackbarHost(hostState = snackbarHostState)
     }
 }
 

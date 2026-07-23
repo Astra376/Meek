@@ -30,7 +30,7 @@ export const characterRoutes: RouteDefinition[] = [
         tagline: optionalTrimmedString(body.tagline, "tagline", 50),
         greeting: requireString(body.greeting, "greeting", 1_200),
         description: optionalTrimmedString(body.description, "description", 500),
-        systemPrompt: requireString(body.systemPrompt, "systemPrompt", 32_000),
+        systemPrompt: requireString(body.systemPrompt, "systemPrompt", 64_000),
         definitionPrivate: body.definitionPrivate === true,
         visibility: parseCharacterVisibility(requireString(body.visibility, "visibility", 20)),
         avatarUrl: typeof body.avatarUrl === "string" ? body.avatarUrl : null
@@ -87,7 +87,7 @@ export const characterRoutes: RouteDefinition[] = [
         tagline: optionalTrimmedString(body.tagline, "tagline", 50),
         greeting: requireString(body.greeting, "greeting", 1_200),
         description: optionalTrimmedString(body.description, "description", 500),
-        systemPrompt: requireString(body.systemPrompt, "systemPrompt", 32_000),
+        systemPrompt: requireString(body.systemPrompt, "systemPrompt", 64_000),
         definitionPrivate: body.definitionPrivate === true,
         visibility: parseCharacterVisibility(requireString(body.visibility, "visibility", 20)),
         avatarUrl: typeof body.avatarUrl === "string" ? body.avatarUrl : null

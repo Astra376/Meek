@@ -10,7 +10,7 @@ import {
 } from "../../db/queries/characters";
 import { AppError, assert, forbidden } from "../../lib/errors";
 import { createId } from "../../lib/ids";
-import { streamChatText } from "../../providers/openrouter";
+import { completeChatText } from "../../providers/openrouter";
 import { toCharacterDto } from "./characterDto";
 
 export interface CharacterWriteInput {
@@ -125,12 +125,11 @@ export async function generateCharacterGreeting(context: RequestContext, input: 
     }
   ];
 
-  let greeting = "";
-  for await (const chunk of streamChatText(context.env, messages, context.request.signal)) {
-    greeting += chunk;
-  }
-
-  return { greeting: greeting.trim() };
+  const greeting = await completeChatText(context.env, messages, {
+    maxTokens: 400,
+    temperature: 0.8
+  });
+  return { greeting: greeting.trim().slice(0, 1_200) };
 }
 
 export async function unlikePublicCharacter(context: RequestContext, characterId: string) {

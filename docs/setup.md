@@ -93,6 +93,8 @@ Fill in these fields:
   Put your Web OAuth client ID here
 - `OPENROUTER_MODEL`
   Put the OpenRouter model slug you want to use
+- `OPENROUTER_FALLBACK_MODELS`
+  Optional comma-separated model slugs, in priority order, used when the primary model is unavailable
 - `FAL_MODEL`
   Put the fal model slug you want to use
 - `FAL_BACKGROUND_MODEL`

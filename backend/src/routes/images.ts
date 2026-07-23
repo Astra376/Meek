@@ -10,7 +10,7 @@ export const imageRoutes: RouteDefinition[] = [
     auth: true,
     handler: async (context) => {
       const body = await parseJson<{ prompt?: string }>(context.request);
-      return json(await generateCharacterPortrait(context, requireString(body.prompt, "prompt", 1_000)));
+      return json(await generateCharacterPortrait(context, requireString(body.prompt, "prompt", 2_000)));
     }
   },
   {

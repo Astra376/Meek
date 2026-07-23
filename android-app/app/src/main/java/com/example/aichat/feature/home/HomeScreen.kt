@@ -31,6 +31,7 @@ import com.example.aichat.core.ui.AppChrome
 import com.example.aichat.core.ui.CharacterSummaryCardPlaceholder
 import com.example.aichat.core.ui.CharacterSummaryCard
 import com.example.aichat.core.ui.ScreenBackgroundBox
+import com.example.aichat.core.network.userFacingMessage
 import com.example.aichat.core.ui.SimplePageHeader
 import com.example.aichat.core.ui.MainPageHeader
 import com.example.aichat.core.ui.screenContentPadding
@@ -155,7 +156,9 @@ fun HomeRoute(
                     scope.launch {
                         viewModel.ensureConversation(character.id)
                             .onSuccess(onOpenConversation)
-                            .onFailure { snackbarHostState.showSnackbar(it.message ?: "Couldn't open chat.") }
+                            .onFailure {
+                                snackbarHostState.showSnackbar(it.userFacingMessage("Couldn't open chat."))
+                            }
                     }
                 }
             }

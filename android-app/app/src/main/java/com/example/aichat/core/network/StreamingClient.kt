@@ -111,7 +111,11 @@ class WorkerStreamingClient @Inject constructor(
                 }.getOrNull()
             }
             response.close()
-            close(IllegalStateException(errorMessage ?: "Streaming request failed with HTTP ${response.code}."))
+            close(
+                IllegalStateException(
+                    errorMessage ?: httpStatusMessage(response.code, "The chat request failed. Please retry.")
+                )
+            )
             return@callbackFlow
         }
 

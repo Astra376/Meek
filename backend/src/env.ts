@@ -5,6 +5,7 @@ export interface Env {
   SESSION_HMAC_SECRET: string;
   OPENROUTER_API_KEY: string;
   OPENROUTER_MODEL: string;
+  OPENROUTER_FALLBACK_MODELS?: string;
   FAL_API_KEY: string;
   FAL_MODEL: string;
   FAL_BACKGROUND_MODEL?: string;

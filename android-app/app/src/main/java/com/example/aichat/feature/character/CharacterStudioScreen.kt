@@ -58,6 +58,7 @@ import com.example.aichat.core.model.CharacterVisibility
 import com.example.aichat.core.ui.AppBackButton
 import com.example.aichat.core.ui.AppChrome
 import com.example.aichat.core.ui.ScreenBackgroundBox
+import com.example.aichat.core.network.userFacingMessage
 import com.example.aichat.feature.chatlist.ConversationRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -164,7 +165,7 @@ class CharacterStudioViewModel @Inject constructor(
                 )
             }.onFailure {
                 _uiState.value = _uiState.value.copy(isGeneratingPortraits = false)
-                _events.emit(it.message ?: "Portrait generation failed.")
+                _events.emit(it.userFacingMessage("Portrait generation failed."))
             }
         }
     }
@@ -190,7 +191,7 @@ class CharacterStudioViewModel @Inject constructor(
                 }
                 .onFailure {
                     _uiState.value = _uiState.value.copy(isGeneratingGreeting = false)
-                    _events.emit(it.message ?: "Greeting generation failed.")
+                    _events.emit(it.userFacingMessage("Greeting generation failed."))
                 }
         }
     }
@@ -204,6 +205,9 @@ class CharacterStudioViewModel @Inject constructor(
             )
             characterRepository.saveCharacter(finalDraft)
                 .onSuccess { characterId ->
+                    _uiState.value = _uiState.value.copy(
+                        draft = finalDraft.copy(id = characterId)
+                    )
                     conversationRepository.ensureConversation(ownerUserId, characterId)
                         .onSuccess { conversationId ->
                             _uiState.value = CharacterStudioUiState()
@@ -211,12 +215,12 @@ class CharacterStudioViewModel @Inject constructor(
                         }
                         .onFailure {
                             _uiState.value = _uiState.value.copy(isSaving = false)
-                            _events.emit(it.message ?: "Failed to open chat.")
+                            _events.emit(it.userFacingMessage("Failed to open chat."))
                         }
                 }
                 .onFailure {
                     _uiState.value = _uiState.value.copy(isSaving = false)
-                    _events.emit(it.message ?: "Failed to save character.")
+                    _events.emit(it.userFacingMessage("Failed to save character."))
                 }
         }
     }
@@ -259,9 +263,13 @@ fun CharacterStudioRoute(
 
             CharacterCreateStepContent(
                 state = state,
-                onNameChanged = { value -> viewModel.updateDraft { it.copy(name = value) } },
-                onAppearanceChanged = { value -> viewModel.updateDraft { it.copy(appearance = value) } },
-                onGreetingChanged = { value -> viewModel.updateDraft { it.copy(greeting = value) } },
+                onNameChanged = { value -> viewModel.updateDraft { it.copy(name = value.take(CHARACTER_NAME_LIMIT)) } },
+                onAppearanceChanged = { value ->
+                    viewModel.updateDraft { it.copy(appearance = value.take(CHARACTER_APPEARANCE_LIMIT)) }
+                },
+                onGreetingChanged = { value ->
+                    viewModel.updateDraft { it.copy(greeting = value.take(CHARACTER_GREETING_LIMIT)) }
+                },
                 onVisibilityChanged = { value -> viewModel.updateDraft { it.copy(visibility = value) } },
                 onTaglineChanged = { value -> viewModel.updateDraft { it.copy(tagline = value.take(50)) } },
                 onPublicDescriptionChanged = { value -> viewModel.updateDraft { it.copy(bio = value.take(500)) } },

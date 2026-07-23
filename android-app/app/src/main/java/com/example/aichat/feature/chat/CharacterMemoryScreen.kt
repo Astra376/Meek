@@ -30,6 +30,7 @@ import com.example.aichat.core.design.PrimaryButton
 import com.example.aichat.core.ui.AppBackButton
 import com.example.aichat.core.ui.AppChrome
 import com.example.aichat.core.ui.ScreenBackgroundBox
+import com.example.aichat.core.network.userFacingMessage
 import com.example.aichat.core.ui.ShimmerBox
 import com.example.aichat.core.ui.ShimmerTextLine
 import com.example.aichat.core.ui.pageContentFrame
@@ -92,7 +93,7 @@ class CharacterMemoryViewModel @Inject constructor(
                     if (mutableState.value.isLoading) {
                         mutableState.update { it.copy(isLoading = false) }
                     }
-                    mutableEvents.emit(error.message ?: "Couldn't load character memory.")
+                    mutableEvents.emit(error.userFacingMessage("Couldn't load character memory."))
                 }
         }
     }
@@ -129,7 +130,7 @@ class CharacterMemoryViewModel @Inject constructor(
                 }
                 .onFailure { error ->
                     mutableState.update { it.copy(isSaving = false) }
-                    mutableEvents.emit(error.message ?: "Couldn't save character memory.")
+                    mutableEvents.emit(error.userFacingMessage("Couldn't save character memory."))
                 }
         }
     }

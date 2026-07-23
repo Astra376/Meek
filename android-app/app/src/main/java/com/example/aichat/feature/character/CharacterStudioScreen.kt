@@ -241,10 +241,7 @@ fun CharacterStudioRoute(
         viewModel.events.collect { snackbarHostState.showSnackbar(it) }
     }
 
-    ScreenBackgroundBox(
-        snackbarHostState = snackbarHostState,
-        clearFocusOnTap = state.step != CharacterCreateStep.NAME
-    ) {
+    ScreenBackgroundBox(snackbarHostState = snackbarHostState) {
         Box(
             modifier = Modifier
                 .fillMaxSize()

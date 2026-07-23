@@ -74,7 +74,7 @@ fun EditProfileRoute(
     val hasChanged = (editedName.trim() != currentName.trim() && editedName.isNotBlank()) ||
                      (editedBio.trim() != currentBio.trim())
 
-    ScreenBackgroundBox(clearFocusOnTap = true) {
+    ScreenBackgroundBox {
         Column(
             modifier = Modifier.pageContentFrame(
                 paddingValues = paddingValues,

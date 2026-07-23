@@ -1,5 +1,6 @@
 import type { Env } from "../../env";
 import { all, first, run } from "../client";
+import { ensureCharacterSchema } from "../ensureCharacterSchema";
 
 export interface CharacterRecord {
   id: string;
@@ -34,6 +35,7 @@ export async function insertCharacter(env: Env, input: {
   avatarUrl: string | null;
   now: number;
 }): Promise<void> {
+  await ensureCharacterSchema(env);
   await run(
     env.DB.prepare(
       `
@@ -74,6 +76,7 @@ export async function updateCharacter(env: Env, input: {
   avatarUrl: string | null;
   now: number;
 }): Promise<void> {
+  await ensureCharacterSchema(env);
   await run(
     env.DB.prepare(
       `
@@ -98,6 +101,7 @@ export async function updateCharacter(env: Env, input: {
 }
 
 export async function getCharacterById(env: Env, userId: string, characterId: string): Promise<CharacterRecord | null> {
+  await ensureCharacterSchema(env);
   return first<CharacterRecord>(
     env.DB.prepare(
       `
@@ -118,6 +122,7 @@ export async function getCharacterById(env: Env, userId: string, characterId: st
 }
 
 export async function getOwnedCharacters(env: Env, userId: string, offset: number, limit: number): Promise<CharacterRecord[]> {
+  await ensureCharacterSchema(env);
   return all<CharacterRecord>(
     env.DB.prepare(
       `
@@ -136,6 +141,7 @@ export async function getOwnedCharacters(env: Env, userId: string, offset: numbe
 }
 
 export async function getLikedCharacters(env: Env, userId: string, offset: number, limit: number): Promise<CharacterRecord[]> {
+  await ensureCharacterSchema(env);
   return all<CharacterRecord>(
     env.DB.prepare(
       `
@@ -155,6 +161,7 @@ export async function getLikedCharacters(env: Env, userId: string, offset: numbe
 }
 
 export async function getPublicFeed(env: Env, userId: string, offset: number, limit: number): Promise<CharacterRecord[]> {
+  await ensureCharacterSchema(env);
   return all<CharacterRecord>(
     env.DB.prepare(
       `
@@ -182,6 +189,7 @@ export async function searchPublicCharacters(
   offset: number,
   limit: number
 ): Promise<CharacterRecord[]> {
+  await ensureCharacterSchema(env);
   const likeQuery = `%${query}%`;
   return all<CharacterRecord>(
     env.DB.prepare(
@@ -210,6 +218,7 @@ export async function searchPublicCharacters(
 }
 
 export async function likeCharacter(env: Env, userId: string, characterId: string, now: number): Promise<void> {
+  await ensureCharacterSchema(env);
   await env.DB.batch([
     env.DB.prepare(
       `
@@ -231,6 +240,7 @@ export async function likeCharacter(env: Env, userId: string, characterId: strin
 }
 
 export async function unlikeCharacter(env: Env, userId: string, characterId: string): Promise<void> {
+  await ensureCharacterSchema(env);
   await env.DB.batch([
     env.DB.prepare("DELETE FROM character_likes WHERE user_id = ? AND character_id = ?").bind(userId, characterId),
     env.DB.prepare(
@@ -244,6 +254,7 @@ export async function unlikeCharacter(env: Env, userId: string, characterId: str
 }
 
 export async function incrementCharacterActivity(env: Env, characterId: string, now: number): Promise<void> {
+  await ensureCharacterSchema(env);
   await run(
     env.DB.prepare(
       `

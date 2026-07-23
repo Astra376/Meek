@@ -67,7 +67,6 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -421,7 +420,6 @@ internal fun ChatScreenContent(
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
     val density = LocalDensity.current
-    val focusManager = LocalFocusManager.current
     var followLatest by rememberSaveable { mutableStateOf(true) }
     var autoScrolling by remember { mutableStateOf(false) }
 
@@ -571,7 +569,6 @@ internal fun ChatScreenContent(
                                     scrollToLatest(animated = true)
                                 }
                             },
-                            onMessageTap = { focusManager.clearFocus(force = true) },
                             onMessageLongPress = onMessageLongPress,
                             onSelectVariant = onSelectVariant,
                             onSelectPreviousVariant = onSelectPreviousVariant,
@@ -691,7 +688,6 @@ internal fun ChatTranscriptPane(
     showJumpToLatest: Boolean,
     contentPadding: PaddingValues,
     onJumpToLatest: () -> Unit,
-    onMessageTap: () -> Unit,
     onMessageLongPress: (ChatMessage) -> Unit,
     onSelectVariant: (ChatMessage, Int) -> Unit,
     onSelectPreviousVariant: (ChatMessage) -> Unit,
@@ -761,7 +757,6 @@ internal fun ChatTranscriptPane(
                     characterAvatarUrl = characterAvatarUrl,
                     currentUserName = currentUserName,
                     currentUserAvatarUrl = currentUserAvatarUrl,
-                    onTap = onMessageTap,
                     onLongPress = { onMessageLongPress(message) },
                     onSelectVariant = { index -> onSelectVariant(message, index) },
                     onSelectPreviousVariant = { onSelectPreviousVariant(message) },
@@ -949,7 +944,6 @@ private fun MessageBubble(
     characterAvatarUrl: String?,
     currentUserName: String,
     currentUserAvatarUrl: String?,
-    onTap: () -> Unit,
     onLongPress: () -> Unit,
     onSelectVariant: (Int) -> Unit,
     onSelectPreviousVariant: () -> Unit,
@@ -988,7 +982,6 @@ private fun MessageBubble(
             avatarUrl = avatarUrl,
             bubbleColor = bubbleColor,
             variantControlsEnabled = variantControlsEnabled,
-            onTap = onTap,
             onLongPress = onLongPress,
             onSelectVariant = onSelectVariant,
             onSelectPreviousVariant = onSelectPreviousVariant,
@@ -1008,7 +1001,6 @@ private fun MessageBubble(
             showTypingIndicator = showTypingIndicator,
             showVariantControls = false,
             variantControlsEnabled = variantControlsEnabled,
-            onTap = onTap,
             onLongPress = onLongPress,
             onPrevious = onSelectPreviousVariant,
             onNext = onSelectNextVariant
@@ -1031,7 +1023,6 @@ private fun VariantMessagePager(
     avatarUrl: String?,
     bubbleColor: Color,
     variantControlsEnabled: Boolean,
-    onTap: () -> Unit,
     onLongPress: () -> Unit,
     onSelectVariant: (Int) -> Unit,
     onSelectPreviousVariant: () -> Unit,
@@ -1143,7 +1134,6 @@ private fun VariantMessagePager(
                 showTypingIndicator = isGenerationPage && (generationPageLoading || generationPageText.isBlank()),
                 showVariantControls = !isGenerationPage,
                 variantControlsEnabled = variantControlsEnabled,
-                onTap = onTap,
                 onLongPress = onLongPress,
                 onPrevious = {
                     if (pagerState.currentPage > 0) {
@@ -1177,7 +1167,6 @@ private fun MessageVariantPage(
     showTypingIndicator: Boolean,
     showVariantControls: Boolean,
     variantControlsEnabled: Boolean,
-    onTap: () -> Unit,
     onLongPress: () -> Unit,
     onPrevious: () -> Unit,
     onNext: () -> Unit
@@ -1204,7 +1193,6 @@ private fun MessageVariantPage(
                 bubbleColor = bubbleColor,
                 text = text,
                 showTypingIndicator = showTypingIndicator,
-                onTap = onTap,
                 onLongPress = onLongPress,
                 modifier = Modifier.weight(1f)
             )
@@ -1257,7 +1245,6 @@ private fun MessageSurfaceContent(
     text: String,
     showTypingIndicator: Boolean,
     modifier: Modifier = Modifier,
-    onTap: () -> Unit,
     onLongPress: () -> Unit
 ) {
     Surface(
@@ -1265,7 +1252,7 @@ private fun MessageSurfaceContent(
             .fillMaxWidth()
             .clip(RoundedCornerShape(24.dp))
             .combinedClickable(
-                onClick = onTap,
+                onClick = {},
                 onLongClick = onLongPress
             ),
         shape = RoundedCornerShape(24.dp),

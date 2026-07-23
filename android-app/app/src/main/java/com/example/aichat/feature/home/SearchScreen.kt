@@ -148,7 +148,6 @@ fun SearchRoute(
 
     ScreenBackgroundBox(
         snackbarHostState = snackbarHostState,
-        clearFocusOnTap = true,
         modifier = Modifier.imePadding()
     ) {
         LazyVerticalGrid(

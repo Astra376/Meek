@@ -21,6 +21,10 @@ import { AppError, forbidden } from "../../lib/errors";
 import { createId } from "../../lib/ids";
 import { streamChatText } from "../../providers/openrouter";
 import { editTranscriptMessage, requireLatestAssistant, requireRegenerationSelection, rewindTranscript } from "./rules";
+import {
+  buildCharacterMemoryPrompt,
+  scheduleCharacterMemoryConsolidation
+} from "./memory";
 
 const RUN_LOCK_WINDOW_MS = 2 * 60 * 1000;
 
@@ -200,13 +204,19 @@ async function buildAssistantContext(
       content: options.appendedUserContent
     });
   }
+  const memoryPrompt = await buildCharacterMemoryPrompt(context, conversationId);
 
   return {
     conversation,
     character,
     transcript,
     messages: [
-      { role: "system" as const, content: character.system_prompt },
+      {
+        role: "system" as const,
+        content: memoryPrompt
+          ? `${character.system_prompt}\n\n${memoryPrompt}`
+          : character.system_prompt
+      },
       ...visibleTranscript
     ]
   };
@@ -286,6 +296,7 @@ export async function editMessage(context: RequestContext, messageId: string, ne
     });
   }
   await updateConversationActivity(context.env, message.conversation_id, now);
+  scheduleCharacterMemoryConsolidation(context, message.conversation_id, true);
 }
 
 export async function rewindConversation(context: RequestContext, messageId: string) {
@@ -306,6 +317,7 @@ export async function rewindConversation(context: RequestContext, messageId: str
   const last = remaining.at(-1);
   await deleteMessagesAfter(context.env, message.conversation_id, last?.position ?? -1);
   await updateConversationActivity(context.env, message.conversation_id, Date.now());
+  scheduleCharacterMemoryConsolidation(context, message.conversation_id, true);
 }
 
 export async function selectRegeneration(context: RequestContext, messageId: string, regenerationId: string | null) {
@@ -330,6 +342,7 @@ export async function selectRegeneration(context: RequestContext, messageId: str
     updatedAt: Date.now()
   });
   await updateConversationActivity(context.env, message.conversation_id, Date.now());
+  scheduleCharacterMemoryConsolidation(context, message.conversation_id, true);
 }
 
 export async function continueAssistantAndStream(context: RequestContext, conversationId: string): Promise<Response> {
@@ -411,6 +424,7 @@ export async function continueAssistantAndStream(context: RequestContext, conver
             assistantMessage: toMessageDto(assistantMessage),
             conversationSummary: toConversationSummary(summary)
           });
+          scheduleCharacterMemoryConsolidation(context, conversationId);
         } catch (error) {
           if (!abortController.signal.aborted) {
             safeEnqueue(controller, {
@@ -551,6 +565,7 @@ export async function sendMessageAndStream(
             assistantMessage: toMessageDto(assistantMessage),
             conversationSummary: toConversationSummary(summary)
           });
+          scheduleCharacterMemoryConsolidation(context, conversationId);
         } catch (error) {
           if (!abortController.signal.aborted) {
             safeEnqueue(controller, {
@@ -672,6 +687,7 @@ export async function regenerateLatestAssistantAndStream(
             selectedRegenerationId: regeneration.id,
             conversationSummary: toConversationSummary(summary)
           });
+          scheduleCharacterMemoryConsolidation(context, message.conversation_id, true);
         } catch (error) {
           if (!abortController.signal.aborted) {
             safeEnqueue(controller, {

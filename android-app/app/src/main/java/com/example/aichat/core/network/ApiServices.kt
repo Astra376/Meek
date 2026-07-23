@@ -76,6 +76,16 @@ interface ConversationApi {
 
     @GET("v1/conversations/{conversationId}")
     suspend fun getConversation(@Path("conversationId") conversationId: String): ConversationDetailDto
+
+    @GET("v1/conversations/{conversationId}/memory")
+    suspend fun getCharacterMemory(@Path("conversationId") conversationId: String): CharacterMemoryDto
+
+    @PATCH("v1/conversations/{conversationId}/memory")
+    suspend fun updateCharacterMemory(
+        @Path("conversationId") conversationId: String,
+        @Body body: UpdateCharacterMemoryRequestDto
+    ): CharacterMemoryDto
+
     @POST("v1/conversations/{conversationId}/read")
     suspend fun markConversationRead(@Path("conversationId") conversationId: String)
 }

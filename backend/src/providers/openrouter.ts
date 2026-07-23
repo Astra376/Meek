@@ -6,6 +6,12 @@ interface OpenRouterMessage {
   content: string;
 }
 
+interface CompletionOptions {
+  maxTokens?: number;
+  temperature?: number;
+  json?: boolean;
+}
+
 async function throwOpenRouterError(response: Response): Promise<never> {
   let message = "Text generation failed.";
   try {
@@ -115,6 +121,41 @@ export async function* streamChatText(
   if (!emittedContent) {
     throw new AppError(502, "OPENROUTER_EMPTY", "The model returned an empty response.");
   }
+}
+
+export async function completeChatText(
+  env: Env,
+  messages: OpenRouterMessage[],
+  options: CompletionOptions = {}
+): Promise<string> {
+  const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${env.OPENROUTER_API_KEY}`
+    },
+    body: JSON.stringify({
+      model: env.OPENROUTER_MODEL,
+      messages,
+      max_tokens: options.maxTokens ?? 2000,
+      temperature: options.temperature ?? 0.2,
+      stream: false,
+      ...(options.json ? { response_format: { type: "json_object" } } : {})
+    })
+  });
+
+  if (!response.ok) {
+    await throwOpenRouterError(response);
+  }
+
+  const data = (await response.json()) as {
+    choices?: Array<{ message?: { content?: string } }>;
+  };
+  const content = data.choices?.[0]?.message?.content?.trim();
+  if (!content) {
+    throw new AppError(502, "OPENROUTER_EMPTY", "The model returned an empty response.");
+  }
+  return content;
 }
 
 function normalizeSseNewlines(value: string): string {

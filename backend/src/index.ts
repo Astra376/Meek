@@ -41,7 +41,7 @@ function matchPath(template: string, actualPath: string): Record<string, string>
 }
 
 export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
+  async fetch(request: Request, env: Env, executionContext: ExecutionContext): Promise<Response> {
     try {
       if (request.method === "OPTIONS") {
         return new Response(null, {
@@ -65,7 +65,8 @@ export default {
         request,
         env,
         url,
-        params
+        params,
+        waitUntil: (promise) => executionContext.waitUntil(promise)
       };
 
       if (route.auth) {

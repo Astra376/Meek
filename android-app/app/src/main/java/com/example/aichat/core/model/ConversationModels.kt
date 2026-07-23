@@ -57,3 +57,10 @@ data class ConversationDetail(
     val backgroundSceneUrl: String? = null,
     val backgroundSceneKey: String? = null
 )
+
+data class CharacterMemory(
+    val conversationId: String,
+    val shortTerm: String,
+    val longTerm: String,
+    val updatedAt: Long
+)

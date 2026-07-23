@@ -17,6 +17,7 @@ export interface RequestContext {
   url: URL;
   params: Record<string, string>;
   user?: SessionClaims;
+  waitUntil?: (promise: Promise<unknown>) => void;
 }
 
 export interface SessionClaims {

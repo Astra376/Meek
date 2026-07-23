@@ -124,6 +124,20 @@ data class ConversationDetailDto(
 )
 
 @Serializable
+data class CharacterMemoryDto(
+    val conversationId: String,
+    val shortTerm: String,
+    val longTerm: String,
+    val updatedAt: Long
+)
+
+@Serializable
+data class UpdateCharacterMemoryRequestDto(
+    val shortTerm: String,
+    val longTerm: String
+)
+
+@Serializable
 data class SendMessageRequestDto(
     val userMessageId: String,
     val content: String

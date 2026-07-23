@@ -35,7 +35,6 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -75,7 +74,6 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.SavedStateHandle
@@ -809,12 +807,12 @@ private fun ChatComposerBar(
             onValueChange = onComposerChanged,
             placeholder = "Message...",
             modifier = Modifier
+                .testTag("chat-composer")
                 .weight(1f)
                 .heightIn(min = 46.dp, max = 160.dp),
             minLines = 1,
             maxLines = 6,
-            shape = RoundedCornerShape(24.dp),
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.None)
+            shape = RoundedCornerShape(24.dp)
         )
         val canSend = composerText.isNotBlank()
         val useContinue = !isStreaming && !canSend && canContinue

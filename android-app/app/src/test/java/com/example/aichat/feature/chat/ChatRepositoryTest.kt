@@ -16,6 +16,7 @@ import com.example.aichat.core.network.ChatApi
 import com.example.aichat.core.network.ChatStreamEvent
 import com.example.aichat.core.network.ChatStreamingClient
 import com.example.aichat.core.network.CharacterDto
+import com.example.aichat.core.network.CharacterMemoryDto
 import com.example.aichat.core.network.ConversationApi
 import com.example.aichat.core.network.ConversationDetailDto
 import com.example.aichat.core.network.ConversationSummaryDto
@@ -23,6 +24,7 @@ import com.example.aichat.core.network.CursorPageDto
 import com.example.aichat.core.network.EditMessageRequestDto
 import com.example.aichat.core.network.MessageDto
 import com.example.aichat.core.network.SelectRegenerationRequestDto
+import com.example.aichat.core.network.UpdateCharacterMemoryRequestDto
 import com.google.common.truth.Truth.assertThat
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -34,7 +36,10 @@ import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
 
+@RunWith(RobolectricTestRunner::class)
 class ChatRepositoryTest {
     private lateinit var database: AppDatabase
     private lateinit var conversationDao: ConversationDao
@@ -329,8 +334,10 @@ class ChatRepositoryTest {
                 authorUsername = "astra",
                 name = "Astra",
                 tagline = "",
+                greeting = "",
                 bio = "",
                 systemPrompt = "Be helpful",
+                definitionPrivate = false,
                 visibility = "PUBLIC",
                 avatarUrl = null,
                 initialSceneUrl = null,
@@ -466,6 +473,17 @@ class ChatRepositoryTest {
             )
         }
 
+        override suspend fun getCharacterMemory(conversationId: String): CharacterMemoryDto {
+            return CharacterMemoryDto(conversationId, "", "", 0L)
+        }
+
+        override suspend fun updateCharacterMemory(
+            conversationId: String,
+            body: UpdateCharacterMemoryRequestDto
+        ): CharacterMemoryDto {
+            return CharacterMemoryDto(conversationId, body.shortTerm, body.longTerm, 0L)
+        }
+
         override suspend fun markConversationRead(conversationId: String) = Unit
     }
 
@@ -476,6 +494,8 @@ class ChatRepositoryTest {
         override fun sendMessage(conversationId: String, userMessageId: String, content: String): Flow<ChatStreamEvent> {
             return sendHandler(conversationId, userMessageId, content)
         }
+
+        override fun continueAssistant(conversationId: String): Flow<ChatStreamEvent> = emptyFlow()
 
         override fun regenerateLatestAssistant(messageId: String): Flow<ChatStreamEvent> {
             return regenerateHandler(messageId)

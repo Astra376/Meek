@@ -65,6 +65,7 @@ import com.example.aichat.core.ui.LoadingScreen
 import com.example.aichat.feature.activity.ActivityRoute
 import com.example.aichat.feature.character.CharacterStudioRoute
 import com.example.aichat.feature.chat.ChatRoute
+import com.example.aichat.feature.chat.CharacterMemoryRoute
 import com.example.aichat.feature.chatlist.ChatListRoute
 import com.example.aichat.feature.home.HomeRoute
 import com.example.aichat.feature.home.NewHomeRoute
@@ -130,6 +131,7 @@ private val bottomDestinations = listOf(
 
 private val subpageRoutes = setOf(
     "chat/{conversationId}",
+    "chat/{conversationId}/memory",
     "create-character",
     "edit-profile",
     "search",
@@ -257,8 +259,47 @@ private fun MainShell(
                     animationSpec = tween(durationMillis = 220)
                 )
             }
-        ) {
+        ) { backStackEntry ->
             ChatRoute(
+                paddingValues = androidx.compose.foundation.layout.PaddingValues(),
+                onBack = { rootNavController.popBackStack() },
+                onOpenMemory = {
+                    val conversationId = backStackEntry.arguments?.getString("conversationId")
+                    if (conversationId != null) {
+                        rootNavController.navigate("chat/$conversationId/memory")
+                    }
+                }
+            )
+        }
+
+        composable(
+            route = "chat/{conversationId}/memory",
+            enterTransition = {
+                slideInHorizontally(
+                    initialOffsetX = { it },
+                    animationSpec = tween(durationMillis = 220)
+                )
+            },
+            exitTransition = {
+                slideOutHorizontally(
+                    targetOffsetX = { -it },
+                    animationSpec = tween(durationMillis = 220)
+                )
+            },
+            popEnterTransition = {
+                slideInHorizontally(
+                    initialOffsetX = { -it },
+                    animationSpec = tween(durationMillis = 220)
+                )
+            },
+            popExitTransition = {
+                slideOutHorizontally(
+                    targetOffsetX = { it },
+                    animationSpec = tween(durationMillis = 220)
+                )
+            }
+        ) {
+            CharacterMemoryRoute(
                 paddingValues = androidx.compose.foundation.layout.PaddingValues(),
                 onBack = { rootNavController.popBackStack() }
             )

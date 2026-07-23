@@ -284,6 +284,7 @@ class ChatViewModel @Inject constructor(
 fun ChatRoute(
     paddingValues: PaddingValues,
     onBack: () -> Unit,
+    onOpenMemory: () -> Unit,
     viewModel: ChatViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -307,6 +308,7 @@ fun ChatRoute(
     ChatScreenContent(
         paddingValues = paddingValues,
         onBack = onBack,
+        onOpenMemory = onOpenMemory,
         state = state,
         snackbarHostState = snackbarHostState,
         onComposerChanged = viewModel::onComposerChanged,
@@ -394,6 +396,7 @@ fun ChatRoute(
 internal fun ChatScreenContent(
     paddingValues: PaddingValues,
     onBack: () -> Unit,
+    onOpenMemory: () -> Unit,
     state: ChatUiState,
     snackbarHostState: SnackbarHostState,
     onComposerChanged: (String) -> Unit,
@@ -517,7 +520,8 @@ internal fun ChatScreenContent(
                 characterName = state.conversation?.character?.name ?: "Chat",
                 avatarUrl = state.conversation?.character?.avatarUrl,
                 isLoading = state.conversation == null,
-                onBack = onBack
+                onBack = onBack,
+                onOpenMemory = onOpenMemory
             )
         },
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
@@ -847,7 +851,8 @@ private fun ChatHeader(
     characterName: String,
     avatarUrl: String?,
     isLoading: Boolean,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onOpenMemory: () -> Unit
 ) {
     val background = MaterialTheme.colorScheme.background
     Box(
@@ -890,6 +895,17 @@ private fun ChatHeader(
                             color = MaterialTheme.colorScheme.onSurface
                         )
                     }
+                }
+                IconCircleButton(
+                    enabled = !isLoading,
+                    containerSize = AppChrome.compactControlSize,
+                    onClick = onOpenMemory
+                ) {
+                    AppIcon(
+                        icon = AppIcons.memory,
+                        contentDescription = "Character memory",
+                        size = AppChrome.headerActionIconSize
+                    )
                 }
             }
             Box(

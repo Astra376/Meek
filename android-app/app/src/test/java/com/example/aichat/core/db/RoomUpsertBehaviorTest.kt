@@ -8,12 +8,16 @@ import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
 
+@RunWith(RobolectricTestRunner::class)
 class RoomUpsertBehaviorTest {
     private lateinit var database: AppDatabase
     private lateinit var conversationDao: ConversationDao
     private lateinit var messageDao: MessageDao
     private lateinit var regenerationDao: AssistantRegenerationDao
+    private lateinit var memoryDao: ConversationMemoryDao
 
     @Before
     fun setUp() {
@@ -24,6 +28,38 @@ class RoomUpsertBehaviorTest {
         conversationDao = database.conversationDao()
         messageDao = database.messageDao()
         regenerationDao = database.assistantRegenerationDao()
+        memoryDao = database.conversationMemoryDao()
+    }
+
+    @Test
+    fun upsertingConversation_doesNotDeleteCharacterMemory() = runBlocking {
+        val conversation = ConversationEntity(
+            id = "conversation-memory",
+            ownerUserId = "user-1",
+            characterId = "character-1",
+            version = 1,
+            updatedAt = 100L,
+            startedAt = 100L,
+            lastMessageAt = null,
+            previewText = "",
+            unreadCount = 0,
+            hasUnreadBadge = false
+        )
+        conversationDao.upsert(conversation)
+        memoryDao.upsert(
+            ConversationMemoryEntity(
+                conversationId = conversation.id,
+                shortTerm = "At the lighthouse.",
+                longTerm = "The user found the silver key.",
+                updatedAt = 101L
+            )
+        )
+
+        conversationDao.upsert(conversation.copy(version = 2, updatedAt = 102L))
+
+        val memory = memoryDao.getByConversation(conversation.id)
+        assertThat(memory?.shortTerm).isEqualTo("At the lighthouse.")
+        assertThat(memory?.longTerm).isEqualTo("The user found the silver key.")
     }
 
     @After

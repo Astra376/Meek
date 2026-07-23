@@ -9,7 +9,6 @@ interface OpenRouterMessage {
 interface CompletionOptions {
   maxTokens?: number;
   temperature?: number;
-  json?: boolean;
 }
 
 async function throwOpenRouterError(response: Response): Promise<never> {
@@ -139,8 +138,7 @@ export async function completeChatText(
       messages,
       max_tokens: options.maxTokens ?? 2000,
       temperature: options.temperature ?? 0.2,
-      stream: false,
-      ...(options.json ? { response_format: { type: "json_object" } } : {})
+      stream: false
     })
   });
 

@@ -4,6 +4,7 @@ import com.example.aichat.core.model.AssistantRegeneration
 import com.example.aichat.core.model.CharacterSummary
 import com.example.aichat.core.model.CharacterVisibility
 import com.example.aichat.core.model.ChatMessage
+import com.example.aichat.core.model.CharacterMemory
 import com.example.aichat.core.model.ConversationSummary
 import com.example.aichat.core.model.MessageRole
 import com.example.aichat.core.model.MessageSendState
@@ -115,6 +116,13 @@ fun AssistantRegenerationEntity.toModel(): AssistantRegeneration = AssistantRege
     messageId = messageId,
     content = content,
     createdAt = createdAt
+)
+
+fun ConversationMemoryEntity.toModel(): CharacterMemory = CharacterMemory(
+    conversationId = conversationId,
+    shortTerm = shortTerm,
+    longTerm = longTerm,
+    updatedAt = updatedAt
 )
 
 fun ConversationSummaryRow.toModel(): ConversationSummary = ConversationSummary(

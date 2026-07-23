@@ -57,6 +57,7 @@ object AppIcons {
     val public = Iconsax.Linear.Global
     val lock = Iconsax.Linear.LockOne
     val send = Iconsax.Linear.Send
+    val memory = Iconsax.Linear.ArchiveBook
     val stop = Iconsax.Bold.Stop
     val forward = Iconsax.Linear.Forward
     val previous = Iconsax.Linear.ArrowLeft

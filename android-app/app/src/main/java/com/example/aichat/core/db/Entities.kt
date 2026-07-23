@@ -80,6 +80,25 @@ data class ConversationSceneEntity(
 )
 
 @Entity(
+    tableName = "conversation_memories",
+    foreignKeys = [
+        ForeignKey(
+            entity = ConversationEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["conversationId"],
+            onDelete = ForeignKey.CASCADE
+        )
+    ],
+    indices = [Index("conversationId")]
+)
+data class ConversationMemoryEntity(
+    @PrimaryKey val conversationId: String,
+    val shortTerm: String,
+    val longTerm: String,
+    val updatedAt: Long
+)
+
+@Entity(
     tableName = "messages",
     foreignKeys = [
         ForeignKey(

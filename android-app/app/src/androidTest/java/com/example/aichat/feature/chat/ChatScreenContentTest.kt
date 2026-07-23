@@ -3,8 +3,6 @@ package com.example.aichat.feature.chat
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.ui.test.assertDoesNotExist
-import androidx.compose.ui.test.assertExists
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
@@ -61,11 +59,15 @@ class ChatScreenContentTest {
                 ChatScreenContent(
                     paddingValues = PaddingValues(),
                     onBack = {},
+                    onOpenMemory = {},
                     state = chatState.value,
                     snackbarHostState = snackbarHostState,
                     onComposerChanged = {},
                     onSend = {},
+                    onContinue = {},
+                    onLoadOlderMessages = {},
                     onMessageLongPress = {},
+                    onSelectVariant = { _, _ -> },
                     onSelectPreviousVariant = {},
                     onSelectNextVariant = {}
                 )
@@ -103,7 +105,8 @@ class ChatScreenContentTest {
             ownerUserId = "user-1",
             name = "Astra",
             tagline = "",
-            description = "",
+            greeting = "",
+            bio = "",
             systemPrompt = "Be helpful",
             visibility = CharacterVisibility.PUBLIC,
             avatarUrl = null,

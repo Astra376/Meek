@@ -23,6 +23,7 @@ import { streamChatText } from "../../providers/openrouter";
 import { editTranscriptMessage, requireLatestAssistant, requireRegenerationSelection, rewindTranscript } from "./rules";
 import {
   buildCharacterMemoryPrompt,
+  composeCharacterSystemPrompt,
   scheduleCharacterMemoryConsolidation
 } from "./memory";
 
@@ -213,9 +214,7 @@ async function buildAssistantContext(
     messages: [
       {
         role: "system" as const,
-        content: memoryPrompt
-          ? `${character.system_prompt}\n\n${memoryPrompt}`
-          : character.system_prompt
+        content: composeCharacterSystemPrompt(character.system_prompt, memoryPrompt)
       },
       ...visibleTranscript
     ]

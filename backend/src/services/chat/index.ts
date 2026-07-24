@@ -389,7 +389,7 @@ export async function editMessage(context: RequestContext, messageId: string, ne
     });
   }
   await updateConversationActivity(context.env, message.conversation_id, now);
-  scheduleCharacterMemoryConsolidation(context, message.conversation_id, true);
+  scheduleCharacterMemoryConsolidation(context, message.conversation_id, message.position);
 }
 
 export async function rewindConversation(context: RequestContext, messageId: string) {
@@ -410,7 +410,11 @@ export async function rewindConversation(context: RequestContext, messageId: str
   const last = remaining.at(-1);
   await deleteMessagesAfter(context.env, message.conversation_id, last?.position ?? -1);
   await updateConversationActivity(context.env, message.conversation_id, Date.now());
-  scheduleCharacterMemoryConsolidation(context, message.conversation_id, true);
+  scheduleCharacterMemoryConsolidation(
+    context,
+    message.conversation_id,
+    (last?.position ?? -1) + 1
+  );
 }
 
 export async function selectRegeneration(context: RequestContext, messageId: string, regenerationId: string | null) {
@@ -435,7 +439,7 @@ export async function selectRegeneration(context: RequestContext, messageId: str
     updatedAt: Date.now()
   });
   await updateConversationActivity(context.env, message.conversation_id, Date.now());
-  scheduleCharacterMemoryConsolidation(context, message.conversation_id, true);
+  scheduleCharacterMemoryConsolidation(context, message.conversation_id, message.position);
 }
 
 export async function continueAssistantAndStream(context: RequestContext, conversationId: string): Promise<Response> {
@@ -847,7 +851,11 @@ export async function regenerateLatestAssistantAndStream(
             selectedRegenerationId: regeneration.id,
             conversationSummary: toConversationSummary(summary)
           });
-          scheduleCharacterMemoryConsolidation(context, message.conversation_id, true);
+          scheduleCharacterMemoryConsolidation(
+            context,
+            message.conversation_id,
+            latest.position
+          );
           finalizationPhase = "settled";
         } catch (error) {
           if (abortController.signal.aborted && finalizationPhase === "streaming") {
@@ -867,7 +875,11 @@ export async function regenerateLatestAssistantAndStream(
                 updatedAt: stoppedAt
               });
               await updateConversationActivity(context.env, message.conversation_id, stoppedAt);
-              scheduleCharacterMemoryConsolidation(context, message.conversation_id, true);
+              scheduleCharacterMemoryConsolidation(
+                context,
+                message.conversation_id,
+                latest.position
+              );
             }
             finalizationPhase = "settled";
           } else if (!abortController.signal.aborted) {

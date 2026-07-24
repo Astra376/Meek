@@ -10,6 +10,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -23,14 +24,15 @@ fun CharacterCountBadge(
     icon: AppIconGlyph,
     count: Int,
     label: String,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    containerColor: Color = MaterialTheme.colorScheme.surface.copy(alpha = 0.84f)
 ) {
     Surface(
         modifier = modifier.semantics(mergeDescendants = true) {
             contentDescription = "${formatCount(count)} $label"
         },
         shape = RoundedCornerShape(6.dp),
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.84f)
+        color = containerColor
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),

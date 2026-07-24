@@ -4,6 +4,8 @@ import {
   appendLongTermMemory,
   composeCharacterSystemPrompt,
   formatCharacterMemoryPrompt,
+  invalidateAutomaticEntriesFrom,
+  selectShortTermHorizon,
   withoutAutomaticEntries
 } from "./memory";
 
@@ -61,5 +63,53 @@ describe("character memory", () => {
 
     expect(preserved).toContain("Mara fears deep water.");
     expect(preserved).not.toContain("found the crown");
+  });
+
+  it("invalidates only automatic events from a corrected branch", () => {
+    const longTerm = [
+      "- The user manually noted Mara fears deep water.",
+      "- Mara found the silver key.",
+      "- Mara gave the key to Rowan."
+    ].join("\n");
+    const result = invalidateAutomaticEntriesFrom(
+      longTerm,
+      [
+        { text: "Mara found the silver key.", sourcePosition: 12 },
+        { text: "Mara gave the key to Rowan.", sourcePosition: 24 }
+      ],
+      20
+    );
+
+    expect(result.longTerm).toContain("Mara fears deep water.");
+    expect(result.longTerm).toContain("Mara found the silver key.");
+    expect(result.longTerm).not.toContain("gave the key");
+    expect(result.retainedEntries).toEqual([
+      { text: "Mara found the silver key.", sourcePosition: 12 }
+    ]);
+  });
+
+  it("uses an older rolling horizon instead of duplicating immediate chat context", () => {
+    const transcript = Array.from({ length: 64 }, (_, position) => ({
+      position,
+      role: position % 2 === 0 ? "user" as const : "assistant" as const,
+      content: `Message ${position}`
+    }));
+
+    const horizon = selectShortTermHorizon(transcript);
+
+    expect(horizon).toHaveLength(48);
+    expect(horizon[0].position).toBe(8);
+    expect(horizon.at(-1)?.position).toBe(55);
+    expect(horizon.some((message) => message.position >= 56)).toBe(false);
+  });
+
+  it("leaves short-term memory empty while the whole conversation is immediate context", () => {
+    const transcript = Array.from({ length: 8 }, (_, position) => ({
+      position,
+      role: "user" as const,
+      content: `Message ${position}`
+    }));
+
+    expect(selectShortTermHorizon(transcript)).toEqual([]);
   });
 });

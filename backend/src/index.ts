@@ -23,14 +23,28 @@ const routes: RouteDefinition[] = [
   ...imageRoutes
 ];
 
-function matchPath(template: string, actualPath: string): Record<string, string> | null {
+export function matchPath(template: string, actualPath: string): Record<string, string> | null {
   const templateSegments = template.split("/").filter(Boolean);
   const actualSegments = actualPath.split("/").filter(Boolean);
-  if (templateSegments.length !== actualSegments.length) return null;
+  const wildcardIndex = templateSegments.findIndex((segment) => segment.startsWith("*"));
+  if (wildcardIndex >= 0 && wildcardIndex !== templateSegments.length - 1) return null;
+  if (
+    wildcardIndex < 0 && templateSegments.length !== actualSegments.length
+    || wildcardIndex >= 0 && actualSegments.length < wildcardIndex + 1
+  ) {
+    return null;
+  }
 
   const params: Record<string, string> = {};
   for (let index = 0; index < templateSegments.length; index += 1) {
     const templateSegment = templateSegments[index];
+    if (templateSegment.startsWith("*")) {
+      params[templateSegment.slice(1)] = actualSegments
+        .slice(index)
+        .map(decodeURIComponent)
+        .join("/");
+      return params;
+    }
     const actualSegment = actualSegments[index];
     if (templateSegment.startsWith(":")) {
       params[templateSegment.slice(1)] = decodeURIComponent(actualSegment);

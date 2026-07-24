@@ -181,7 +181,6 @@ internal fun CharacterDetailsContent(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Spacer(modifier = Modifier.size(48.dp))
             Text(
                 text = "Character Details",
                 modifier = Modifier.weight(1f),
@@ -277,20 +276,21 @@ private fun CharacterDetailsBody(
                 label = "likes"
             )
         }
-        Column(
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(top = AppChrome.sectionSpacing),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(AppChrome.gridSpacing)
+            horizontalArrangement = Arrangement.SpaceEvenly
         ) {
             ProfileDateStat(
                 label = "Created",
-                value = formatRelativeTimeAgo(character.createdAt)
+                value = formatRelativeTimeAgo(character.createdAt),
+                modifier = Modifier.weight(1f)
             )
             ProfileDateStat(
                 label = "Last Updated",
-                value = formatRelativeTimeAgo(character.updatedAt)
+                value = formatRelativeTimeAgo(character.updatedAt),
+                modifier = Modifier.weight(1f)
             )
         }
         Row(

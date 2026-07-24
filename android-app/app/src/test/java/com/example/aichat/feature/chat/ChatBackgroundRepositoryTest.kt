@@ -109,6 +109,68 @@ class ChatBackgroundRepositoryTest {
         assertThat(imageApi.backgroundRequests).hasSize(1)
     }
 
+    @Test
+    fun repairFailedBackground_replacesBrokenPersistedInitialScene() = runTest {
+        val brokenUrl =
+            "https://worker.example/v1/assets/chat-backgrounds/user-1/broken.jpg"
+        val character = requireNotNull(database.characterDao().getById(CHARACTER_ID))
+        database.characterDao().upsert(
+            character.copy(
+                initialSceneUrl = brokenUrl,
+                initialSceneKey = "broken-key"
+            )
+        )
+        repository.ensureInitialBackground(CONVERSATION_ID).getOrThrow()
+        imageApi.backgroundUrl = "https://assets.example/repaired.jpg"
+
+        repository.repairFailedBackground(CONVERSATION_ID, brokenUrl).getOrThrow()
+
+        val repairedCharacter = database.characterDao().getById(CHARACTER_ID)
+        val repairedScene = database.conversationSceneDao().getByConversation(CONVERSATION_ID)
+        assertThat(imageApi.backgroundRequests).hasSize(1)
+        assertThat(repairedCharacter?.initialSceneUrl)
+            .isEqualTo("https://assets.example/repaired.jpg")
+        assertThat(repairedScene?.imageUrl).isEqualTo("https://assets.example/repaired.jpg")
+        assertThat(repairedScene?.sceneKey).isEqualTo(repairedCharacter?.initialSceneKey)
+    }
+
+    @Test
+    fun repairFailedBackground_ignoresUrlThatIsNoLongerCurrent() = runTest {
+        repository.ensureInitialBackground(CONVERSATION_ID).getOrThrow()
+        val requestsBeforeRepair = imageApi.backgroundRequests.size
+
+        repository.repairFailedBackground(
+            CONVERSATION_ID,
+            "https://assets.example/stale.jpg"
+        ).getOrThrow()
+
+        assertThat(imageApi.backgroundRequests).hasSize(requestsBeforeRepair)
+        assertThat(database.conversationSceneDao().getByConversation(CONVERSATION_ID)?.imageUrl)
+            .isEqualTo(imageApi.backgroundUrl)
+    }
+
+    @Test
+    fun repairFailedBackground_generationFailureKeepsBrokenUrlForLaterRetry() = runTest {
+        val brokenUrl = "https://assets.example/missing.jpg"
+        val character = requireNotNull(database.characterDao().getById(CHARACTER_ID))
+        database.characterDao().upsert(
+            character.copy(
+                initialSceneUrl = brokenUrl,
+                initialSceneKey = "broken-key"
+            )
+        )
+        repository.ensureInitialBackground(CONVERSATION_ID).getOrThrow()
+        imageApi.backgroundFailure = IllegalStateException("provider unavailable")
+
+        val result = repository.repairFailedBackground(CONVERSATION_ID, brokenUrl)
+
+        assertThat(result.isFailure).isTrue()
+        assertThat(database.characterDao().getById(CHARACTER_ID)?.initialSceneUrl)
+            .isEqualTo(brokenUrl)
+        assertThat(database.conversationSceneDao().getByConversation(CONVERSATION_ID)?.imageUrl)
+            .isEqualTo(brokenUrl)
+    }
+
     private suspend fun seedConversation() {
         database.characterDao().upsert(
             CharacterEntity(

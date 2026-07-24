@@ -77,6 +77,20 @@ describe("public Worker asset route", () => {
     expect(get).toHaveBeenCalledWith(KEY);
   });
 
+  it("routes legacy asset URLs whose key contains literal slashes", async () => {
+    const get = vi.fn(async () => storedObject());
+    const request = new Request(`https://worker.example/v1/assets/${KEY}`);
+
+    const response = await worker.fetch(
+      request,
+      { ASSETS: { get } } as unknown as Env,
+      { waitUntil: vi.fn() } as unknown as ExecutionContext
+    );
+
+    expect(response.status).toBe(200);
+    expect(get).toHaveBeenCalledWith(KEY);
+  });
+
   it("honors If-None-Match without returning the object body", async () => {
     const get = vi.fn(async () => storedObject());
     const request = new Request(`https://worker.example/v1/assets/${encodeURIComponent(KEY)}`, {

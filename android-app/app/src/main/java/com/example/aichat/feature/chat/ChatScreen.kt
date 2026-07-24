@@ -1,9 +1,6 @@
 package com.example.aichat.feature.chat
 
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -66,6 +63,7 @@ import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.SpanStyle
@@ -98,8 +96,7 @@ import com.example.aichat.core.ui.ShimmerTextLine
 import com.example.aichat.core.ui.TopSnackbarHost
 import com.example.aichat.core.network.userFacingMessage
 import coil.compose.AsyncImage
-import coil.compose.AsyncImagePainter
-import coil.compose.rememberAsyncImagePainter
+import coil.request.ImageRequest
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -156,6 +153,7 @@ class ChatViewModel @Inject constructor(
     private val loadedMessageLimit = MutableStateFlow(CHAT_MESSAGE_PAGE_SIZE)
     private val _events = MutableSharedFlow<String>()
     private var activeStreamJob: Job? = null
+    private var backgroundRepairAttempted = false
     val events = _events.asSharedFlow()
 
     init {
@@ -294,6 +292,16 @@ class ChatViewModel @Inject constructor(
         }
     }
 
+    fun repairBackground(failedImageUrl: String) {
+        if (backgroundRepairAttempted) return
+        if (uiState.value.conversation?.backgroundSceneUrl != failedImageUrl) return
+        backgroundRepairAttempted = true
+        viewModelScope.launch {
+            chatBackgroundRepository.repairFailedBackground(conversationId, failedImageUrl)
+                .onFailure { _events.emit(it.userFacingMessage("Couldn't repair the background scene.")) }
+        }
+    }
+
     fun startNewChat(onCreated: (String) -> Unit) {
         val conversation = uiState.value.conversation ?: return
         val characterId = conversation.character.id
@@ -392,6 +400,7 @@ fun ChatRoute(
         onContinue = viewModel::continueAssistant,
         onStop = viewModel::stopStreaming,
         onRefreshChat = viewModel::refreshChat,
+        onBackgroundLoadFailed = viewModel::repairBackground,
         onStartNewChat = { viewModel.startNewChat(onStartNewChat) },
         onOpenCharacterProfile = onOpenCharacterProfile,
         onOpenCreatorProfile = onOpenCreatorProfile,
@@ -483,6 +492,7 @@ internal fun ChatScreenContent(
     onContinue: () -> Unit,
     onStop: () -> Unit = {},
     onRefreshChat: () -> Unit = {},
+    onBackgroundLoadFailed: (String) -> Unit = {},
     onStartNewChat: () -> Unit = {},
     onOpenCharacterProfile: (String) -> Unit = {},
     onOpenCreatorProfile: (String) -> Unit = {},
@@ -634,7 +644,10 @@ internal fun ChatScreenContent(
                     .fillMaxSize()
                     .padding(top = paddingValues.calculateTopPadding())
             ) {
-                ChatSceneBackground(imageUrl = state.conversation?.backgroundSceneUrl)
+                ChatSceneBackground(
+                    imageUrl = state.conversation?.backgroundSceneUrl,
+                    onLoadFailed = onBackgroundLoadFailed
+                )
                 Column(modifier = Modifier.fillMaxSize()) {
                     if (state.conversation == null) {
                         Spacer(modifier = Modifier.weight(1f))
@@ -737,54 +750,36 @@ private fun List<ChatMessage>.sortedForReverseLayout(): List<ChatMessage> {
 }
 
 @Composable
-private fun ChatSceneBackground(imageUrl: String?) {
+private fun ChatSceneBackground(
+    imageUrl: String?,
+    onLoadFailed: (String) -> Unit
+) {
     val fallback = MaterialTheme.colorScheme.background
-    val requestedUrl = imageUrl?.takeIf { it.startsWith("http") }
-    var visibleUrl by remember { mutableStateOf<String?>(null) }
-    var pendingUrl by remember { mutableStateOf<String?>(null) }
-
-    LaunchedEffect(requestedUrl) {
-        if (requestedUrl != visibleUrl && requestedUrl != pendingUrl) {
-            pendingUrl = requestedUrl
+    val context = LocalContext.current
+    val requestedUrl = remember(imageUrl) { canonicalChatBackgroundUrl(imageUrl) }
+    val request = remember(requestedUrl, context) {
+        requestedUrl?.let {
+            ImageRequest.Builder(context)
+                .data(it)
+                .crossfade(700)
+                .build()
         }
     }
-
-    val visiblePainter = rememberAsyncImagePainter(visibleUrl)
-    val pendingPainter = rememberAsyncImagePainter(pendingUrl)
-    val pendingReady = pendingUrl == null || pendingPainter.state is AsyncImagePainter.State.Success
-    val pendingAlpha by animateFloatAsState(
-        targetValue = if (pendingUrl != null && pendingReady) 1f else 0f,
-        animationSpec = tween(durationMillis = 700),
-        label = "chat-background-image-alpha",
-        finishedListener = { alpha ->
-            if (alpha == 1f && pendingUrl != null) {
-                visibleUrl = pendingUrl
-                pendingUrl = null
-            }
-        }
-    )
 
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(fallback)
     ) {
-        if (visibleUrl != null) {
-            Image(
-                painter = visiblePainter,
+        if (request != null) {
+            AsyncImage(
+                model = request,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize()
-            )
-        }
-        if (pendingUrl != null && pendingReady) {
-            Image(
-                painter = pendingPainter,
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .graphicsLayer { alpha = pendingAlpha }
+                modifier = Modifier.fillMaxSize(),
+                onError = {
+                    imageUrl?.let(onLoadFailed)
+                }
             )
         }
         Box(

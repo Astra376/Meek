@@ -202,12 +202,12 @@ private fun CharacterMemoryScreen(
                 ) {
                     MemoryEditor(
                         title = "Short-Term Memory",
-                        description = "The current situation and recent events that still matter. This is refreshed as the roleplay progresses.",
+                        description = "An overview of the recent story beyond the messages already visible to the character. This rolls forward as the roleplay progresses.",
                         value = state.shortTerm,
                         limit = SHORT_TERM_MEMORY_MAX_LENGTH,
                         minLines = 6,
                         maxLines = 12,
-                        placeholder = "Current scene, active goals, relationships, and unresolved events.",
+                        placeholder = "Recent story arc, goals, relationship developments, and unresolved events.",
                         onValueChanged = onShortTermChanged
                     )
                     MemoryEditor(

@@ -84,6 +84,9 @@ interface ConversationSceneDao {
     @Upsert
     suspend fun upsert(scene: ConversationSceneEntity)
 
+    @Query("DELETE FROM conversation_scenes WHERE conversationId = :conversationId")
+    suspend fun deleteByConversation(conversationId: String)
+
     @Query("DELETE FROM conversation_scenes")
     suspend fun clear()
 }

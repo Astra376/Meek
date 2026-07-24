@@ -24,8 +24,12 @@ export const conversationRoutes: RouteDefinition[] = [
     path: "/v1/conversations",
     auth: true,
     handler: async (context) => {
-      const body = await parseJson<{ characterId?: string }>(context.request);
-      const conversation = await createConversation(context, requireString(body.characterId, "characterId"));
+      const body = await parseJson<{ characterId?: string; forceNew?: boolean }>(context.request);
+      const conversation = await createConversation(
+        context,
+        requireString(body.characterId, "characterId"),
+        body.forceNew === true
+      );
       return json(conversation, { status: 201 });
     }
   },

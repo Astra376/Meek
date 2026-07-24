@@ -134,8 +134,7 @@ class CharacterRepository @Inject constructor(
             characterDao.upsert(
                 character.copy(
                     likedByMe = !character.likedByMe,
-                    likeCount = (character.likeCount + if (character.likedByMe) -1 else 1).coerceAtLeast(0),
-                    updatedAt = System.currentTimeMillis()
+                    likeCount = (character.likeCount + if (character.likedByMe) -1 else 1).coerceAtLeast(0)
                 )
             )
         }
@@ -176,8 +175,7 @@ class CharacterRepository @Inject constructor(
         characterDao.upsert(
             character.copy(
                 initialSceneUrl = imageUrl,
-                initialSceneKey = scene.key,
-                updatedAt = System.currentTimeMillis()
+                initialSceneKey = scene.key
             )
         )
     }

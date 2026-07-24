@@ -8,6 +8,7 @@ import com.example.aichat.core.db.toModel
 import com.example.aichat.core.model.CharacterVisibility
 import com.example.aichat.core.model.ConversationSummary
 import com.example.aichat.core.network.ConversationApi
+import com.example.aichat.core.network.CreateConversationRequestDto
 import com.example.aichat.core.network.ConversationSummaryDto
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -37,7 +38,17 @@ class ConversationRepository @Inject constructor(
 
     suspend fun ensureConversation(ownerUserId: String, characterId: String): Result<String> {
         return runCatching {
-            val summary = conversationApi.createConversation(mapOf("characterId" to characterId))
+            val summary = conversationApi.createConversation(CreateConversationRequestDto(characterId))
+            upsertConversationSummary(ownerUserId, summary)
+            summary.id
+        }
+    }
+
+    suspend fun startNewConversation(ownerUserId: String, characterId: String): Result<String> {
+        return runCatching {
+            val summary = conversationApi.createConversation(
+                CreateConversationRequestDto(characterId = characterId, forceNew = true)
+            )
             upsertConversationSummary(ownerUserId, summary)
             summary.id
         }

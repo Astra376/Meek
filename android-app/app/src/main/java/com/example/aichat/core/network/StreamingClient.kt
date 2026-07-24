@@ -7,7 +7,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
-import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -102,52 +102,57 @@ class WorkerStreamingClient @Inject constructor(
 
     private fun stream(request: Request): Flow<ChatStreamEvent> = callbackFlow {
         val call = okHttpClient.newCall(request)
-        val response = call.execute()
-
-        if (!response.isSuccessful) {
-            val errorMessage = response.body?.string()?.let { body ->
-                runCatching {
-                    json.decodeFromString(ErrorResponseDto.serializer(), body).message
-                }.getOrNull()
+        val readerJob = launch(Dispatchers.IO) {
+            val response = try {
+                call.execute()
+            } catch (error: Throwable) {
+                close(error)
+                return@launch
             }
-            response.close()
-            close(
-                IllegalStateException(
-                    errorMessage ?: httpStatusMessage(response.code, "The chat request failed. Please retry.")
-                )
-            )
-            return@callbackFlow
-        }
 
-        val body = response.body ?: run {
-            response.close()
-            close(IllegalStateException("Streaming response was empty."))
-            return@callbackFlow
-        }
-
-        try {
-            body.source().use { source ->
-                while (!source.exhausted()) {
-                    val line = source.readUtf8Line() ?: break
-                    if (!line.startsWith("data:")) continue
-                    val payload = line.removePrefix("data:").trim()
-                    if (payload.isBlank()) continue
-                    val event = json.decodeFromString(StreamEventDto.serializer(), payload).toModel()
-                    trySend(event)
+            try {
+                if (!response.isSuccessful) {
+                    val errorMessage = response.body?.string()?.let { body ->
+                        runCatching {
+                            json.decodeFromString(ErrorResponseDto.serializer(), body).message
+                        }.getOrNull()
+                    }
+                    close(
+                        IllegalStateException(
+                            errorMessage ?: httpStatusMessage(response.code, "The chat request failed. Please retry.")
+                        )
+                    )
+                    return@launch
                 }
+
+                val body = response.body ?: run {
+                    close(IllegalStateException("Streaming response was empty."))
+                    return@launch
+                }
+
+                body.source().use { source ->
+                    while (!source.exhausted()) {
+                        val line = source.readUtf8Line() ?: break
+                        if (!line.startsWith("data:")) continue
+                        val payload = line.removePrefix("data:").trim()
+                        if (payload.isBlank()) continue
+                        val event = json.decodeFromString(StreamEventDto.serializer(), payload).toModel()
+                        trySend(event)
+                    }
+                }
+                close()
+            } catch (error: Throwable) {
+                close(error)
+            } finally {
+                response.close()
             }
-            response.close()
-            close()
-        } catch (error: Throwable) {
-            response.close()
-            close(error)
         }
 
         awaitClose {
             call.cancel()
-            response.close()
+            readerJob.cancel()
         }
-    }.flowOn(Dispatchers.IO)
+    }
 
     private fun StreamEventDto.toModel(): ChatStreamEvent = when (type) {
         "accepted_send" -> ChatStreamEvent.AcceptedSend(

@@ -393,6 +393,7 @@ export async function continueAssistantAndStream(context: RequestContext, conver
     const assistantMessageId = createId("message");
     const assistantPosition = (transcript.at(-1)?.position ?? -1) + 1;
     const abortController = new AbortController();
+    let partialText = "";
 
     const stream = new ReadableStream<Uint8Array>({
       async start(controller) {
@@ -408,6 +409,7 @@ export async function continueAssistantAndStream(context: RequestContext, conver
             context,
             continuationMessages,
             (chunk) => {
+              partialText += chunk;
               safeEnqueue(controller, {
                 type: "delta",
                 runId,
@@ -459,7 +461,26 @@ export async function continueAssistantAndStream(context: RequestContext, conver
           });
           scheduleCharacterMemoryConsolidation(context, conversationId);
         } catch (error) {
-          if (!abortController.signal.aborted) {
+          if (abortController.signal.aborted) {
+            const stoppedText = partialText.trim();
+            if (stoppedText) {
+              const stoppedAt = Date.now();
+              await insertMessage(context.env, {
+                id: assistantMessageId,
+                conversation_id: conversationId,
+                position: assistantPosition,
+                role: "assistant",
+                content: stoppedText,
+                edited: 0,
+                created_at: stoppedAt,
+                updated_at: stoppedAt,
+                selected_regeneration_id: null
+              });
+              await updateConversationActivity(context.env, conversationId, stoppedAt);
+              await incrementCharacterActivity(context.env, character.id, stoppedAt);
+              scheduleCharacterMemoryConsolidation(context, conversationId);
+            }
+          } else {
             safeEnqueue(controller, {
               type: "failed",
               runId,
@@ -534,6 +555,7 @@ export async function sendMessageAndStream(
     });
 
     const abortController = new AbortController();
+    let partialText = "";
     const stream = new ReadableStream<Uint8Array>({
       async start(controller) {
         safeEnqueue(controller, {
@@ -549,6 +571,7 @@ export async function sendMessageAndStream(
             context,
             messages,
             (chunk) => {
+              partialText += chunk;
               safeEnqueue(controller, {
                 type: "delta",
                 runId,
@@ -600,7 +623,26 @@ export async function sendMessageAndStream(
           });
           scheduleCharacterMemoryConsolidation(context, conversationId);
         } catch (error) {
-          if (!abortController.signal.aborted) {
+          if (abortController.signal.aborted) {
+            const stoppedText = partialText.trim();
+            if (stoppedText) {
+              const stoppedAt = Date.now();
+              await insertMessage(context.env, {
+                id: assistantMessageId,
+                conversation_id: conversationId,
+                position: userPosition + 1,
+                role: "assistant",
+                content: stoppedText,
+                edited: 0,
+                created_at: stoppedAt,
+                updated_at: stoppedAt,
+                selected_regeneration_id: null
+              });
+              await updateConversationActivity(context.env, conversationId, stoppedAt);
+              await incrementCharacterActivity(context.env, character.id, stoppedAt);
+              scheduleCharacterMemoryConsolidation(context, conversationId);
+            }
+          } else {
             safeEnqueue(controller, {
               type: "failed",
               runId,
@@ -654,6 +696,7 @@ export async function regenerateLatestAssistantAndStream(
     });
     const regenerationId = createId("regen");
     const abortController = new AbortController();
+    let partialText = "";
 
     const stream = new ReadableStream<Uint8Array>({
       async start(controller) {
@@ -670,6 +713,7 @@ export async function regenerateLatestAssistantAndStream(
             context,
             messages,
             (chunk) => {
+              partialText += chunk;
               safeEnqueue(controller, {
                 type: "delta",
                 runId,
@@ -722,7 +766,25 @@ export async function regenerateLatestAssistantAndStream(
           });
           scheduleCharacterMemoryConsolidation(context, message.conversation_id, true);
         } catch (error) {
-          if (!abortController.signal.aborted) {
+          if (abortController.signal.aborted) {
+            const stoppedText = partialText.trim();
+            if (stoppedText) {
+              const stoppedAt = Date.now();
+              await insertRegeneration(context.env, {
+                id: regenerationId,
+                message_id: latest.id,
+                content: stoppedText,
+                created_at: stoppedAt
+              });
+              await updateMessageSelection(context.env, {
+                messageId: latest.id,
+                selectedRegenerationId: regenerationId,
+                updatedAt: stoppedAt
+              });
+              await updateConversationActivity(context.env, message.conversation_id, stoppedAt);
+              scheduleCharacterMemoryConsolidation(context, message.conversation_id, true);
+            }
+          } else {
             safeEnqueue(controller, {
               type: "failed",
               runId,

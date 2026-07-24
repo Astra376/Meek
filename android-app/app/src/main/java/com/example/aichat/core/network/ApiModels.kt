@@ -144,6 +144,12 @@ data class SendMessageRequestDto(
 )
 
 @Serializable
+data class CreateConversationRequestDto(
+    val characterId: String,
+    val forceNew: Boolean = false
+)
+
+@Serializable
 data class EditMessageRequestDto(
     val content: String
 )

@@ -45,7 +45,7 @@ export async function generatePortraitWithFal(env: Env, prompt: string): Promise
   return generateImageWithFal(env, {
     model: env.FAL_MODEL,
     prompt,
-    imageSize: "square_hd"
+    aspectRatio: "1:1"
   });
 }
 
@@ -53,7 +53,7 @@ export async function generateChatBackgroundWithFal(env: Env, prompt: string): P
   return generateImageWithFal(env, {
     model: env.FAL_BACKGROUND_MODEL || env.FAL_MODEL,
     prompt,
-    imageSize: "landscape_16_9"
+    aspectRatio: "16:9"
   });
 }
 
@@ -62,7 +62,7 @@ async function generateImageWithFal(
   options: {
     model: string;
     prompt: string;
-    imageSize: string;
+    aspectRatio: "1:1" | "16:9";
   }
 ): Promise<string> {
   const queueResponse = await fetchFal(`https://queue.fal.run/${options.model}`, {
@@ -73,7 +73,9 @@ async function generateImageWithFal(
     },
     body: JSON.stringify({
       prompt: options.prompt,
-      image_size: options.imageSize
+      aspect_ratio: options.aspectRatio,
+      output_format: "jpeg",
+      num_images: 1
     })
   });
 

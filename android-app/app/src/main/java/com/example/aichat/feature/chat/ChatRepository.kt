@@ -38,6 +38,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import java.util.concurrent.ConcurrentHashMap
 
@@ -116,10 +117,39 @@ class ChatRepository @Inject constructor(
     suspend fun refreshConversation(conversationId: String): Result<Unit> = withContext(Dispatchers.IO) {
         captureResult {
             val detail = conversationApi.getConversation(conversationId)
-            if (currentActiveStream(conversationId) != null) return@captureResult
+            if (currentActiveStream(conversationId)?.isLive == true) return@captureResult
             database.withTransaction {
-                if (currentActiveStream(conversationId) != null) return@withTransaction
+                if (currentActiveStream(conversationId)?.isLive == true) return@withTransaction
                 applyRemoteConversationDetail(detail)
+            }
+        }
+    }
+
+    suspend fun reconcilePausedStream(conversationId: String): Result<Unit> = withContext(Dispatchers.IO) {
+        captureResult {
+            repeat(3) { attempt ->
+                if (attempt > 0) delay(150L * attempt)
+                val stream = currentActiveStream(conversationId)
+                if (stream?.status != ActiveStreamStatus.PAUSED) return@captureResult
+                val detail = conversationApi.getConversation(conversationId)
+                database.withTransaction {
+                    if (currentActiveStream(conversationId)?.status == ActiveStreamStatus.PAUSED) {
+                        applyRemoteConversationDetail(detail)
+                    }
+                }
+                val targetCommitted = when (stream.mode) {
+                    ActiveStreamMode.REGENERATE -> detail.messages
+                        .firstOrNull { it.id == stream.targetMessageId }
+                        ?.regenerations
+                        ?.any { it.content == stream.text.trim() } == true
+                    ActiveStreamMode.SEND,
+                    ActiveStreamMode.CONTINUE -> stream.assistantMessageId?.let { assistantId ->
+                        detail.messages.any { it.id == assistantId }
+                    } ?: stream.userMessageId?.let { userId ->
+                        detail.messages.any { it.id == userId }
+                    } ?: true
+                }
+                if (targetCommitted) return@captureResult
             }
         }
     }
@@ -127,6 +157,19 @@ class ChatRepository @Inject constructor(
     fun requestPause(conversationId: String) {
         if (conversationId.isBlank()) return
         pauseRequests.add(conversationId)
+    }
+
+    fun updatePresentationProgress(conversationId: String, draftKey: String, characterCount: Int) {
+        if (characterCount < 0) return
+        updateActiveStream(conversationId) { stream ->
+            if (stream == null || stream.draftKey != draftKey) return@updateActiveStream stream
+            stream.copy(
+                presentedCharacterCount = maxOf(
+                    stream.presentedCharacterCount,
+                    characterCount.coerceAtMost(stream.text.length)
+                )
+            )
+        }
     }
 
     fun dismissSettledStream(conversationId: String, draftKey: String? = null) {
@@ -142,6 +185,7 @@ class ChatRepository @Inject constructor(
         captureResult {
             val normalized = text.trim()
             if (normalized.isBlank()) throw IllegalArgumentException("Message can't be empty.")
+            reconcilePausedStream(conversationId).getOrThrow()
             clearPauseRequest(conversationId)
             dismissSettledStream(conversationId)
             ensureNotStreaming(conversationId)
@@ -181,6 +225,8 @@ class ChatRepository @Inject constructor(
             val normalized = newContent.trim()
             if (normalized.isBlank()) throw IllegalArgumentException("Message can't be empty.")
 
+            val conversationId = requireMutableMessage(messageId).conversationId
+            reconcilePausedStream(conversationId).getOrThrow()
             val message = requireMutableMessage(messageId)
             chatApi.editMessage(messageId, EditMessageRequestDto(normalized))
 
@@ -193,6 +239,8 @@ class ChatRepository @Inject constructor(
 
     suspend fun rewind(messageId: String): Result<Unit> = withContext(Dispatchers.IO) {
         captureResult {
+            val conversationId = requireMutableMessage(messageId).conversationId
+            reconcilePausedStream(conversationId).getOrThrow()
             val message = requireMutableMessage(messageId)
             chatApi.rewind(messageId)
 
@@ -206,6 +254,8 @@ class ChatRepository @Inject constructor(
 
     suspend fun regenerateLatestAssistant(messageId: String): Result<Unit> = withContext(Dispatchers.IO) {
         captureResult {
+            val conversationId = requireMutableMessage(messageId).conversationId
+            reconcilePausedStream(conversationId).getOrThrow()
             val message = requireMutableMessage(messageId)
             ensureLatestAssistant(message)
             clearPauseRequest(message.conversationId)
@@ -228,6 +278,7 @@ class ChatRepository @Inject constructor(
 
     suspend fun continueAssistant(conversationId: String): Result<Unit> = withContext(Dispatchers.IO) {
         captureResult {
+            reconcilePausedStream(conversationId).getOrThrow()
             clearPauseRequest(conversationId)
             dismissSettledStream(conversationId)
             ensureNotStreaming(conversationId)
@@ -237,7 +288,7 @@ class ChatRepository @Inject constructor(
                 ActiveAssistantStream(
                     conversationId = conversationId,
                     draftKey = "continue-draft-${System.currentTimeMillis()}",
-                    mode = ActiveStreamMode.SEND
+                    mode = ActiveStreamMode.CONTINUE
                 )
             )
 
@@ -247,6 +298,8 @@ class ChatRepository @Inject constructor(
 
     suspend fun selectRegeneration(messageId: String, regenerationId: String): Result<Unit> = withContext(Dispatchers.IO) {
         captureResult {
+            val conversationId = requireMutableMessage(messageId).conversationId
+            reconcilePausedStream(conversationId).getOrThrow()
             val message = requireMutableMessage(messageId)
             ensureLatestAssistant(message)
             chatApi.selectRegeneration(
@@ -306,16 +359,9 @@ class ChatRepository @Inject constructor(
         } catch (error: CancellationException) {
             if (consumePauseRequest(conversationId)) {
                 withContext(NonCancellable) {
-                    if (!accepted) {
-                        markMessageFailed(userMessageId)
-                    }
                     updateActiveStream(conversationId) { stream ->
                         if (stream == null) return@updateActiveStream null
-                        if (!accepted && stream.text.isBlank()) {
-                            null
-                        } else {
-                            stream.copy(status = ActiveStreamStatus.PAUSED)
-                        }
+                        stream.copy(status = ActiveStreamStatus.PAUSED)
                     }
                 }
                 keepStream = currentActiveStream(conversationId) != null
@@ -445,6 +491,16 @@ class ChatRepository @Inject constructor(
                     else -> Unit
                 }
             }
+        } catch (error: CancellationException) {
+            if (consumePauseRequest(conversationId)) {
+                withContext(NonCancellable) {
+                    updateActiveStream(conversationId) { stream ->
+                        stream?.copy(status = ActiveStreamStatus.PAUSED)
+                    }
+                }
+                keepStream = currentActiveStream(conversationId) != null
+            }
+            throw error
         } catch (error: Throwable) {
             clearPauseRequest(conversationId)
             throw error
@@ -512,8 +568,15 @@ class ChatRepository @Inject constructor(
 
     private suspend fun applyRemoteConversationDetail(detail: ConversationDetailDto) {
         val existingConversation = conversationDao.getById(detail.id)
+        val existingCharacter = characterDao.getById(detail.character.id)
         val latestTimestamp = latestMessageTimestamp(detail.messages)
-        characterDao.upsert(detail.character.toEntity())
+        val remoteCharacter = detail.character.toEntity()
+        characterDao.upsert(
+            remoteCharacter.copy(
+                initialSceneUrl = remoteCharacter.initialSceneUrl ?: existingCharacter?.initialSceneUrl,
+                initialSceneKey = remoteCharacter.initialSceneKey ?: existingCharacter?.initialSceneKey
+            )
+        )
         conversationDao.upsert(
             ConversationEntity(
                 id = detail.id,

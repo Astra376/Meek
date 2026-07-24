@@ -49,8 +49,7 @@ class ChatBackgroundRepository @Inject constructor(
                 database.characterDao().upsert(
                     character.copy(
                         initialSceneUrl = imageUrl,
-                        initialSceneKey = scene.key,
-                        updatedAt = System.currentTimeMillis()
+                        initialSceneKey = scene.key
                     )
                 )
                 sceneDao.upsert(

@@ -8,7 +8,7 @@ export async function storeRemoteImageInR2(
 ): Promise<string> {
   const response = await fetch(imageUrl);
   if (!response.ok || !response.body) {
-    throw new AppError(502, "IMAGE_FETCH_FAILED", "Could not download the generated portrait.");
+    throw new AppError(502, "IMAGE_FETCH_FAILED", "Could not download the generated image.");
   }
 
   const contentType = response.headers.get("Content-Type") ?? "image/jpeg";
@@ -24,4 +24,3 @@ export async function storeRemoteImageInR2(
 
   return `${env.R2_PUBLIC_BASE_URL.replace(/\/$/, "")}/${key}`;
 }
-

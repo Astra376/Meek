@@ -40,7 +40,11 @@ export async function listConversations(context: RequestContext, cursor: number,
   };
 }
 
-export async function createConversation(context: RequestContext, characterId: string) {
+export async function createConversation(
+  context: RequestContext,
+  characterId: string,
+  forceNew = false
+) {
   await ensureConversationStreamingSchema(context.env);
   const character = await getCharacterById(context.env, context.user!.userId, characterId);
   if (!character) {
@@ -50,7 +54,9 @@ export async function createConversation(context: RequestContext, characterId: s
     forbidden("Private characters are only visible to their owner.");
   }
 
-  const existing = await findConversationByOwnerAndCharacter(context.env, context.user!.userId, characterId);
+  const existing = forceNew
+    ? null
+    : await findConversationByOwnerAndCharacter(context.env, context.user!.userId, characterId);
   if (existing) {
     const summary = await getConversationSummaryById(context.env, context.user!.userId, existing.id);
     if (summary) {

@@ -1,11 +1,13 @@
 package com.example.aichat.feature.chat
 
+import android.content.Intent
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -22,6 +24,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -30,6 +33,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.relocation.BringIntoViewRequester
@@ -60,6 +65,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
@@ -67,6 +73,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -84,10 +91,12 @@ import com.example.aichat.core.design.AppIcons
 import com.example.aichat.core.design.AppTextField
 import com.example.aichat.core.design.CircleAvatar
 import com.example.aichat.core.design.CharacterPortrait
+import com.example.aichat.core.design.DraggableSubpage
 import com.example.aichat.core.design.IconCircleButton
 import com.example.aichat.core.design.PrimaryButton
 import com.example.aichat.core.design.SecondaryButton
 import com.example.aichat.core.model.ChatMessage
+import com.example.aichat.core.model.CharacterSummary
 import com.example.aichat.core.model.ConversationDetail
 import com.example.aichat.core.model.MessageRole
 import com.example.aichat.core.model.MessageSendState
@@ -97,6 +106,7 @@ import com.example.aichat.core.ui.CircleAvatarPlaceholder
 import com.example.aichat.core.ui.ShimmerTextLine
 import com.example.aichat.core.ui.TopSnackbarHost
 import com.example.aichat.core.network.userFacingMessage
+import com.example.aichat.feature.character.CharacterRepository
 import coil.compose.AsyncImage
 import coil.compose.AsyncImagePainter
 import coil.compose.rememberAsyncImagePainter
@@ -115,6 +125,10 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import java.text.NumberFormat
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 private const val CHAT_MESSAGE_PAGE_SIZE = 20
 
@@ -137,6 +151,7 @@ class ChatViewModel @Inject constructor(
     private val chatRepository: ChatRepository,
     private val conversationRepository: com.example.aichat.feature.chatlist.ConversationRepository,
     private val chatBackgroundRepository: ChatBackgroundRepository,
+    private val characterRepository: CharacterRepository,
     private val authRepository: AuthRepository
 ) : ViewModel() {
     private val conversationId: String = checkNotNull(savedStateHandle["conversationId"])
@@ -257,8 +272,45 @@ class ChatViewModel @Inject constructor(
             return
         }
         chatRepository.requestPause(conversationId)
-        activeStreamJob?.cancel()
+        val stoppedJob = activeStreamJob
+        stoppedJob?.cancel()
         activeStreamJob = null
+        viewModelScope.launch {
+            stoppedJob?.join()
+            chatRepository.reconcilePausedStream(conversationId)
+                .onFailure { _events.emit(it.userFacingMessage("Couldn't sync the stopped reply.")) }
+        }
+    }
+
+    fun updateStreamPresentation(draftKey: String, characterCount: Int) {
+        chatRepository.updatePresentationProgress(conversationId, draftKey, characterCount)
+    }
+
+    fun refreshChat() {
+        viewModelScope.launch {
+            chatRepository.refreshConversation(conversationId)
+                .onFailure { _events.emit(it.userFacingMessage("Couldn't refresh chat.")) }
+            chatBackgroundRepository.ensureInitialBackground(conversationId)
+                .onFailure { _events.emit(it.userFacingMessage("Couldn't refresh the background scene.")) }
+        }
+    }
+
+    fun toggleCharacterLike() {
+        val characterId = uiState.value.conversation?.character?.id ?: return
+        viewModelScope.launch {
+            characterRepository.toggleLike(characterId)
+                .onFailure { _events.emit(it.userFacingMessage("Couldn't update like.")) }
+        }
+    }
+
+    fun startNewChat(onCreated: (String) -> Unit) {
+        val characterId = uiState.value.conversation?.character?.id ?: return
+        val ownerUserId = authRepository.sessionState.value.profile?.userId.orEmpty()
+        viewModelScope.launch {
+            conversationRepository.startNewConversation(ownerUserId, characterId)
+                .onSuccess(onCreated)
+                .onFailure { _events.emit(it.userFacingMessage("Couldn't start a new chat.")) }
+        }
     }
 
     fun dismissSettledStream(draftKey: String) {
@@ -292,6 +344,7 @@ fun ChatRoute(
     paddingValues: PaddingValues,
     onBack: () -> Unit,
     onOpenMemory: () -> Unit,
+    onStartNewChat: (String) -> Unit = {},
     viewModel: ChatViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -322,7 +375,11 @@ fun ChatRoute(
         onSend = viewModel::send,
         onContinue = viewModel::continueAssistant,
         onPause = viewModel::pauseStreaming,
+        onStreamPresentationProgress = viewModel::updateStreamPresentation,
         onStreamPresentationSettled = viewModel::dismissSettledStream,
+        onRefreshChat = viewModel::refreshChat,
+        onToggleLike = viewModel::toggleCharacterLike,
+        onStartNewChat = { viewModel.startNewChat(onStartNewChat) },
         onLoadOlderMessages = viewModel::loadOlderMessages,
         onMessageLongPress = { actionMessage = it },
         onSelectVariant = { message, index ->
@@ -410,7 +467,11 @@ internal fun ChatScreenContent(
     onSend: () -> Unit,
     onContinue: () -> Unit,
     onPause: () -> Unit = {},
+    onStreamPresentationProgress: (String, Int) -> Unit = { _, _ -> },
     onStreamPresentationSettled: (String) -> Unit = {},
+    onRefreshChat: () -> Unit = {},
+    onToggleLike: () -> Unit = {},
+    onStartNewChat: () -> Unit = {},
     onLoadOlderMessages: () -> Unit,
     onMessageLongPress: (ChatMessage) -> Unit,
     onSelectVariant: (ChatMessage, Int) -> Unit,
@@ -422,10 +483,14 @@ internal fun ChatScreenContent(
     val density = LocalDensity.current
     var followLatest by rememberSaveable { mutableStateOf(true) }
     var autoScrolling by remember { mutableStateOf(false) }
+    var showCharacterDetails by rememberSaveable { mutableStateOf(false) }
 
     val messages = state.conversation?.messages.orEmpty()
     val activeStream = state.activeStream
-    val committedSendMessage = activeStream?.assistantMessageId?.let { assistantMessageId ->
+    val committedSendMessage = activeStream
+        ?.takeIf { it.mode != ActiveStreamMode.REGENERATE }
+        ?.assistantMessageId
+        ?.let { assistantMessageId ->
         messages.firstOrNull { message ->
             message.id == assistantMessageId &&
                 message.role == MessageRole.ASSISTANT &&
@@ -437,13 +502,14 @@ internal fun ChatScreenContent(
     }
     val streamSourceText = when {
         activeStream == null -> ""
-        activeStream.mode == ActiveStreamMode.SEND -> committedSendMessage?.visibleContent ?: activeStream.text
+        activeStream.mode != ActiveStreamMode.REGENERATE ->
+            committedSendMessage?.visibleContent ?: activeStream.text
         activeStream.committedRegenerationId != null -> committedRegenerateMessage?.visibleContent ?: activeStream.text
         else -> activeStream.text
     }
     val committedStreamVisible = when {
         activeStream == null -> false
-        activeStream.mode == ActiveStreamMode.SEND -> committedSendMessage != null
+        activeStream.mode != ActiveStreamMode.REGENERATE -> committedSendMessage != null
         activeStream.committedRegenerationId != null ->
             committedRegenerateMessage?.selectedRegenerationId == activeStream.committedRegenerationId
         else -> false
@@ -451,11 +517,15 @@ internal fun ChatScreenContent(
     val streamDisplayText = rememberTypedStreamText(
         streamKey = activeStream?.draftKey,
         sourceText = streamSourceText,
+        initialCharacterCount = activeStream?.presentedCharacterCount ?: 0,
         animate = activeStream?.status != ActiveStreamStatus.PAUSED,
         settleOnFinish = activeStream?.status == ActiveStreamStatus.COMPLETED && committedStreamVisible,
+        onProgress = onStreamPresentationProgress,
         onSettled = onStreamPresentationSettled
     )
-    val showSendDraft = activeStream?.mode == ActiveStreamMode.SEND && committedSendMessage == null
+    val showSendDraft = activeStream?.mode != ActiveStreamMode.REGENERATE &&
+        activeStream != null &&
+        committedSendMessage == null
     val latestItemIndex = 0
     val oldestLoadedItemIndex = messages.size + (if (showSendDraft) 1 else 0) - 1
     val isNearBottom by remember(listState) {
@@ -528,7 +598,8 @@ internal fun ChatScreenContent(
                     avatarUrl = state.conversation?.character?.avatarUrl,
                     isLoading = state.conversation == null,
                     onBack = onBack,
-                    onOpenMemory = onOpenMemory
+                    onOpenMemory = onOpenMemory,
+                    onOpenDetails = { showCharacterDetails = true }
                 )
             }
         ) { innerPadding ->
@@ -597,6 +668,24 @@ internal fun ChatScreenContent(
             }
         }
         TopSnackbarHost(hostState = snackbarHostState)
+    }
+
+    if (showCharacterDetails) {
+        state.conversation?.character?.let { character ->
+            CharacterDetailsSubpage(
+                character = character,
+                onDismiss = { showCharacterDetails = false },
+                onToggleLike = onToggleLike,
+                onRefreshChat = {
+                    onRefreshChat()
+                    showCharacterDetails = false
+                },
+                onStartNewChat = {
+                    onStartNewChat()
+                    showCharacterDetails = false
+                }
+            )
+        }
     }
 }
 
@@ -723,7 +812,8 @@ internal fun ChatTranscriptPane(
                 items = messages,
                 key = { message ->
                     if (
-                        activeStream?.mode == ActiveStreamMode.SEND &&
+                        activeStream != null &&
+                        activeStream.mode != ActiveStreamMode.REGENERATE &&
                         activeStream.assistantMessageId == message.id
                     ) {
                         activeStream.draftKey
@@ -733,7 +823,8 @@ internal fun ChatTranscriptPane(
                 }
             ) { message ->
                 val isActiveSendMessage =
-                    activeStream?.mode == ActiveStreamMode.SEND &&
+                    activeStream != null &&
+                        activeStream.mode != ActiveStreamMode.REGENERATE &&
                         activeStream.assistantMessageId == message.id
                 val isActiveRegenerate =
                     activeStream?.mode == ActiveStreamMode.REGENERATE &&
@@ -766,8 +857,7 @@ internal fun ChatTranscriptPane(
         }
 
         if (showJumpToLatest) {
-            SecondaryButton(
-                text = "Jump to Latest",
+            JumpToLatestButton(
                 modifier = Modifier
                     .testTag("jump-to-latest")
                     .align(Alignment.BottomEnd)
@@ -787,6 +877,365 @@ internal fun ChatTranscriptPane(
             )
         }
     }
+}
+
+@Composable
+private fun JumpToLatestButton(
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    val background = MaterialTheme.colorScheme.background
+    val userBubbleColor = MaterialTheme.colorScheme.surface
+        .copy(alpha = 0.98f)
+        .compositeOver(background)
+    val shape = RoundedCornerShape(999.dp)
+    Surface(
+        onClick = onClick,
+        modifier = modifier.shadow(
+            elevation = 2.dp,
+            shape = shape,
+            ambientColor = Color.Black.copy(alpha = 0.08f),
+            spotColor = Color.Black.copy(alpha = 0.12f)
+        ),
+        shape = shape,
+        color = userBubbleColor
+    ) {
+        Text(
+            text = "Jump to Latest",
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 11.dp),
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+    }
+}
+
+private enum class CharacterDetailsPage {
+    DETAILS,
+    CHARACTER_PROFILE,
+    CREATOR_PROFILE
+}
+
+@Composable
+private fun CharacterDetailsSubpage(
+    character: CharacterSummary,
+    onDismiss: () -> Unit,
+    onToggleLike: () -> Unit,
+    onRefreshChat: () -> Unit,
+    onStartNewChat: () -> Unit
+) {
+    val context = LocalContext.current
+    var page by rememberSaveable(character.id) { mutableStateOf(CharacterDetailsPage.DETAILS) }
+
+    DraggableSubpage(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .navigationBarsPadding()
+                .padding(
+                    start = AppChrome.screenHorizontalPadding,
+                    end = AppChrome.screenHorizontalPadding,
+                    bottom = AppChrome.screenBottomPadding
+                )
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (page != CharacterDetailsPage.DETAILS) {
+                    IconCircleButton(
+                        containerSize = AppChrome.compactControlSize,
+                        onClick = { page = CharacterDetailsPage.DETAILS }
+                    ) {
+                        AppIcon(
+                            AppIcons.back,
+                            contentDescription = "Back to character details",
+                            size = AppChrome.headerActionIconSize
+                        )
+                    }
+                } else {
+                    Spacer(modifier = Modifier.size(AppChrome.compactControlSize))
+                }
+                Text(
+                    text = when (page) {
+                        CharacterDetailsPage.DETAILS -> "Character Details"
+                        CharacterDetailsPage.CHARACTER_PROFILE -> "Character Profile"
+                        CharacterDetailsPage.CREATOR_PROFILE -> "Creator Profile"
+                    },
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                IconCircleButton(
+                    containerSize = AppChrome.compactControlSize,
+                    onClick = onDismiss
+                ) {
+                    AppIcon(
+                        AppIcons.close,
+                        contentDescription = "Close character details",
+                        size = AppChrome.headerActionIconSize
+                    )
+                }
+            }
+
+            when (page) {
+                CharacterDetailsPage.DETAILS -> CharacterDetailsContent(
+                    character = character,
+                    onViewCharacterProfile = { page = CharacterDetailsPage.CHARACTER_PROFILE },
+                    onViewCreatorProfile = { page = CharacterDetailsPage.CREATOR_PROFILE },
+                    onToggleLike = onToggleLike,
+                    onShare = {
+                        val intent = Intent(Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(
+                                Intent.EXTRA_TEXT,
+                                "Check out ${character.name} by @${character.authorUsername.ifBlank { "creator" }} on Meek."
+                            )
+                        }
+                        context.startActivity(Intent.createChooser(intent, "Share character"))
+                    },
+                    onRefreshChat = onRefreshChat,
+                    onStartNewChat = onStartNewChat
+                )
+
+                CharacterDetailsPage.CHARACTER_PROFILE -> CharacterProfileContent(character)
+                CharacterDetailsPage.CREATOR_PROFILE -> CreatorProfileContent(character)
+            }
+        }
+    }
+}
+
+@Composable
+private fun CharacterDetailsContent(
+    character: CharacterSummary,
+    onViewCharacterProfile: () -> Unit,
+    onViewCreatorProfile: () -> Unit,
+    onToggleLike: () -> Unit,
+    onShare: () -> Unit,
+    onRefreshChat: () -> Unit,
+    onStartNewChat: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .verticalScroll(rememberScrollState())
+            .padding(top = AppChrome.sectionSpacing),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        CircleAvatar(
+            name = character.name,
+            avatarUrl = character.avatarUrl,
+            modifier = Modifier.size(104.dp)
+        )
+        Text(
+            text = character.name,
+            modifier = Modifier.padding(top = 14.dp),
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+        Text(
+            text = "${formatStat(character.publicChatCount)} chats  •  ${formatStat(character.likeCount)} likes",
+            modifier = Modifier.padding(top = 5.dp),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Text(
+            text = "Created ${formatProfileDate(character.createdAt)}  •  Last updated ${formatProfileDate(character.updatedAt)}",
+            modifier = Modifier.padding(top = 4.dp),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Row(
+            modifier = Modifier.padding(top = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(AppChrome.compactControlGap)
+        ) {
+            IconPillAction(
+                text = if (character.likedByMe) "Liked" else "Like",
+                selected = character.likedByMe,
+                onClick = onToggleLike
+            ) {
+                AppIcon(
+                    if (character.likedByMe) AppIcons.likedFilled else AppIcons.liked,
+                    contentDescription = null,
+                    size = 20.dp
+                )
+            }
+            IconPillAction(text = "Share", onClick = onShare) {
+                AppIcon(AppIcons.share, contentDescription = null, size = 20.dp)
+            }
+        }
+
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = AppChrome.sectionSpacing),
+            verticalArrangement = Arrangement.spacedBy(AppChrome.compactControlGap)
+        ) {
+            CharacterSubpageAction(
+                text = "View Character Profile",
+                icon = AppIcons.profileOutline,
+                onClick = onViewCharacterProfile
+            )
+            CharacterSubpageAction(
+                text = "View Creator Profile",
+                icon = AppIcons.profile,
+                onClick = onViewCreatorProfile
+            )
+            CharacterSubpageAction(
+                text = "Refresh this chat",
+                icon = AppIcons.refresh,
+                onClick = onRefreshChat
+            )
+            CharacterSubpageAction(
+                text = "Start new chat",
+                icon = AppIcons.newChat,
+                contentColor = Color(0xFF3485F6),
+                onClick = onStartNewChat
+            )
+        }
+    }
+}
+
+@Composable
+private fun CharacterProfileContent(character: CharacterSummary) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .verticalScroll(rememberScrollState())
+            .padding(top = AppChrome.sectionSpacing),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        CircleAvatar(
+            name = character.name,
+            avatarUrl = character.avatarUrl,
+            modifier = Modifier.size(112.dp)
+        )
+        Text(
+            text = character.name,
+            modifier = Modifier.padding(top = 14.dp),
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold
+        )
+        Text(
+            text = "@${character.authorUsername.ifBlank { "creator" }}",
+            modifier = Modifier.padding(top = 4.dp),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        character.tagline.takeIf { it.isNotBlank() }?.let {
+            Text(
+                text = it,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = AppChrome.sectionSpacing),
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        }
+        character.bio.takeIf { it.isNotBlank() }?.let {
+            Text(
+                text = it,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = AppChrome.gridSpacing),
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        }
+    }
+}
+
+@Composable
+private fun CreatorProfileContent(character: CharacterSummary) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .verticalScroll(rememberScrollState())
+            .padding(top = AppChrome.sectionSpacing),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        CircleAvatar(
+            name = character.authorUsername.ifBlank { "Creator" },
+            avatarUrl = null,
+            modifier = Modifier.size(104.dp)
+        )
+        Text(
+            text = "@${character.authorUsername.ifBlank { "creator" }}",
+            modifier = Modifier.padding(top = 14.dp),
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold
+        )
+        Text(
+            text = "Creator of ${character.name}",
+            modifier = Modifier.padding(top = 5.dp),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+@Composable
+private fun IconPillAction(
+    text: String,
+    selected: Boolean = false,
+    onClick: () -> Unit,
+    icon: @Composable () -> Unit
+) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(999.dp),
+        color = if (selected) {
+            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
+        } else {
+            MaterialTheme.colorScheme.surfaceVariant
+        }
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            icon()
+            Text(text = text, style = MaterialTheme.typography.labelLarge)
+        }
+    }
+}
+
+@Composable
+private fun CharacterSubpageAction(
+    text: String,
+    icon: com.example.aichat.core.design.AppIconGlyph,
+    contentColor: Color = MaterialTheme.colorScheme.onSurface,
+    onClick: () -> Unit
+) {
+    Surface(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 18.dp, vertical = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            AppIcon(icon, contentDescription = null, tint = contentColor, size = 22.dp)
+            Text(
+                text = text,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Medium,
+                color = contentColor
+            )
+        }
+    }
+}
+
+private fun formatStat(value: Int): String = NumberFormat.getIntegerInstance().format(value)
+
+private fun formatProfileDate(epochMillis: Long): String {
+    if (epochMillis <= 0L) return "—"
+    return SimpleDateFormat("MMM d, yyyy", Locale.getDefault()).format(Date(epochMillis))
 }
 
 @Composable
@@ -824,6 +1273,7 @@ private fun ChatComposerBar(
         val canSend = composerText.isNotBlank()
         val useContinue = !isStreaming && !canSend && canContinue
         IconCircleButton(
+            containerSize = 58.dp,
             selected = isStreaming || canSend || useContinue,
             enabled = isStreaming || canSend || useContinue,
             onClick = when {
@@ -859,7 +1309,8 @@ private fun ChatHeader(
     avatarUrl: String?,
     isLoading: Boolean,
     onBack: () -> Unit,
-    onOpenMemory: () -> Unit
+    onOpenMemory: () -> Unit,
+    onOpenDetails: () -> Unit
 ) {
     val background = MaterialTheme.colorScheme.background
     Box(
@@ -872,6 +1323,7 @@ private fun ChatHeader(
                 modifier = Modifier
                     .fillMaxWidth()
                     .statusBarsPadding()
+                    .clickable(enabled = !isLoading, onClick = onOpenDetails)
                     .padding(
                         horizontal = AppChrome.screenHorizontalPadding,
                         vertical = AppChrome.compactHeaderVerticalPadding
@@ -881,7 +1333,9 @@ private fun ChatHeader(
                 AppBackButton(onClick = onBack)
                 Spacer(modifier = Modifier.size(AppChrome.compactControlGap))
                 Row(
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(vertical = 4.dp),
                     horizontalArrangement = Arrangement.spacedBy(AppChrome.gridSpacing),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -1422,11 +1876,15 @@ private fun PausedIndicator(modifier: Modifier = Modifier) {
 private fun rememberTypedStreamText(
     streamKey: String?,
     sourceText: String,
+    initialCharacterCount: Int,
     animate: Boolean,
     settleOnFinish: Boolean,
+    onProgress: (String, Int) -> Unit,
     onSettled: (String) -> Unit
 ): String {
-    var displayedText by remember(streamKey) { mutableStateOf("") }
+    var displayedText by remember(streamKey) {
+        mutableStateOf(sourceText.take(initialCharacterCount.coerceIn(0, sourceText.length)))
+    }
     var settled by remember(streamKey) { mutableStateOf(false) }
 
     LaunchedEffect(streamKey, sourceText, animate) {
@@ -1454,12 +1912,14 @@ private fun rememberTypedStreamText(
 
         if (!animate) {
             displayedText = sourceText
+            onProgress(streamKey, sourceText.length)
             return@LaunchedEffect
         }
 
         while (displayedText.length < sourceText.length) {
             delay(18L)
             displayedText = sourceText.take(displayedText.length + 1)
+            onProgress(streamKey, displayedText.length)
         }
     }
 

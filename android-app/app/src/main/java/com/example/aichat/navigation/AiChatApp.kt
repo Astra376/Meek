@@ -268,6 +268,13 @@ private fun MainShell(
                     if (conversationId != null) {
                         rootNavController.navigate("chat/$conversationId/memory")
                     }
+                },
+                onStartNewChat = { conversationId ->
+                    rootNavController.navigate("chat/$conversationId") {
+                        popUpTo(backStackEntry.destination.id) {
+                            inclusive = true
+                        }
+                    }
                 }
             )
         }

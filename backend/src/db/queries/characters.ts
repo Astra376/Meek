@@ -222,34 +222,37 @@ export async function likeCharacter(env: Env, userId: string, characterId: strin
   await env.DB.batch([
     env.DB.prepare(
       `
-      INSERT OR IGNORE INTO character_likes (user_id, character_id, created_at)
-      VALUES (?, ?, ?)
-      `
-    ).bind(userId, characterId, now),
-    env.DB.prepare(
-      `
       UPDATE characters
       SET like_count = like_count + 1
       WHERE id = ? AND visibility = 'public'
-        AND EXISTS (
+        AND NOT EXISTS (
           SELECT 1 FROM character_likes WHERE user_id = ? AND character_id = ?
         )
       `
-    ).bind(characterId, userId, characterId)
+    ).bind(characterId, userId, characterId),
+    env.DB.prepare(
+      `
+      INSERT OR IGNORE INTO character_likes (user_id, character_id, created_at)
+      VALUES (?, ?, ?)
+      `
+    ).bind(userId, characterId, now)
   ]);
 }
 
 export async function unlikeCharacter(env: Env, userId: string, characterId: string): Promise<void> {
   await ensureCharacterSchema(env);
   await env.DB.batch([
-    env.DB.prepare("DELETE FROM character_likes WHERE user_id = ? AND character_id = ?").bind(userId, characterId),
     env.DB.prepare(
       `
       UPDATE characters
       SET like_count = CASE WHEN like_count > 0 THEN like_count - 1 ELSE 0 END
       WHERE id = ?
+        AND EXISTS (
+          SELECT 1 FROM character_likes WHERE user_id = ? AND character_id = ?
+        )
       `
-    ).bind(characterId)
+    ).bind(characterId, userId, characterId),
+    env.DB.prepare("DELETE FROM character_likes WHERE user_id = ? AND character_id = ?").bind(userId, characterId)
   ]);
 }
 

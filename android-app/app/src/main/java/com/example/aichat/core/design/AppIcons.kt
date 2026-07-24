@@ -71,6 +71,9 @@ object AppIcons {
     val edit = Iconsax.Linear.Edit
     val settings = Iconsax.Linear.SettingTwo
     val share = Iconsax.Linear.Share
+    val close = Iconsax.Linear.CloseCircle
+    val refresh = Iconsax.Linear.Refresh
+    val newChat = Iconsax.Linear.MessageAdd
 
     val created = Iconsax.Linear.GridFour
     val createdFilled = Iconsax.Bold.GridFour

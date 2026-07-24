@@ -2,6 +2,7 @@ package com.example.aichat.feature.chat
 
 enum class ActiveStreamMode {
     SEND,
+    CONTINUE,
     REGENERATE
 }
 
@@ -20,6 +21,7 @@ data class ActiveAssistantStream(
     val targetMessageId: String? = null,
     val userMessageId: String? = null,
     val text: String = "",
+    val presentedCharacterCount: Int = 0,
     val accepted: Boolean = false,
     val committedRegenerationId: String? = null,
     val status: ActiveStreamStatus = ActiveStreamStatus.STREAMING

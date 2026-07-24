@@ -72,7 +72,7 @@ interface ConversationApi {
     suspend fun getConversations(@Query("cursor") cursor: String? = null): CursorPageDto<ConversationSummaryDto>
 
     @POST("v1/conversations")
-    suspend fun createConversation(@Body body: Map<String, String>): ConversationSummaryDto
+    suspend fun createConversation(@Body body: CreateConversationRequestDto): ConversationSummaryDto
 
     @GET("v1/conversations/{conversationId}")
     suspend fun getConversation(@Path("conversationId") conversationId: String): ConversationDetailDto

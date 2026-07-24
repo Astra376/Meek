@@ -20,6 +20,7 @@ import com.example.aichat.core.network.CharacterMemoryDto
 import com.example.aichat.core.network.ConversationApi
 import com.example.aichat.core.network.ConversationDetailDto
 import com.example.aichat.core.network.ConversationSummaryDto
+import com.example.aichat.core.network.CreateConversationRequestDto
 import com.example.aichat.core.network.CursorPageDto
 import com.example.aichat.core.network.EditMessageRequestDto
 import com.example.aichat.core.network.MessageDto
@@ -176,6 +177,70 @@ class ChatRepositoryTest {
     }
 
     @Test
+    fun pauseRequested_beforeAcceptance_keepsUserMessageAndPausedDraft() = runTest {
+        seedConversation(version = 1)
+        val sendEvents = MutableSharedFlow<ChatStreamEvent>(extraBufferCapacity = 8)
+        streamingClient.sendHandler = { _, _, _ -> sendEvents }
+
+        val sendJob = backgroundScope.launch {
+            repository.sendMessage(CONVERSATION_ID, "don't remove this")
+        }
+
+        val stream = repository.observeActiveStream(CONVERSATION_ID).first { it != null }
+        val pendingMessage = messageDao.getLocalOnlyMessages(CONVERSATION_ID).single()
+        repository.requestPause(CONVERSATION_ID)
+        sendJob.cancel()
+        sendJob.join()
+
+        assertThat(messageDao.getById(pendingMessage.id)?.content).isEqualTo("don't remove this")
+        assertThat(messageDao.getById(pendingMessage.id)?.sendState).isEqualTo(MessageSendState.PENDING.name)
+        assertThat(repository.observeActiveStream(CONVERSATION_ID).first()?.draftKey).isEqualTo(stream?.draftKey)
+        assertThat(repository.observeActiveStream(CONVERSATION_ID).first()?.status)
+            .isEqualTo(ActiveStreamStatus.PAUSED)
+    }
+
+    @Test
+    fun pauseRequested_duringContinuation_keepsPartialDraftVisible() = runTest {
+        seedConversation(version = 1)
+        messageDao.insert(
+            sentMessage(
+                id = "assistant-0",
+                position = 0,
+                role = "ASSISTANT",
+                content = "opening",
+                createdAt = 50L,
+                updatedAt = 50L
+            )
+        )
+        val continueEvents = MutableSharedFlow<ChatStreamEvent>(replay = 8)
+        streamingClient.continueHandler = { continueEvents }
+
+        val continueJob = backgroundScope.launch {
+            repository.continueAssistant(CONVERSATION_ID)
+        }
+
+        repository.observeActiveStream(CONVERSATION_ID).first { it != null }
+        continueEvents.emit(
+            ChatStreamEvent.AcceptedContinue(
+                runId = "run-continue",
+                conversationVersion = 1,
+                assistantMessageId = "assistant-1"
+            )
+        )
+        continueEvents.emit(ChatStreamEvent.Delta("run-continue", "continued text"))
+        repository.observeActiveStream(CONVERSATION_ID).first { it?.text == "continued text" }
+
+        repository.requestPause(CONVERSATION_ID)
+        continueJob.cancel()
+        continueJob.join()
+
+        val activeStream = repository.observeActiveStream(CONVERSATION_ID).first()
+        assertThat(activeStream?.mode).isEqualTo(ActiveStreamMode.CONTINUE)
+        assertThat(activeStream?.status).isEqualTo(ActiveStreamStatus.PAUSED)
+        assertThat(activeStream?.text).isEqualTo("continued text")
+    }
+
+    @Test
     fun regenerateLatestAssistant_persistsSelectedVariant() = runTest {
         seedConversation(version = 1)
         messageDao.insertAll(
@@ -312,6 +377,24 @@ class ChatRepositoryTest {
         assertThat(regenerations.map { it.id }).doesNotContain("stale-regen")
     }
 
+    @Test
+    fun refreshConversation_preservesLocallyGeneratedCharacterScene() = runTest {
+        seedConversation(version = 1)
+        val character = requireNotNull(characterDao.getById(CHARACTER_ID))
+        characterDao.upsert(
+            character.copy(
+                initialSceneUrl = "https://images.example/scene.jpg",
+                initialSceneKey = "scene-key"
+            )
+        )
+
+        repository.refreshConversation(CONVERSATION_ID).getOrThrow()
+
+        val refreshed = characterDao.getById(CHARACTER_ID)
+        assertThat(refreshed?.initialSceneUrl).isEqualTo("https://images.example/scene.jpg")
+        assertThat(refreshed?.initialSceneKey).isEqualTo("scene-key")
+    }
+
     private suspend fun seedConversation(version: Long) {
         conversationDao.upsert(
             ConversationEntity(
@@ -443,7 +526,7 @@ class ChatRepositoryTest {
             return CursorPageDto(emptyList())
         }
 
-        override suspend fun createConversation(body: Map<String, String>): ConversationSummaryDto {
+        override suspend fun createConversation(body: CreateConversationRequestDto): ConversationSummaryDto {
             error("Not needed")
         }
 
@@ -490,12 +573,15 @@ class ChatRepositoryTest {
     private class FakeStreamingClient : ChatStreamingClient {
         var sendHandler: (String, String, String) -> Flow<ChatStreamEvent> = { _, _, _ -> emptyFlow() }
         var regenerateHandler: (String) -> Flow<ChatStreamEvent> = { emptyFlow() }
+        var continueHandler: (String) -> Flow<ChatStreamEvent> = { emptyFlow() }
 
         override fun sendMessage(conversationId: String, userMessageId: String, content: String): Flow<ChatStreamEvent> {
             return sendHandler(conversationId, userMessageId, content)
         }
 
-        override fun continueAssistant(conversationId: String): Flow<ChatStreamEvent> = emptyFlow()
+        override fun continueAssistant(conversationId: String): Flow<ChatStreamEvent> {
+            return continueHandler(conversationId)
+        }
 
         override fun regenerateLatestAssistant(messageId: String): Flow<ChatStreamEvent> {
             return regenerateHandler(messageId)

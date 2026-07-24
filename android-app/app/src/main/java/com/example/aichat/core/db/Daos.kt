@@ -56,6 +56,19 @@ interface CharacterDao {
     @Upsert
     suspend fun upsertAll(characters: List<CharacterEntity>)
 
+    @Query(
+        """
+        UPDATE characters
+        SET likedByMe = :likedByMe, likeCount = :likeCount
+        WHERE id = :characterId
+        """
+    )
+    suspend fun updateLikeState(
+        characterId: String,
+        likedByMe: Boolean,
+        likeCount: Int
+    ): Int
+
     @Query("DELETE FROM characters")
     suspend fun clear()
 }
@@ -145,7 +158,12 @@ interface ConversationDao {
     suspend fun getById(conversationId: String): ConversationEntity?
 
     @Query(
-        "SELECT * FROM conversations WHERE ownerUserId = :ownerUserId AND characterId = :characterId LIMIT 1"
+        """
+        SELECT * FROM conversations
+        WHERE ownerUserId = :ownerUserId AND characterId = :characterId
+        ORDER BY updatedAt DESC, startedAt DESC, id DESC
+        LIMIT 1
+        """
     )
     suspend fun findByOwnerAndCharacter(ownerUserId: String, characterId: String): ConversationEntity?
 

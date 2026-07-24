@@ -2,6 +2,8 @@ package com.example.aichat.core.design
 
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalContentColor
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -71,7 +73,7 @@ object AppIcons {
     val edit = Iconsax.Linear.Edit
     val settings = Iconsax.Linear.SettingTwo
     val share = Iconsax.Linear.Share
-    val close = Iconsax.Linear.CloseCircle
+    val close = Icons.Default.Close
     val refresh = Iconsax.Linear.Refresh
     val newChat = Iconsax.Linear.MessageAdd
 

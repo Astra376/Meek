@@ -1,6 +1,7 @@
 package com.example.aichat.core.util
 
 import java.text.SimpleDateFormat
+import java.text.NumberFormat
 import java.security.SecureRandom
 import java.util.Date
 import java.util.Locale
@@ -45,6 +46,29 @@ fun formatRelativeTimeWords(epochMillis: Long): String {
     
     val years = days / 365
     return if (years == 1L) "1 Year" else "$years Years"
+}
+
+fun formatCount(value: Int, locale: Locale = Locale.getDefault()): String {
+    return NumberFormat.getIntegerInstance(locale).format(value.coerceAtLeast(0))
+}
+
+fun formatRelativeTimeAgo(
+    epochMillis: Long,
+    nowMillis: Long = System.currentTimeMillis()
+): String {
+    if (epochMillis <= 0L) return "—"
+    val elapsedSeconds = ((nowMillis - epochMillis).coerceAtLeast(0L) / 1_000L)
+    val (value, singularUnit) = when {
+        elapsedSeconds < 60L -> elapsedSeconds to "second"
+        elapsedSeconds < 3_600L -> elapsedSeconds / 60L to "minute"
+        elapsedSeconds < 86_400L -> elapsedSeconds / 3_600L to "hour"
+        elapsedSeconds < 604_800L -> elapsedSeconds / 86_400L to "day"
+        elapsedSeconds < 2_592_000L -> elapsedSeconds / 604_800L to "week"
+        elapsedSeconds < 31_536_000L -> elapsedSeconds / 2_592_000L to "month"
+        else -> elapsedSeconds / 31_536_000L to "year"
+    }
+    val unit = if (value == 1L) singularUnit else "${singularUnit}s"
+    return "$value $unit ago"
 }
 
 fun generateUlid(timeMillis: Long = System.currentTimeMillis()): String {

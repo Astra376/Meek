@@ -18,6 +18,15 @@ export interface ProfileRecord {
   email?: string;
 }
 
+export interface PublicProfileRecord {
+  user_id: string;
+  display_name: string;
+  avatar_url: string | null;
+  created_at: number;
+  updated_at: number;
+  character_count: number;
+}
+
 export async function getUserByGoogleSubject(env: Env, googleSubject: string): Promise<UserRecord | null> {
   return first<UserRecord>(
     env.DB.prepare("SELECT * FROM users WHERE google_subject = ? LIMIT 1").bind(googleSubject)
@@ -31,6 +40,30 @@ export async function getProfileByUserId(env: Env, userId: string): Promise<Prof
       SELECT profiles.*, users.email AS email
       FROM profiles
       INNER JOIN users ON users.id = profiles.user_id
+      WHERE profiles.user_id = ?
+      LIMIT 1
+      `
+    ).bind(userId)
+  );
+}
+
+export async function getPublicProfileByUserId(env: Env, userId: string): Promise<PublicProfileRecord | null> {
+  return first<PublicProfileRecord>(
+    env.DB.prepare(
+      `
+      SELECT
+        profiles.user_id,
+        profiles.display_name,
+        profiles.avatar_url,
+        profiles.created_at,
+        profiles.updated_at,
+        (
+          SELECT COUNT(*)
+          FROM characters
+          WHERE characters.owner_user_id = profiles.user_id
+            AND characters.visibility = 'public'
+        ) AS character_count
+      FROM profiles
       WHERE profiles.user_id = ?
       LIMIT 1
       `
@@ -81,4 +114,3 @@ export async function updateProfile(env: Env, userId: string, displayName: strin
     ).bind(displayName, now, userId)
   );
 }
-

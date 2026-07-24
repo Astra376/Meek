@@ -9,7 +9,7 @@ import {
   unlikePublicCharacter,
   updateOwnedCharacter
 } from "../services/characters";
-import { json, noContent } from "../lib/response";
+import { json } from "../lib/response";
 import { clampPageSize, parseCursor, parseJson, requireString } from "../lib/validation";
 import type { RouteDefinition } from "./types";
 
@@ -106,8 +106,7 @@ export const characterRoutes: RouteDefinition[] = [
     path: "/v1/characters/:characterId/like",
     auth: true,
     handler: async (context) => {
-      await likePublicCharacter(context, context.params.characterId);
-      return noContent();
+      return json(await likePublicCharacter(context, context.params.characterId));
     }
   },
   {
@@ -115,8 +114,7 @@ export const characterRoutes: RouteDefinition[] = [
     path: "/v1/characters/:characterId/like",
     auth: true,
     handler: async (context) => {
-      await unlikePublicCharacter(context, context.params.characterId);
-      return noContent();
+      return json(await unlikePublicCharacter(context, context.params.characterId));
     }
   }
 ];

@@ -138,7 +138,13 @@ export async function findConversationByOwnerAndCharacter(
 ): Promise<ConversationRecord | null> {
   return first<ConversationRecord>(
     env.DB.prepare(
-      "SELECT * FROM conversations WHERE owner_user_id = ? AND character_id = ? LIMIT 1"
+      `
+      SELECT *
+      FROM conversations
+      WHERE owner_user_id = ? AND character_id = ?
+      ORDER BY updated_at DESC, started_at DESC, id DESC
+      LIMIT 1
+      `
     ).bind(ownerUserId, characterId)
   );
 }

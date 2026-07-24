@@ -99,11 +99,14 @@ export async function requireAuth(context: RequestContext): Promise<SessionClaim
 
   const token = header.slice("Bearer ".length);
   const payload = await verifyToken(context.env.SESSION_HMAC_SECRET, token);
+  if (payload.tokenType !== "access") {
+    throw new AppError(401, "ACCESS_TOKEN_REQUIRED", "An access token is required.");
+  }
   const claims = {
     userId: String(payload.userId ?? ""),
-    tokenType: payload.tokenType === "refresh" ? "refresh" : "access",
+    tokenType: "access" as const,
     exp: Number(payload.exp ?? 0)
-  } satisfies SessionClaims;
+  };
 
   if (!claims.userId || claims.exp * 1000 <= Date.now()) {
     throw new AppError(401, "AUTH_EXPIRED", "Session token has expired.");

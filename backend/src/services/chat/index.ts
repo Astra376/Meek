@@ -27,7 +27,9 @@ import {
   scheduleCharacterMemoryConsolidation
 } from "./memory";
 
-const RUN_LOCK_WINDOW_MS = 2 * 60 * 1000;
+// Keep the server-side lease beyond the Android client's 180-second read
+// timeout so a slow, still-running provider request cannot be claimed twice.
+const RUN_LOCK_WINDOW_MS = 4 * 60 * 1000;
 const MAX_MODEL_INPUT_CHARACTERS = 200_000;
 const MIN_RECENT_TRANSCRIPT_CHARACTERS = 16_000;
 
@@ -280,6 +282,59 @@ function safeClose(controller: ReadableStreamDefaultController<Uint8Array>): voi
   }
 }
 
+function createLinkedAbortController(sourceSignal: AbortSignal): {
+  abortController: AbortController;
+  unlink: () => void;
+} {
+  const abortController = new AbortController();
+  const forwardAbort = () => {
+    if (!abortController.signal.aborted) {
+      abortController.abort(sourceSignal.reason);
+    }
+  };
+
+  if (sourceSignal.aborted) {
+    forwardAbort();
+  } else {
+    sourceSignal.addEventListener("abort", forwardAbort, { once: true });
+  }
+
+  let linked = !sourceSignal.aborted;
+  return {
+    abortController,
+    unlink: () => {
+      if (!linked) return;
+      linked = false;
+      sourceSignal.removeEventListener("abort", forwardAbort);
+    }
+  };
+}
+
+function throwIfAborted(signal: AbortSignal): void {
+  if (!signal.aborted) return;
+  if (signal.reason instanceof Error) throw signal.reason;
+  throw new DOMException("The operation was aborted.", "AbortError");
+}
+
+async function finishConversationStream(
+  context: RequestContext,
+  conversationId: string,
+  runId: string,
+  unlinkRequestAbort: () => void,
+  controller: ReadableStreamDefaultController<Uint8Array>
+): Promise<void> {
+  unlinkRequestAbort();
+  try {
+    await releaseConversationRun(context.env, conversationId, runId);
+  } catch (error) {
+    // A lease expiry remains the last-resort recovery path if D1 itself is
+    // unavailable. Do not leave the response open or retain abort listeners.
+    console.error("Failed to release conversation stream lease.", error);
+  } finally {
+    safeClose(controller);
+  }
+}
+
 async function streamAssistantReply(
   context: RequestContext,
   messages: Array<{ role: "system" | "user" | "assistant"; content: string }>,
@@ -386,14 +441,18 @@ export async function selectRegeneration(context: RequestContext, messageId: str
 export async function continueAssistantAndStream(context: RequestContext, conversationId: string): Promise<Response> {
   const conversation = await requireOwnedConversation(context, conversationId);
   const runId = await acquireConversationRun(context, conversationId);
+  let unlinkRequestAbort = () => {};
 
   try {
     const { character, transcript, messages } = await buildAssistantContext(context, conversationId);
     const continuationMessages = messagesForContinuation(messages, transcript.at(-1)?.role);
     const assistantMessageId = createId("message");
     const assistantPosition = (transcript.at(-1)?.position ?? -1) + 1;
-    const abortController = new AbortController();
+    const linkedAbort = createLinkedAbortController(context.request.signal);
+    const abortController = linkedAbort.abortController;
+    unlinkRequestAbort = linkedAbort.unlink;
     let partialText = "";
+    let finalizationPhase: "streaming" | "full" | "partial" | "settled" = "streaming";
 
     const stream = new ReadableStream<Uint8Array>({
       async start(controller) {
@@ -418,6 +477,8 @@ export async function continueAssistantAndStream(context: RequestContext, conver
             },
             abortController.signal
           );
+          throwIfAborted(abortController.signal);
+          finalizationPhase = "full";
 
           const assistantNow = Date.now();
           const assistantMessage = {
@@ -460,8 +521,10 @@ export async function continueAssistantAndStream(context: RequestContext, conver
             conversationSummary: toConversationSummary(summary)
           });
           scheduleCharacterMemoryConsolidation(context, conversationId);
+          finalizationPhase = "settled";
         } catch (error) {
-          if (abortController.signal.aborted) {
+          if (abortController.signal.aborted && finalizationPhase === "streaming") {
+            finalizationPhase = "partial";
             const stoppedText = partialText.trim();
             if (stoppedText) {
               const stoppedAt = Date.now();
@@ -480,7 +543,8 @@ export async function continueAssistantAndStream(context: RequestContext, conver
               await incrementCharacterActivity(context.env, character.id, stoppedAt);
               scheduleCharacterMemoryConsolidation(context, conversationId);
             }
-          } else {
+            finalizationPhase = "settled";
+          } else if (!abortController.signal.aborted) {
             safeEnqueue(controller, {
               type: "failed",
               runId,
@@ -488,12 +552,13 @@ export async function continueAssistantAndStream(context: RequestContext, conver
             });
           }
         } finally {
-          await releaseConversationRun(context.env, conversationId, runId);
-          safeClose(controller);
+          await finishConversationStream(context, conversationId, runId, unlinkRequestAbort, controller);
         }
       },
-      cancel() {
-        abortController.abort();
+      cancel(reason) {
+        if (!abortController.signal.aborted) {
+          abortController.abort(reason);
+        }
       }
     });
 
@@ -504,6 +569,7 @@ export async function continueAssistantAndStream(context: RequestContext, conver
       }
     });
   } catch (error) {
+    unlinkRequestAbort();
     await releaseConversationRun(context.env, conversationId, runId);
     throw error;
   }
@@ -517,6 +583,7 @@ export async function sendMessageAndStream(
 ): Promise<Response> {
   await requireOwnedConversation(context, conversationId);
   const runId = await acquireConversationRun(context, conversationId);
+  let unlinkRequestAbort = () => {};
 
   try {
     const duplicate = await getMessageById(context.env, userMessageId);
@@ -554,8 +621,11 @@ export async function sendMessageAndStream(
       selected_regeneration_id: null
     });
 
-    const abortController = new AbortController();
+    const linkedAbort = createLinkedAbortController(context.request.signal);
+    const abortController = linkedAbort.abortController;
+    unlinkRequestAbort = linkedAbort.unlink;
     let partialText = "";
+    let finalizationPhase: "streaming" | "full" | "partial" | "settled" = "streaming";
     const stream = new ReadableStream<Uint8Array>({
       async start(controller) {
         safeEnqueue(controller, {
@@ -580,6 +650,8 @@ export async function sendMessageAndStream(
             },
             abortController.signal
           );
+          throwIfAborted(abortController.signal);
+          finalizationPhase = "full";
 
           const assistantNow = Date.now();
           const assistantMessage = {
@@ -622,8 +694,10 @@ export async function sendMessageAndStream(
             conversationSummary: toConversationSummary(summary)
           });
           scheduleCharacterMemoryConsolidation(context, conversationId);
+          finalizationPhase = "settled";
         } catch (error) {
-          if (abortController.signal.aborted) {
+          if (abortController.signal.aborted && finalizationPhase === "streaming") {
+            finalizationPhase = "partial";
             const stoppedText = partialText.trim();
             if (stoppedText) {
               const stoppedAt = Date.now();
@@ -642,7 +716,8 @@ export async function sendMessageAndStream(
               await incrementCharacterActivity(context.env, character.id, stoppedAt);
               scheduleCharacterMemoryConsolidation(context, conversationId);
             }
-          } else {
+            finalizationPhase = "settled";
+          } else if (!abortController.signal.aborted) {
             safeEnqueue(controller, {
               type: "failed",
               runId,
@@ -650,12 +725,13 @@ export async function sendMessageAndStream(
             });
           }
         } finally {
-          await releaseConversationRun(context.env, conversationId, runId);
-          safeClose(controller);
+          await finishConversationStream(context, conversationId, runId, unlinkRequestAbort, controller);
         }
       },
-      cancel() {
-        abortController.abort();
+      cancel(reason) {
+        if (!abortController.signal.aborted) {
+          abortController.abort(reason);
+        }
       }
     });
 
@@ -666,6 +742,7 @@ export async function sendMessageAndStream(
       }
     });
   } catch (error) {
+    unlinkRequestAbort();
     await releaseConversationRun(context.env, conversationId, runId);
     throw error;
   }
@@ -681,6 +758,7 @@ export async function regenerateLatestAssistantAndStream(
   }
   await requireOwnedConversation(context, message.conversation_id);
   const runId = await acquireConversationRun(context, message.conversation_id);
+  let unlinkRequestAbort = () => {};
 
   try {
     const transcript = await loadTranscript(context, message.conversation_id);
@@ -695,8 +773,11 @@ export async function regenerateLatestAssistantAndStream(
       untilPosition: latest.position
     });
     const regenerationId = createId("regen");
-    const abortController = new AbortController();
+    const linkedAbort = createLinkedAbortController(context.request.signal);
+    const abortController = linkedAbort.abortController;
+    unlinkRequestAbort = linkedAbort.unlink;
     let partialText = "";
+    let finalizationPhase: "streaming" | "full" | "partial" | "settled" = "streaming";
 
     const stream = new ReadableStream<Uint8Array>({
       async start(controller) {
@@ -722,6 +803,8 @@ export async function regenerateLatestAssistantAndStream(
             },
             abortController.signal
           );
+          throwIfAborted(abortController.signal);
+          finalizationPhase = "full";
 
           const regenerationNow = Date.now();
           const regeneration = {
@@ -765,8 +848,10 @@ export async function regenerateLatestAssistantAndStream(
             conversationSummary: toConversationSummary(summary)
           });
           scheduleCharacterMemoryConsolidation(context, message.conversation_id, true);
+          finalizationPhase = "settled";
         } catch (error) {
-          if (abortController.signal.aborted) {
+          if (abortController.signal.aborted && finalizationPhase === "streaming") {
+            finalizationPhase = "partial";
             const stoppedText = partialText.trim();
             if (stoppedText) {
               const stoppedAt = Date.now();
@@ -784,7 +869,8 @@ export async function regenerateLatestAssistantAndStream(
               await updateConversationActivity(context.env, message.conversation_id, stoppedAt);
               scheduleCharacterMemoryConsolidation(context, message.conversation_id, true);
             }
-          } else {
+            finalizationPhase = "settled";
+          } else if (!abortController.signal.aborted) {
             safeEnqueue(controller, {
               type: "failed",
               runId,
@@ -792,12 +878,19 @@ export async function regenerateLatestAssistantAndStream(
             });
           }
         } finally {
-          await releaseConversationRun(context.env, message.conversation_id, runId);
-          safeClose(controller);
+          await finishConversationStream(
+            context,
+            message.conversation_id,
+            runId,
+            unlinkRequestAbort,
+            controller
+          );
         }
       },
-      cancel() {
-        abortController.abort();
+      cancel(reason) {
+        if (!abortController.signal.aborted) {
+          abortController.abort(reason);
+        }
       }
     });
 
@@ -808,6 +901,7 @@ export async function regenerateLatestAssistantAndStream(
       }
     });
   } catch (error) {
+    unlinkRequestAbort();
     await releaseConversationRun(context.env, message.conversation_id, runId);
     throw error;
   }

@@ -229,4 +229,34 @@ class RoomUpsertBehaviorTest {
             "local-failed"
         ).inOrder()
     }
+
+    @Test
+    fun findConversationByOwnerAndCharacter_returnsMostRecentlyUpdatedChat() = runBlocking {
+        val older = ConversationEntity(
+            id = "conversation-older",
+            ownerUserId = "user-1",
+            characterId = "character-1",
+            version = 1,
+            updatedAt = 100L,
+            startedAt = 100L,
+            lastMessageAt = null,
+            previewText = "",
+            unreadCount = 0,
+            hasUnreadBadge = false
+        )
+        val newer = older.copy(
+            id = "conversation-newer",
+            updatedAt = 300L,
+            startedAt = 200L
+        )
+        conversationDao.upsert(newer)
+        conversationDao.upsert(older)
+
+        val selected = conversationDao.findByOwnerAndCharacter(
+            ownerUserId = "user-1",
+            characterId = "character-1"
+        )
+
+        assertThat(selected?.id).isEqualTo("conversation-newer")
+    }
 }

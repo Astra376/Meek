@@ -1,6 +1,7 @@
 package com.example.aichat.feature.chat
 
 import android.content.Context
+import app.cash.turbine.test
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.example.aichat.core.db.AppDatabase
@@ -128,17 +129,13 @@ class ChatRepositoryTest {
         assertThat(messages.count { it.role == "ASSISTANT" }).isEqualTo(1)
         assertThat(messages[0].role).isEqualTo("USER")
         assertThat(messages[1].id).isEqualTo("assistant-1")
-        assertThat(activeStream?.status).isEqualTo(ActiveStreamStatus.COMPLETED)
-
-        repository.dismissSettledStream(CONVERSATION_ID, activeStream?.draftKey)
-
-        assertThat(repository.observeActiveStream(CONVERSATION_ID).first()).isNull()
+        assertThat(activeStream).isNull()
     }
 
     @Test
-    fun pauseRequested_afterAcceptedSend_keepsPartialDraftVisible() = runTest {
+    fun stopRequested_afterAcceptedSend_reconcilesPartialReplyAndKeepsUserMessage() = runTest {
         seedConversation(version = 1)
-        val sendEvents = MutableSharedFlow<ChatStreamEvent>(extraBufferCapacity = 8)
+        val sendEvents = MutableSharedFlow<ChatStreamEvent>(replay = 8)
         streamingClient.sendHandler = { _, _, _ -> sendEvents }
 
         val sendJob = backgroundScope.launch {
@@ -164,43 +161,72 @@ class ChatRepositoryTest {
         )
         sendEvents.emit(ChatStreamEvent.Delta(runId = "run-1", textDelta = "partial reply"))
 
-        repository.observeActiveStream(CONVERSATION_ID).first { it?.text == "partial reply" }
-        repository.requestPause(CONVERSATION_ID)
+        val stream = repository.observeActiveStream(CONVERSATION_ID).first { it?.text == "partial reply" }
+        checkNotNull(stream)
+        conversationApi.detail = conversationDetail(
+            messages = listOf(
+                remoteMessage(
+                    id = pendingMessage.id,
+                    position = 1,
+                    role = "user",
+                    content = "hello",
+                    createdAt = 100L,
+                    updatedAt = 100L
+                ),
+                remoteMessage(
+                    id = "assistant-1",
+                    position = 2,
+                    role = "assistant",
+                    content = "partial reply",
+                    createdAt = 200L,
+                    updatedAt = 200L
+                )
+            )
+        )
+
+        assertThat(repository.requestStop(CONVERSATION_ID, stream.draftKey)).isTrue()
         sendJob.cancel()
         sendJob.join()
+        assertThat(repository.observeActiveStream(CONVERSATION_ID).first()?.status)
+            .isEqualTo(ActiveStreamStatus.STOPPING)
 
-        val activeStream = repository.observeActiveStream(CONVERSATION_ID).first()
+        repository.reconcileStoppedStream(CONVERSATION_ID, stream.draftKey).getOrThrow()
 
-        assertThat(activeStream?.status).isEqualTo(ActiveStreamStatus.PAUSED)
-        assertThat(activeStream?.text).isEqualTo("partial reply")
+        val messages = messageDao.getMessages(CONVERSATION_ID)
+        assertThat(messages.map { it.id }).containsExactly(pendingMessage.id, "assistant-1").inOrder()
+        assertThat(messages.first().content).isEqualTo("hello")
+        assertThat(messages.last().content).isEqualTo("partial reply")
         assertThat(messageDao.getById(pendingMessage.id)?.sendState).isEqualTo(MessageSendState.SENT.name)
+        assertThat(repository.observeActiveStream(CONVERSATION_ID).first()).isNull()
     }
 
     @Test
-    fun pauseRequested_beforeAcceptance_keepsUserMessageAndPausedDraft() = runTest {
+    fun stopRequested_beforeAcceptance_keepsUserMessageAndSettlesDraft() = runTest {
         seedConversation(version = 1)
-        val sendEvents = MutableSharedFlow<ChatStreamEvent>(extraBufferCapacity = 8)
+        val sendEvents = MutableSharedFlow<ChatStreamEvent>(replay = 8)
         streamingClient.sendHandler = { _, _, _ -> sendEvents }
 
         val sendJob = backgroundScope.launch {
             repository.sendMessage(CONVERSATION_ID, "don't remove this")
         }
 
-        val stream = repository.observeActiveStream(CONVERSATION_ID).first { it != null }
+        val stream = checkNotNull(repository.observeActiveStream(CONVERSATION_ID).first { it != null })
         val pendingMessage = messageDao.getLocalOnlyMessages(CONVERSATION_ID).single()
-        repository.requestPause(CONVERSATION_ID)
+        assertThat(repository.requestStop(CONVERSATION_ID, stream.draftKey)).isTrue()
         sendJob.cancel()
         sendJob.join()
 
+        assertThat(repository.observeActiveStream(CONVERSATION_ID).first()?.status)
+            .isEqualTo(ActiveStreamStatus.STOPPING)
+        repository.reconcileStoppedStream(CONVERSATION_ID, stream.draftKey).getOrThrow()
+
         assertThat(messageDao.getById(pendingMessage.id)?.content).isEqualTo("don't remove this")
         assertThat(messageDao.getById(pendingMessage.id)?.sendState).isEqualTo(MessageSendState.PENDING.name)
-        assertThat(repository.observeActiveStream(CONVERSATION_ID).first()?.draftKey).isEqualTo(stream?.draftKey)
-        assertThat(repository.observeActiveStream(CONVERSATION_ID).first()?.status)
-            .isEqualTo(ActiveStreamStatus.PAUSED)
+        assertThat(repository.observeActiveStream(CONVERSATION_ID).first()).isNull()
     }
 
     @Test
-    fun pauseRequested_duringContinuation_keepsPartialDraftVisible() = runTest {
+    fun stopRequested_duringContinuation_reconcilesPartialReply() = runTest {
         seedConversation(version = 1)
         messageDao.insert(
             sentMessage(
@@ -228,16 +254,38 @@ class ChatRepositoryTest {
             )
         )
         continueEvents.emit(ChatStreamEvent.Delta("run-continue", "continued text"))
-        repository.observeActiveStream(CONVERSATION_ID).first { it?.text == "continued text" }
+        val stream = checkNotNull(
+            repository.observeActiveStream(CONVERSATION_ID).first { it?.text == "continued text" }
+        )
+        conversationApi.detail = conversationDetail(
+            messages = listOf(
+                remoteMessage(
+                    id = "assistant-0",
+                    position = 0,
+                    role = "assistant",
+                    content = "opening",
+                    createdAt = 50L,
+                    updatedAt = 50L
+                ),
+                remoteMessage(
+                    id = "assistant-1",
+                    position = 1,
+                    role = "assistant",
+                    content = "continued text",
+                    createdAt = 100L,
+                    updatedAt = 100L
+                )
+            )
+        )
 
-        repository.requestPause(CONVERSATION_ID)
+        assertThat(repository.requestStop(CONVERSATION_ID, stream.draftKey)).isTrue()
         continueJob.cancel()
         continueJob.join()
+        repository.reconcileStoppedStream(CONVERSATION_ID, stream.draftKey).getOrThrow()
 
-        val activeStream = repository.observeActiveStream(CONVERSATION_ID).first()
-        assertThat(activeStream?.mode).isEqualTo(ActiveStreamMode.CONTINUE)
-        assertThat(activeStream?.status).isEqualTo(ActiveStreamStatus.PAUSED)
-        assertThat(activeStream?.text).isEqualTo("continued text")
+        assertThat(repository.observeActiveStream(CONVERSATION_ID).first()).isNull()
+        assertThat(messageDao.getById("assistant-0")?.content).isEqualTo("opening")
+        assertThat(messageDao.getById("assistant-1")?.content).isEqualTo("continued text")
     }
 
     @Test
@@ -300,7 +348,212 @@ class ChatRepositoryTest {
 
         assertThat(message?.selectedRegenerationId).isEqualTo("regen-1")
         assertThat(regenerations.map(AssistantRegenerationEntity::id)).containsExactly("regen-1")
-        assertThat(activeStream?.status).isEqualTo(ActiveStreamStatus.COMPLETED)
+        assertThat(activeStream).isNull()
+    }
+
+    @Test
+    fun stopRequested_duringRegeneration_reconcilesPartialVariant() = runTest {
+        seedConversation(version = 1)
+        messageDao.insertAll(
+            listOf(
+                sentMessage(
+                    id = "user-1",
+                    position = 1,
+                    role = "USER",
+                    content = "hello",
+                    createdAt = 100L,
+                    updatedAt = 100L
+                ),
+                sentMessage(
+                    id = "assistant-1",
+                    position = 2,
+                    role = "ASSISTANT",
+                    content = "old answer",
+                    createdAt = 200L,
+                    updatedAt = 200L
+                )
+            )
+        )
+        val regenerateEvents = MutableSharedFlow<ChatStreamEvent>(replay = 8)
+        streamingClient.regenerateHandler = { regenerateEvents }
+        val regenerateJob = backgroundScope.launch {
+            repository.regenerateLatestAssistant("assistant-1")
+        }
+
+        repository.observeActiveStream(CONVERSATION_ID).first { it != null }
+        regenerateEvents.emit(
+            ChatStreamEvent.AcceptedRegenerate(
+                runId = "run-regen",
+                conversationVersion = 1,
+                messageId = "assistant-1",
+                assistantMessageId = "assistant-1"
+            )
+        )
+        regenerateEvents.emit(ChatStreamEvent.Delta("run-regen", "partial variant"))
+        val stream = checkNotNull(
+            repository.observeActiveStream(CONVERSATION_ID).first { it?.text == "partial variant" }
+        )
+        val regeneration = AssistantRegenerationDto(
+            id = "regen-partial",
+            messageId = "assistant-1",
+            content = "partial variant",
+            createdAt = 300L
+        )
+        conversationApi.detail = conversationDetail(
+            messages = listOf(
+                remoteMessage(
+                    id = "user-1",
+                    position = 1,
+                    role = "user",
+                    content = "hello",
+                    createdAt = 100L,
+                    updatedAt = 100L
+                ),
+                remoteMessage(
+                    id = "assistant-1",
+                    position = 2,
+                    role = "assistant",
+                    content = "old answer",
+                    createdAt = 200L,
+                    updatedAt = 300L,
+                    selectedRegenerationId = regeneration.id,
+                    regenerations = listOf(regeneration)
+                )
+            )
+        )
+
+        assertThat(repository.requestStop(CONVERSATION_ID, stream.draftKey)).isTrue()
+        regenerateJob.cancel()
+        regenerateJob.join()
+        repository.reconcileStoppedStream(CONVERSATION_ID, stream.draftKey).getOrThrow()
+
+        val message = messageDao.getById("assistant-1")
+        assertThat(message?.selectedRegenerationId).isEqualTo("regen-partial")
+        assertThat(database.assistantRegenerationDao().getById("regen-partial")?.content)
+            .isEqualTo("partial variant")
+        assertThat(repository.observeActiveStream(CONVERSATION_ID).first()).isNull()
+    }
+
+    @Test
+    fun sendMessage_eofAfterPartialDelta_failsAndClearsOnlyItsDraft() = runTest {
+        seedConversation(version = 1)
+        streamingClient.sendHandler = { conversationId, userMessageId, _ ->
+            flow {
+                emit(
+                    ChatStreamEvent.AcceptedSend(
+                        runId = "run-eof",
+                        conversationVersion = 1,
+                        userMessage = remoteMessage(
+                            id = userMessageId,
+                            conversationId = conversationId,
+                            position = 1,
+                            role = "user",
+                            content = "hello",
+                            createdAt = 100L,
+                            updatedAt = 100L
+                        ),
+                        assistantMessageId = "assistant-eof"
+                    )
+                )
+                emit(ChatStreamEvent.Delta("run-eof", "partial"))
+            }
+        }
+
+        val result = repository.sendMessage(CONVERSATION_ID, "hello")
+
+        val error = result.exceptionOrNull()
+        assertThat(error).isInstanceOf(SendMessageFailedException::class.java)
+        assertThat((error as SendMessageFailedException).accepted).isTrue()
+        assertThat(messageDao.getMessages(CONVERSATION_ID).single().content).isEqualTo("hello")
+        assertThat(messageDao.getMessages(CONVERSATION_ID).single().sendState)
+            .isEqualTo(MessageSendState.SENT.name)
+        assertThat(repository.observeActiveStream(CONVERSATION_ID).first()).isNull()
+    }
+
+    @Test
+    fun continueAssistant_eofAfterPartialDelta_failsAndClearsDraft() = runTest {
+        seedConversation(version = 1)
+        streamingClient.continueHandler = {
+            flow {
+                emit(ChatStreamEvent.AcceptedContinue("run-eof", 1, "assistant-eof"))
+                emit(ChatStreamEvent.Delta("run-eof", "partial"))
+            }
+        }
+
+        val result = repository.continueAssistant(CONVERSATION_ID)
+
+        assertThat(result.isFailure).isTrue()
+        assertThat(result.exceptionOrNull()).hasMessageThat().contains("terminal event")
+        assertThat(repository.observeActiveStream(CONVERSATION_ID).first()).isNull()
+    }
+
+    @Test
+    fun regenerateLatestAssistant_eofAfterPartialDelta_failsAndClearsDraft() = runTest {
+        seedConversation(version = 1)
+        messageDao.insert(
+            sentMessage(
+                id = "assistant-1",
+                position = 1,
+                role = "ASSISTANT",
+                content = "old answer",
+                createdAt = 100L,
+                updatedAt = 100L
+            )
+        )
+        streamingClient.regenerateHandler = {
+            flow {
+                emit(ChatStreamEvent.AcceptedRegenerate("run-eof", 1, "assistant-1", "assistant-1"))
+                emit(ChatStreamEvent.Delta("run-eof", "partial"))
+            }
+        }
+
+        val result = repository.regenerateLatestAssistant("assistant-1")
+
+        assertThat(result.isFailure).isTrue()
+        assertThat(result.exceptionOrNull()).hasMessageThat().contains("terminal event")
+        assertThat(messageDao.getById("assistant-1")?.content).isEqualTo("old answer")
+        assertThat(repository.observeActiveStream(CONVERSATION_ID).first()).isNull()
+    }
+
+    @Test
+    fun staleStopReconciliationKey_cannotClearCurrentDraft() = runTest {
+        seedConversation(version = 1)
+        val events = MutableSharedFlow<ChatStreamEvent>(replay = 8)
+        streamingClient.continueHandler = { events }
+        val job = backgroundScope.launch {
+            repository.continueAssistant(CONVERSATION_ID)
+        }
+        val stream = checkNotNull(repository.observeActiveStream(CONVERSATION_ID).first { it != null })
+        assertThat(repository.requestStop(CONVERSATION_ID, stream.draftKey)).isTrue()
+
+        repository.reconcileStoppedStream(CONVERSATION_ID, "stale-draft-key").getOrThrow()
+
+        assertThat(repository.observeActiveStream(CONVERSATION_ID).first()?.draftKey)
+            .isEqualTo(stream.draftKey)
+        job.cancel()
+        job.join()
+    }
+
+    @Test
+    fun observeConversation_characterLikeUpdate_emitsUpdatedCharacter() = runTest {
+        seedConversation(version = 1)
+
+        repository.observeConversation(CONVERSATION_ID, messageLimit = 20).test {
+            val initial = awaitItem()
+            assertThat(initial?.character?.likedByMe).isFalse()
+            assertThat(initial?.character?.likeCount).isEqualTo(0)
+
+            characterDao.updateLikeState(
+                characterId = CHARACTER_ID,
+                likedByMe = true,
+                likeCount = 1
+            )
+
+            val updated = awaitItem()
+            assertThat(updated?.character?.likedByMe).isTrue()
+            assertThat(updated?.character?.likeCount).isEqualTo(1)
+            cancelAndIgnoreRemainingEvents()
+        }
     }
 
     @Test
@@ -462,7 +715,9 @@ class ChatRepositoryTest {
         content: String,
         createdAt: Long,
         updatedAt: Long,
-        conversationId: String = CONVERSATION_ID
+        conversationId: String = CONVERSATION_ID,
+        selectedRegenerationId: String? = null,
+        regenerations: List<AssistantRegenerationDto> = emptyList()
     ) = MessageDto(
         id = id,
         conversationId = conversationId,
@@ -472,8 +727,8 @@ class ChatRepositoryTest {
         edited = false,
         createdAt = createdAt,
         updatedAt = updatedAt,
-        selectedRegenerationId = null,
-        regenerations = emptyList()
+        selectedRegenerationId = selectedRegenerationId,
+        regenerations = regenerations
     )
 
     private fun conversationSummary(version: Long, preview: String) = ConversationSummaryDto(

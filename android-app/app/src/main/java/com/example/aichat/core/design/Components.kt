@@ -163,9 +163,15 @@ private fun OutlineTextButton(
         horizontal = DesignMetrics.iconPillHorizontalPadding
     ),
     selected: Boolean = false,
+    contentColor: Color? = null,
     leadingIcon: (@Composable () -> Unit)? = null,
     onClick: () -> Unit
 ) {
+    val resolvedContentColor = contentColor ?: if (selected) {
+        MaterialTheme.colorScheme.onSurface
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    }
     Row(
         modifier = modifier
             .height(height)
@@ -179,13 +185,7 @@ private fun OutlineTextButton(
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        CompositionLocalProvider(
-            LocalContentColor provides if (selected) {
-                MaterialTheme.colorScheme.onSurface
-            } else {
-                MaterialTheme.colorScheme.onSurfaceVariant
-            }
-        ) {
+        CompositionLocalProvider(LocalContentColor provides resolvedContentColor) {
             leadingIcon?.let {
                 it()
                 Spacer(modifier = Modifier.width(DesignMetrics.iconGap))
@@ -248,6 +248,7 @@ fun SecondaryButton(
     text: String,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
+    contentColor: Color? = null,
     leadingIcon: (@Composable () -> Unit)? = null,
     onClick: () -> Unit
 ) {
@@ -255,6 +256,7 @@ fun SecondaryButton(
         text = text,
         enabled = enabled,
         modifier = modifier,
+        contentColor = contentColor,
         leadingIcon = leadingIcon,
         onClick = onClick
     )
@@ -265,12 +267,14 @@ fun SelectionButton(
     text: String,
     selected: Boolean,
     modifier: Modifier = Modifier,
+    height: Dp = DesignMetrics.secondaryButtonHeight,
     leadingIcon: (@Composable () -> Unit)? = null,
     onClick: () -> Unit
 ) {
     OutlineTextButton(
         text = text,
         modifier = modifier,
+        height = height,
         selected = selected,
         leadingIcon = leadingIcon,
         onClick = onClick
@@ -288,6 +292,7 @@ fun AppTextField(
     minLines: Int = 1,
     maxLines: Int = Int.MAX_VALUE,
     shape: RoundedCornerShape = RoundedCornerShape(DesignMetrics.fieldCorner),
+    containerMinHeight: Dp? = null,
     leadingIcon: (@Composable () -> Unit)? = null,
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default
 ) {
@@ -319,7 +324,7 @@ fun AppTextField(
                         }
                     )
                     .defaultMinSize(
-                        minHeight = if (singleLine) {
+                        minHeight = containerMinHeight ?: if (singleLine) {
                             DesignMetrics.fieldSingleLineHeight
                         } else {
                             DesignMetrics.fieldMultiLineHeight
@@ -410,6 +415,7 @@ fun IconPillButton(
     text: String,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
+    selected: Boolean = false,
     onClick: () -> Unit,
     leadingIcon: (@Composable () -> Unit)? = null
 ) {
@@ -417,6 +423,7 @@ fun IconPillButton(
         text = text,
         modifier = modifier,
         enabled = enabled,
+        selected = selected,
         shape = RoundedCornerShape(999.dp),
         height = DesignMetrics.iconPillHeight,
         contentPadding = PaddingValues(

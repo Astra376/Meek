@@ -2,6 +2,7 @@ import type { Env, RequestContext } from "./env";
 import { processOfflineMessages } from "./services/chat/offline";
 import { requireAuth } from "./lib/auth";
 import { handleError, json } from "./lib/response";
+import { assetRoutes } from "./routes/assets";
 import { authRoutes } from "./routes/auth";
 import { characterRoutes } from "./routes/characters";
 import { chatRoutes } from "./routes/chat";
@@ -12,6 +13,7 @@ import { profileRoutes } from "./routes/profile";
 import type { RouteDefinition } from "./routes/types";
 
 const routes: RouteDefinition[] = [
+  ...assetRoutes,
   ...authRoutes,
   ...profileRoutes,
   ...characterRoutes,

@@ -260,6 +260,14 @@ private fun MainShell(
                 )
             }
         ) { backStackEntry ->
+            val replaceCurrentChat: (String) -> Unit = { conversationId ->
+                rootNavController.navigate("chat/$conversationId") {
+                    popUpTo(backStackEntry.destination.id) {
+                        inclusive = true
+                    }
+                    launchSingleTop = true
+                }
+            }
             ChatRoute(
                 paddingValues = androidx.compose.foundation.layout.PaddingValues(),
                 onBack = { rootNavController.popBackStack() },
@@ -269,13 +277,8 @@ private fun MainShell(
                         rootNavController.navigate("chat/$conversationId/memory")
                     }
                 },
-                onStartNewChat = { conversationId ->
-                    rootNavController.navigate("chat/$conversationId") {
-                        popUpTo(backStackEntry.destination.id) {
-                            inclusive = true
-                        }
-                    }
-                }
+                onStartNewChat = replaceCurrentChat,
+                onOpenConversation = replaceCurrentChat
             )
         }
 

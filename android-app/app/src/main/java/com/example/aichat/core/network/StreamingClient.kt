@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.HttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -70,15 +71,28 @@ interface ChatStreamingClient {
 }
 
 @Singleton
-class WorkerStreamingClient @Inject constructor(
+class WorkerStreamingClient private constructor(
     private val okHttpClient: OkHttpClient,
-    private val json: Json
+    private val json: Json,
+    configuredBaseUrl: String
 ) : ChatStreamingClient {
+    @Inject
+    constructor(
+        okHttpClient: OkHttpClient,
+        json: Json
+    ) : this(okHttpClient, json, BuildConfig.API_BASE_URL)
+
+    internal constructor(
+        okHttpClient: OkHttpClient,
+        json: Json,
+        baseUrl: HttpUrl
+    ) : this(okHttpClient, json, baseUrl.toString())
+
     private val jsonMediaType = "application/json".toMediaType()
-    private val baseUrl = if (BuildConfig.API_BASE_URL.endsWith("/")) {
-        BuildConfig.API_BASE_URL
+    private val baseUrl = if (configuredBaseUrl.endsWith("/")) {
+        configuredBaseUrl
     } else {
-        "${BuildConfig.API_BASE_URL}/"
+        "$configuredBaseUrl/"
     }
 
     override fun sendMessage(conversationId: String, userMessageId: String, content: String): Flow<ChatStreamEvent> {
@@ -87,20 +101,29 @@ class WorkerStreamingClient @Inject constructor(
             SendMessageRequestDto.serializer(),
             SendMessageRequestDto(userMessageId = userMessageId, content = content)
         ).toRequestBody(jsonMediaType)
-        return stream(Request.Builder().url(url).post(body).build())
+        return stream(
+            request = Request.Builder().url(url).post(body).build(),
+            expectedStream = ExpectedStream.SEND
+        )
     }
 
     override fun regenerateLatestAssistant(messageId: String): Flow<ChatStreamEvent> {
         val url = "${baseUrl}v1/messages/$messageId/regenerate/stream"
-        return stream(Request.Builder().url(url).post("{}".toRequestBody(jsonMediaType)).build())
+        return stream(
+            request = Request.Builder().url(url).post("{}".toRequestBody(jsonMediaType)).build(),
+            expectedStream = ExpectedStream.REGENERATE
+        )
     }
 
     override fun continueAssistant(conversationId: String): Flow<ChatStreamEvent> {
         val url = "${baseUrl}v1/conversations/$conversationId/continue/stream"
-        return stream(Request.Builder().url(url).post("{}".toRequestBody(jsonMediaType)).build())
+        return stream(
+            request = Request.Builder().url(url).post("{}".toRequestBody(jsonMediaType)).build(),
+            expectedStream = ExpectedStream.CONTINUE
+        )
     }
 
-    private fun stream(request: Request): Flow<ChatStreamEvent> = callbackFlow {
+    private fun stream(request: Request, expectedStream: ExpectedStream): Flow<ChatStreamEvent> = callbackFlow {
         val call = okHttpClient.newCall(request)
         val readerJob = launch(Dispatchers.IO) {
             val response = try {
@@ -131,13 +154,25 @@ class WorkerStreamingClient @Inject constructor(
                 }
 
                 body.source().use { source ->
+                    var acceptedRunId: String? = null
+                    var terminalReceived = false
                     while (!source.exhausted()) {
                         val line = source.readUtf8Line() ?: break
                         if (!line.startsWith("data:")) continue
                         val payload = line.removePrefix("data:").trim()
                         if (payload.isBlank()) continue
                         val event = json.decodeFromString(StreamEventDto.serializer(), payload).toModel()
-                        trySend(event)
+                        acceptedRunId = validateStreamEvent(
+                            expectedStream = expectedStream,
+                            event = event,
+                            acceptedRunId = acceptedRunId,
+                            terminalReceived = terminalReceived
+                        )
+                        terminalReceived = event.isTerminal
+                        send(event)
+                    }
+                    check(terminalReceived) {
+                        "The chat stream ended before a terminal event was received."
                     }
                 }
                 close()
@@ -152,6 +187,75 @@ class WorkerStreamingClient @Inject constructor(
             call.cancel()
             readerJob.cancel()
         }
+    }
+
+    private fun validateStreamEvent(
+        expectedStream: ExpectedStream,
+        event: ChatStreamEvent,
+        acceptedRunId: String?,
+        terminalReceived: Boolean
+    ): String {
+        check(!terminalReceived) { "The chat stream emitted data after its terminal event." }
+
+        val acceptedId = when (event) {
+            is ChatStreamEvent.AcceptedSend -> {
+                check(expectedStream == ExpectedStream.SEND) { "Unexpected send acceptance event." }
+                check(acceptedRunId == null) { "The chat stream was accepted more than once." }
+                event.runId
+            }
+
+            is ChatStreamEvent.AcceptedContinue -> {
+                check(expectedStream == ExpectedStream.CONTINUE) { "Unexpected continue acceptance event." }
+                check(acceptedRunId == null) { "The chat stream was accepted more than once." }
+                event.runId
+            }
+
+            is ChatStreamEvent.AcceptedRegenerate -> {
+                check(expectedStream == ExpectedStream.REGENERATE) { "Unexpected regeneration acceptance event." }
+                check(acceptedRunId == null) { "The chat stream was accepted more than once." }
+                event.runId
+            }
+
+            is ChatStreamEvent.Delta -> {
+                checkNotNull(acceptedRunId) { "The chat stream emitted text before it was accepted." }
+                check(event.runId == acceptedRunId) { "The chat stream changed run identifiers." }
+                acceptedRunId
+            }
+
+            is ChatStreamEvent.CompletedSend -> {
+                check(expectedStream != ExpectedStream.REGENERATE) { "Unexpected send completion event." }
+                checkNotNull(acceptedRunId) { "The chat stream completed before it was accepted." }
+                check(event.runId == acceptedRunId) { "The chat stream changed run identifiers." }
+                acceptedRunId
+            }
+
+            is ChatStreamEvent.CompletedRegenerate -> {
+                check(expectedStream == ExpectedStream.REGENERATE) { "Unexpected regeneration completion event." }
+                checkNotNull(acceptedRunId) { "The chat stream completed before it was accepted." }
+                check(event.runId == acceptedRunId) { "The chat stream changed run identifiers." }
+                acceptedRunId
+            }
+
+            is ChatStreamEvent.Failed -> {
+                checkNotNull(acceptedRunId) { "The chat stream failed before it was accepted." }
+                check(event.runId == null || event.runId == acceptedRunId) {
+                    "The chat stream changed run identifiers."
+                }
+                acceptedRunId
+            }
+        }
+        return acceptedId
+    }
+
+    private val ChatStreamEvent.isTerminal: Boolean
+        get() = this is ChatStreamEvent.CompletedSend ||
+            this is ChatStreamEvent.CompletedRegenerate ||
+            this is ChatStreamEvent.Failed
+
+    private enum class ExpectedStream {
+        SEND,
+        CONTINUE,
+        REGENERATE
     }
 
     private fun StreamEventDto.toModel(): ChatStreamEvent = when (type) {

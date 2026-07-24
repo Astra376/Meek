@@ -25,6 +25,15 @@ interface ProfileApi {
 
     @PATCH("v1/profile/me")
     suspend fun updateProfile(@Body body: UpdateProfileRequestDto): ProfileDto
+
+    @GET("v1/profiles/{userId}")
+    suspend fun getPublicProfile(@Path("userId") userId: String): PublicProfileDto
+
+    @GET("v1/profiles/{userId}/characters")
+    suspend fun getPublicProfileCharacters(
+        @Path("userId") userId: String,
+        @Query("cursor") cursor: String? = null
+    ): CursorPageDto<CharacterDto>
 }
 
 interface CharacterApi {
@@ -50,10 +59,10 @@ interface CharacterApi {
     suspend fun getLikedCharacters(@Query("cursor") cursor: String? = null): CursorPageDto<CharacterDto>
 
     @POST("v1/characters/{characterId}/like")
-    suspend fun likeCharacter(@Path("characterId") characterId: String)
+    suspend fun likeCharacter(@Path("characterId") characterId: String): CharacterLikeStateDto
 
     @DELETE("v1/characters/{characterId}/like")
-    suspend fun unlikeCharacter(@Path("characterId") characterId: String)
+    suspend fun unlikeCharacter(@Path("characterId") characterId: String): CharacterLikeStateDto
 }
 
 interface HomeApi {

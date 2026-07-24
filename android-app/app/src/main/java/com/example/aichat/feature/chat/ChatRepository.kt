@@ -31,18 +31,25 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import java.util.concurrent.ConcurrentHashMap
 
 private class StreamFailedException(
+    override val message: String
+) : IllegalStateException(message)
+
+private class StreamProtocolException(
     override val message: String
 ) : IllegalStateException(message)
 
@@ -78,31 +85,38 @@ class ChatRepository @Inject constructor(
 ) {
     companion object {
         const val ORIGINAL_VARIANT_ID = "__original__"
+        private val STOP_RECONCILIATION_DELAYS_MS = longArrayOf(0L, 100L, 200L, 400L, 800L, 1_600L, 2_400L)
     }
     private val activeStreams = MutableStateFlow<Map<String, ActiveAssistantStream>>(emptyMap())
-    private val pauseRequests = ConcurrentHashMap.newKeySet<String>()
+    private val stopRequests = ConcurrentHashMap.newKeySet<String>()
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     fun observeConversation(conversationId: String, messageLimit: Int): Flow<ConversationDetail?> {
-        return combine(
-            conversationDao.observeById(conversationId),
-            messageDao.observeNewestMessages(conversationId, messageLimit),
-            regenerationDao.observeConversationRegenerations(conversationId),
-            conversationSceneDao.observeByConversation(conversationId)
-        ) { conversation, messages, regenerations, scene ->
-            if (conversation == null) return@combine null
-            val character = characterDao.getById(conversation.characterId) ?: return@combine null
-            val groupedRegenerations = regenerations.groupBy { it.messageId }
-            ConversationDetail(
-                id = conversation.id,
-                ownerUserId = conversation.ownerUserId,
-                conversationVersion = conversation.version,
-                character = character.toModel(),
-                messages = messages.map { message ->
-                    message.toModel(groupedRegenerations[message.id].orEmpty())
-                },
-                backgroundSceneUrl = scene?.imageUrl ?: character.initialSceneUrl,
-                backgroundSceneKey = scene?.sceneKey ?: character.initialSceneKey
-            )
+        return conversationDao.observeById(conversationId).flatMapLatest { conversation ->
+            if (conversation == null) {
+                flowOf(null)
+            } else {
+                combine(
+                    characterDao.observeById(conversation.characterId),
+                    messageDao.observeNewestMessages(conversationId, messageLimit),
+                    regenerationDao.observeConversationRegenerations(conversationId),
+                    conversationSceneDao.observeByConversation(conversationId)
+                ) { character, messages, regenerations, scene ->
+                    if (character == null) return@combine null
+                    val groupedRegenerations = regenerations.groupBy { it.messageId }
+                    ConversationDetail(
+                        id = conversation.id,
+                        ownerUserId = conversation.ownerUserId,
+                        conversationVersion = conversation.version,
+                        character = character.toModel(),
+                        messages = messages.map { message ->
+                            message.toModel(groupedRegenerations[message.id].orEmpty())
+                        },
+                        backgroundSceneUrl = scene?.imageUrl ?: character.initialSceneUrl,
+                        backgroundSceneKey = scene?.sceneKey ?: character.initialSceneKey
+                    )
+                }
+            }
         }
     }
 
@@ -117,77 +131,118 @@ class ChatRepository @Inject constructor(
     suspend fun refreshConversation(conversationId: String): Result<Unit> = withContext(Dispatchers.IO) {
         captureResult {
             val detail = conversationApi.getConversation(conversationId)
-            if (currentActiveStream(conversationId)?.isLive == true) return@captureResult
+            if (currentActiveStream(conversationId)?.status.isTransportBusy) return@captureResult
             database.withTransaction {
-                if (currentActiveStream(conversationId)?.isLive == true) return@withTransaction
+                if (currentActiveStream(conversationId)?.status.isTransportBusy) return@withTransaction
                 applyRemoteConversationDetail(detail)
             }
-        }
-    }
-
-    suspend fun reconcilePausedStream(conversationId: String): Result<Unit> = withContext(Dispatchers.IO) {
-        captureResult {
-            repeat(3) { attempt ->
-                if (attempt > 0) delay(150L * attempt)
-                val stream = currentActiveStream(conversationId)
-                if (stream?.status != ActiveStreamStatus.PAUSED) return@captureResult
-                val detail = conversationApi.getConversation(conversationId)
-                database.withTransaction {
-                    if (currentActiveStream(conversationId)?.status == ActiveStreamStatus.PAUSED) {
-                        applyRemoteConversationDetail(detail)
-                    }
-                }
-                val targetCommitted = when (stream.mode) {
-                    ActiveStreamMode.REGENERATE -> detail.messages
-                        .firstOrNull { it.id == stream.targetMessageId }
-                        ?.regenerations
-                        ?.any { it.content == stream.text.trim() } == true
-                    ActiveStreamMode.SEND,
-                    ActiveStreamMode.CONTINUE -> stream.assistantMessageId?.let { assistantId ->
-                        detail.messages.any { it.id == assistantId }
-                    } ?: stream.userMessageId?.let { userId ->
-                        detail.messages.any { it.id == userId }
-                    } ?: true
-                }
-                if (targetCommitted) return@captureResult
+            val stoppedStream = currentActiveStream(conversationId)
+            if (
+                stoppedStream?.status == ActiveStreamStatus.STOPPED &&
+                stoppedResultIsCommitted(stoppedStream, detail)
+            ) {
+                clearActiveStream(conversationId, stoppedStream.draftKey)
             }
         }
     }
 
-    fun requestPause(conversationId: String) {
-        if (conversationId.isBlank()) return
-        pauseRequests.add(conversationId)
-    }
+    suspend fun reconcileStoppedStream(conversationId: String, draftKey: String): Result<Unit> =
+        withContext(Dispatchers.IO) {
+            captureResult {
+                STOP_RECONCILIATION_DELAYS_MS.forEachIndexed { attempt, delayMillis ->
+                    if (delayMillis > 0L) delay(delayMillis)
+                    val stream = currentActiveStream(conversationId)
+                    if (stream?.draftKey != draftKey || stream.status != ActiveStreamStatus.STOPPING) {
+                        return@captureResult
+                    }
+                    val detail = conversationApi.getConversation(conversationId)
+                    database.withTransaction {
+                        val current = currentActiveStream(conversationId)
+                        if (current?.draftKey == draftKey && current.status == ActiveStreamStatus.STOPPING) {
+                            applyRemoteConversationDetail(detail)
+                        }
+                    }
+                    if (stoppedResultIsCommitted(stream, detail)) {
+                        clearActiveStream(conversationId, draftKey)
+                        return@captureResult
+                    }
 
-    fun updatePresentationProgress(conversationId: String, draftKey: String, characterCount: Int) {
-        if (characterCount < 0) return
-        updateActiveStream(conversationId) { stream ->
-            if (stream == null || stream.draftKey != draftKey) return@updateActiveStream stream
-            stream.copy(
-                presentedCharacterCount = maxOf(
-                    stream.presentedCharacterCount,
-                    characterCount.coerceAtMost(stream.text.length)
-                )
-            )
+                    if (
+                        stream.text.isBlank() &&
+                        stream.mode == ActiveStreamMode.SEND &&
+                        stream.userMessageId != null &&
+                        detail.messages.none { it.id == stream.userMessageId } &&
+                        attempt >= 2
+                    ) {
+                        clearActiveStream(conversationId, draftKey)
+                        return@captureResult
+                    }
+
+                    if (
+                        stream.text.isBlank() &&
+                        attempt == STOP_RECONCILIATION_DELAYS_MS.lastIndex
+                    ) {
+                        clearActiveStream(conversationId, draftKey)
+                        return@captureResult
+                    }
+                }
+                updateActiveStream(conversationId, draftKey) { stream ->
+                    stream.copy(status = ActiveStreamStatus.STOPPED)
+                }
+            }
+        }
+
+    private fun stoppedResultIsCommitted(
+        stream: ActiveAssistantStream,
+        detail: ConversationDetailDto
+    ): Boolean {
+        return when (stream.mode) {
+            ActiveStreamMode.SEND,
+            ActiveStreamMode.CONTINUE -> {
+                val assistantMessageId = stream.assistantMessageId ?: return false
+                detail.messages.any { message -> message.id == assistantMessageId }
+            }
+
+            ActiveStreamMode.REGENERATE -> {
+                val stoppedText = stream.text.trim()
+                if (stoppedText.isEmpty()) return false
+                val message = detail.messages
+                    .firstOrNull { candidate -> candidate.id == stream.targetMessageId }
+                    ?: return false
+                val selectedRegenerationId = message.selectedRegenerationId ?: return false
+                message.regenerations
+                    .firstOrNull { regeneration -> regeneration.id == selectedRegenerationId }
+                    ?.content
+                    ?.trim()
+                    ?.startsWith(stoppedText) == true
+            }
         }
     }
 
-    fun dismissSettledStream(conversationId: String, draftKey: String? = null) {
+    fun requestStop(conversationId: String, draftKey: String): Boolean {
+        if (conversationId.isBlank() || draftKey.isBlank()) return false
+        var requested = false
         updateActiveStream(conversationId) { stream ->
-            if (stream == null) return@updateActiveStream null
-            if (stream.status == ActiveStreamStatus.STREAMING) return@updateActiveStream stream
-            if (draftKey != null && stream.draftKey != draftKey) return@updateActiveStream stream
-            null
+            if (
+                stream == null ||
+                stream.draftKey != draftKey ||
+                stream.status != ActiveStreamStatus.STREAMING
+            ) {
+                return@updateActiveStream stream
+            }
+            requested = true
+            stream.copy(status = ActiveStreamStatus.STOPPING)
         }
+        if (requested) {
+            stopRequests.add(draftKey)
+        }
+        return requested
     }
 
     suspend fun sendMessage(conversationId: String, text: String): Result<Unit> = withContext(Dispatchers.IO) {
         captureResult {
             val normalized = text.trim()
             if (normalized.isBlank()) throw IllegalArgumentException("Message can't be empty.")
-            reconcilePausedStream(conversationId).getOrThrow()
-            clearPauseRequest(conversationId)
-            dismissSettledStream(conversationId)
             ensureNotStreaming(conversationId)
 
             val now = System.currentTimeMillis()
@@ -216,7 +271,12 @@ class ChatRepository @Inject constructor(
                 )
             )
 
-            consumeSendStream(conversationId, userMessageId, normalized)
+            consumeSendStream(
+                conversationId = conversationId,
+                draftKey = "send-draft-$userMessageId",
+                userMessageId = userMessageId,
+                content = normalized
+            )
         }
     }
 
@@ -225,8 +285,6 @@ class ChatRepository @Inject constructor(
             val normalized = newContent.trim()
             if (normalized.isBlank()) throw IllegalArgumentException("Message can't be empty.")
 
-            val conversationId = requireMutableMessage(messageId).conversationId
-            reconcilePausedStream(conversationId).getOrThrow()
             val message = requireMutableMessage(messageId)
             chatApi.editMessage(messageId, EditMessageRequestDto(normalized))
 
@@ -239,8 +297,6 @@ class ChatRepository @Inject constructor(
 
     suspend fun rewind(messageId: String): Result<Unit> = withContext(Dispatchers.IO) {
         captureResult {
-            val conversationId = requireMutableMessage(messageId).conversationId
-            reconcilePausedStream(conversationId).getOrThrow()
             val message = requireMutableMessage(messageId)
             chatApi.rewind(messageId)
 
@@ -254,52 +310,45 @@ class ChatRepository @Inject constructor(
 
     suspend fun regenerateLatestAssistant(messageId: String): Result<Unit> = withContext(Dispatchers.IO) {
         captureResult {
-            val conversationId = requireMutableMessage(messageId).conversationId
-            reconcilePausedStream(conversationId).getOrThrow()
             val message = requireMutableMessage(messageId)
             ensureLatestAssistant(message)
-            clearPauseRequest(message.conversationId)
-            dismissSettledStream(message.conversationId)
+            val draftKey = "regenerate-draft-${generateUlid()}"
 
             setActiveStream(
                 message.conversationId,
                 ActiveAssistantStream(
                     conversationId = message.conversationId,
-                    draftKey = "regenerate-draft-$messageId",
+                    draftKey = draftKey,
                     mode = ActiveStreamMode.REGENERATE,
                     assistantMessageId = messageId,
                     targetMessageId = messageId
                 )
             )
 
-            consumeRegenerateStream(message.conversationId, messageId)
+            consumeRegenerateStream(message.conversationId, draftKey, messageId)
         }
     }
 
     suspend fun continueAssistant(conversationId: String): Result<Unit> = withContext(Dispatchers.IO) {
         captureResult {
-            reconcilePausedStream(conversationId).getOrThrow()
-            clearPauseRequest(conversationId)
-            dismissSettledStream(conversationId)
             ensureNotStreaming(conversationId)
+            val draftKey = "continue-draft-${generateUlid()}"
 
             setActiveStream(
                 conversationId,
                 ActiveAssistantStream(
                     conversationId = conversationId,
-                    draftKey = "continue-draft-${System.currentTimeMillis()}",
+                    draftKey = draftKey,
                     mode = ActiveStreamMode.CONTINUE
                 )
             )
 
-            consumeContinueStream(conversationId)
+            consumeContinueStream(conversationId, draftKey)
         }
     }
 
     suspend fun selectRegeneration(messageId: String, regenerationId: String): Result<Unit> = withContext(Dispatchers.IO) {
         captureResult {
-            val conversationId = requireMutableMessage(messageId).conversationId
-            reconcilePausedStream(conversationId).getOrThrow()
             val message = requireMutableMessage(messageId)
             ensureLatestAssistant(message)
             chatApi.selectRegeneration(
@@ -319,57 +368,109 @@ class ChatRepository @Inject constructor(
         }
     }
 
-    private suspend fun consumeSendStream(conversationId: String, userMessageId: String, content: String) {
+    private suspend fun consumeSendStream(
+        conversationId: String,
+        draftKey: String,
+        userMessageId: String,
+        content: String
+    ) {
         var accepted = false
-        var keepStream = false
+        var acceptedRunId: String? = null
+        var terminalReceived = false
+        var stopped = false
 
         try {
             streamingClient.sendMessage(conversationId, userMessageId, content).collect { event ->
+                if (terminalReceived) {
+                    throw StreamProtocolException("The send stream emitted data after its terminal event.")
+                }
                 when (event) {
                     is ChatStreamEvent.AcceptedSend -> {
-                        if (event.userMessage.id != userMessageId) return@collect
+                        if (accepted) {
+                            throw StreamProtocolException("The send stream was accepted more than once.")
+                        }
+                        if (event.userMessage.id != userMessageId) {
+                            throw StreamProtocolException("The send stream accepted a different user message.")
+                        }
+                        if (event.userMessage.conversationId != conversationId) {
+                            throw StreamProtocolException("The send stream accepted a message from another conversation.")
+                        }
                         accepted = true
-                        applyAcceptedSend(conversationId, event)
+                        acceptedRunId = event.runId
+                        applyAcceptedSend(conversationId, draftKey, event)
                     }
 
                     is ChatStreamEvent.Delta -> {
+                        if (!accepted) {
+                            throw StreamProtocolException("The send stream emitted text before it was accepted.")
+                        }
+                        if (event.runId != acceptedRunId) {
+                            throw StreamProtocolException("The send stream changed run identifiers.")
+                        }
                         val active = currentActiveStream(conversationId) ?: return@collect
-                        if (active.runId != null && active.runId != event.runId) return@collect
-                        updateActiveStream(conversationId) { stream ->
-                            stream?.copy(text = stream.text + event.textDelta)
+                        if (active.draftKey != draftKey || active.runId != event.runId) return@collect
+                        updateActiveStream(conversationId, draftKey) { stream ->
+                            stream.copy(text = stream.text + event.textDelta)
                         }
                     }
 
                     is ChatStreamEvent.CompletedSend -> {
+                        if (!accepted) {
+                            throw StreamProtocolException("The send stream completed before it was accepted.")
+                        }
+                        if (event.runId != acceptedRunId) {
+                            throw StreamProtocolException("The send stream changed run identifiers.")
+                        }
+                        terminalReceived = true
                         val active = currentActiveStream(conversationId) ?: return@collect
-                        if (active.runId != event.runId) return@collect
-                        applyCompletedSend(conversationId, event)
-                        keepStream = true
+                        if (active.draftKey != draftKey || active.runId != event.runId) return@collect
+                        if (
+                            event.assistantMessage.id != active.assistantMessageId ||
+                            event.assistantMessage.conversationId != conversationId ||
+                            event.conversationSummary.id != conversationId
+                        ) {
+                            throw StreamProtocolException("The send stream completed a different conversation reply.")
+                        }
+                        applyCompletedSend(conversationId, draftKey, event)
                     }
 
                     is ChatStreamEvent.Failed -> {
+                        if (!accepted) {
+                            throw StreamProtocolException("The send stream failed before it was accepted.")
+                        }
+                        if (event.runId != null && event.runId != acceptedRunId) {
+                            throw StreamProtocolException("The send stream changed run identifiers.")
+                        }
+                        terminalReceived = true
                         val active = currentActiveStream(conversationId)
-                        if (event.runId != null && active?.runId != event.runId) return@collect
+                        if (
+                            active?.draftKey != draftKey ||
+                            (event.runId != null && active.runId != event.runId)
+                        ) {
+                            return@collect
+                        }
                         throw StreamFailedException(event.message)
                     }
 
-                    else -> Unit
+                    else -> throw StreamProtocolException("Unexpected event in the send stream.")
                 }
             }
+            if (!terminalReceived) {
+                throw StreamProtocolException("The send stream ended before a terminal event was received.")
+            }
         } catch (error: CancellationException) {
-            if (consumePauseRequest(conversationId)) {
+            stopped = consumeStopRequest(draftKey)
+            if (stopped) {
                 withContext(NonCancellable) {
-                    updateActiveStream(conversationId) { stream ->
-                        if (stream == null) return@updateActiveStream null
-                        stream.copy(status = ActiveStreamStatus.PAUSED)
+                    updateActiveStream(conversationId, draftKey) { stream ->
+                        stream.copy(status = ActiveStreamStatus.STOPPING)
                     }
                 }
-                keepStream = currentActiveStream(conversationId) != null
             }
             throw error
         } catch (error: Throwable) {
             if (error is CancellationException) throw error
-            clearPauseRequest(conversationId)
+            clearStopRequest(draftKey)
             if (!accepted) {
                 markMessageFailed(userMessageId)
             }
@@ -379,21 +480,34 @@ class ChatRepository @Inject constructor(
                 cause = error
             )
         } finally {
-            if (!keepStream) {
-                clearActiveStream(conversationId)
+            if (!stopped) {
+                clearActiveStream(conversationId, draftKey)
             }
         }
     }
 
-    private suspend fun consumeRegenerateStream(conversationId: String, messageId: String) {
-        var keepStream = false
+    private suspend fun consumeRegenerateStream(conversationId: String, draftKey: String, messageId: String) {
+        var accepted = false
+        var acceptedRunId: String? = null
+        var terminalReceived = false
+        var stopped = false
         try {
             streamingClient.regenerateLatestAssistant(messageId).collect { event ->
+                if (terminalReceived) {
+                    throw StreamProtocolException("The regeneration stream emitted data after its terminal event.")
+                }
                 when (event) {
                     is ChatStreamEvent.AcceptedRegenerate -> {
-                        if (event.messageId != messageId) return@collect
-                        updateActiveStream(conversationId) { stream ->
-                            stream?.copy(
+                        if (accepted) {
+                            throw StreamProtocolException("The regeneration stream was accepted more than once.")
+                        }
+                        if (event.messageId != messageId) {
+                            throw StreamProtocolException("The regeneration stream accepted a different message.")
+                        }
+                        accepted = true
+                        acceptedRunId = event.runId
+                        updateActiveStream(conversationId, draftKey) { stream ->
+                            stream.copy(
                                 runId = event.runId,
                                 assistantMessageId = event.assistantMessageId,
                                 targetMessageId = event.messageId,
@@ -403,62 +517,104 @@ class ChatRepository @Inject constructor(
                     }
 
                     is ChatStreamEvent.Delta -> {
+                        if (!accepted) {
+                            throw StreamProtocolException("The regeneration stream emitted text before it was accepted.")
+                        }
+                        if (event.runId != acceptedRunId) {
+                            throw StreamProtocolException("The regeneration stream changed run identifiers.")
+                        }
                         val active = currentActiveStream(conversationId) ?: return@collect
-                        if (active.runId != null && active.runId != event.runId) return@collect
-                        updateActiveStream(conversationId) { stream ->
-                            stream?.copy(text = stream.text + event.textDelta)
+                        if (active.draftKey != draftKey || active.runId != event.runId) return@collect
+                        updateActiveStream(conversationId, draftKey) { stream ->
+                            stream.copy(text = stream.text + event.textDelta)
                         }
                     }
 
                     is ChatStreamEvent.CompletedRegenerate -> {
+                        if (!accepted) {
+                            throw StreamProtocolException("The regeneration stream completed before it was accepted.")
+                        }
+                        if (event.runId != acceptedRunId) {
+                            throw StreamProtocolException("The regeneration stream changed run identifiers.")
+                        }
+                        if (event.messageId != messageId) {
+                            throw StreamProtocolException("The regeneration stream completed a different message.")
+                        }
+                        if (
+                            event.regeneration.messageId != messageId ||
+                            event.conversationSummary.id != conversationId
+                        ) {
+                            throw StreamProtocolException("The regeneration stream completed a different conversation reply.")
+                        }
+                        terminalReceived = true
                         val active = currentActiveStream(conversationId) ?: return@collect
-                        if (active.runId != event.runId) return@collect
-                        applyCompletedRegenerate(conversationId, event)
-                        keepStream = true
+                        if (active.draftKey != draftKey || active.runId != event.runId) return@collect
+                        applyCompletedRegenerate(conversationId, draftKey, event)
                     }
 
                     is ChatStreamEvent.Failed -> {
+                        if (!accepted) {
+                            throw StreamProtocolException("The regeneration stream failed before it was accepted.")
+                        }
+                        if (event.runId != null && event.runId != acceptedRunId) {
+                            throw StreamProtocolException("The regeneration stream changed run identifiers.")
+                        }
+                        terminalReceived = true
                         val active = currentActiveStream(conversationId)
-                        if (event.runId != null && active?.runId != event.runId) return@collect
+                        if (
+                            active?.draftKey != draftKey ||
+                            (event.runId != null && active.runId != event.runId)
+                        ) {
+                            return@collect
+                        }
                         throw StreamFailedException(event.message)
                     }
 
-                    else -> Unit
+                    else -> throw StreamProtocolException("Unexpected event in the regeneration stream.")
                 }
             }
+            if (!terminalReceived) {
+                throw StreamProtocolException("The regeneration stream ended before a terminal event was received.")
+            }
         } catch (error: CancellationException) {
-            if (consumePauseRequest(conversationId)) {
+            stopped = consumeStopRequest(draftKey)
+            if (stopped) {
                 withContext(NonCancellable) {
-                    updateActiveStream(conversationId) { stream ->
-                        if (stream == null) return@updateActiveStream null
-                        if (!stream.accepted && stream.text.isBlank()) {
-                            null
-                        } else {
-                            stream.copy(status = ActiveStreamStatus.PAUSED)
-                        }
+                    updateActiveStream(conversationId, draftKey) { stream ->
+                        stream.copy(status = ActiveStreamStatus.STOPPING)
                     }
                 }
-                keepStream = currentActiveStream(conversationId) != null
             }
             throw error
         } catch (error: Throwable) {
-            clearPauseRequest(conversationId)
+            clearStopRequest(draftKey)
             throw error
         } finally {
-            if (!keepStream) {
-                clearActiveStream(conversationId)
+            if (!stopped) {
+                clearActiveStream(conversationId, draftKey)
             }
         }
     }
 
-    private suspend fun consumeContinueStream(conversationId: String) {
-        var keepStream = false
+    private suspend fun consumeContinueStream(conversationId: String, draftKey: String) {
+        var accepted = false
+        var acceptedRunId: String? = null
+        var terminalReceived = false
+        var stopped = false
         try {
             streamingClient.continueAssistant(conversationId).collect { event ->
+                if (terminalReceived) {
+                    throw StreamProtocolException("The continuation stream emitted data after its terminal event.")
+                }
                 when (event) {
                     is ChatStreamEvent.AcceptedContinue -> {
-                        updateActiveStream(conversationId) { stream ->
-                            stream?.copy(
+                        if (accepted) {
+                            throw StreamProtocolException("The continuation stream was accepted more than once.")
+                        }
+                        accepted = true
+                        acceptedRunId = event.runId
+                        updateActiveStream(conversationId, draftKey) { stream ->
+                            stream.copy(
                                 runId = event.runId,
                                 assistantMessageId = event.assistantMessageId,
                                 accepted = true,
@@ -468,53 +624,92 @@ class ChatRepository @Inject constructor(
                     }
 
                     is ChatStreamEvent.Delta -> {
+                        if (!accepted) {
+                            throw StreamProtocolException("The continuation stream emitted text before it was accepted.")
+                        }
+                        if (event.runId != acceptedRunId) {
+                            throw StreamProtocolException("The continuation stream changed run identifiers.")
+                        }
                         val active = currentActiveStream(conversationId) ?: return@collect
-                        if (active.runId != null && active.runId != event.runId) return@collect
-                        updateActiveStream(conversationId) { stream ->
-                            stream?.copy(text = stream.text + event.textDelta)
+                        if (active.draftKey != draftKey || active.runId != event.runId) return@collect
+                        updateActiveStream(conversationId, draftKey) { stream ->
+                            stream.copy(text = stream.text + event.textDelta)
                         }
                     }
 
                     is ChatStreamEvent.CompletedSend -> {
+                        if (!accepted) {
+                            throw StreamProtocolException("The continuation stream completed before it was accepted.")
+                        }
+                        if (event.runId != acceptedRunId) {
+                            throw StreamProtocolException("The continuation stream changed run identifiers.")
+                        }
+                        terminalReceived = true
                         val active = currentActiveStream(conversationId) ?: return@collect
-                        if (active.runId != event.runId) return@collect
-                        applyCompletedSend(conversationId, event)
-                        keepStream = true
+                        if (active.draftKey != draftKey || active.runId != event.runId) return@collect
+                        if (
+                            event.assistantMessage.id != active.assistantMessageId ||
+                            event.assistantMessage.conversationId != conversationId ||
+                            event.conversationSummary.id != conversationId
+                        ) {
+                            throw StreamProtocolException("The continuation stream completed a different conversation reply.")
+                        }
+                        applyCompletedSend(conversationId, draftKey, event)
                     }
 
                     is ChatStreamEvent.Failed -> {
+                        if (!accepted) {
+                            throw StreamProtocolException("The continuation stream failed before it was accepted.")
+                        }
+                        if (event.runId != null && event.runId != acceptedRunId) {
+                            throw StreamProtocolException("The continuation stream changed run identifiers.")
+                        }
+                        terminalReceived = true
                         val active = currentActiveStream(conversationId)
-                        if (event.runId != null && active?.runId != event.runId) return@collect
+                        if (
+                            active?.draftKey != draftKey ||
+                            (event.runId != null && active.runId != event.runId)
+                        ) {
+                            return@collect
+                        }
                         throw StreamFailedException(event.message)
                     }
 
-                    else -> Unit
+                    else -> throw StreamProtocolException("Unexpected event in the continuation stream.")
                 }
             }
+            if (!terminalReceived) {
+                throw StreamProtocolException("The continuation stream ended before a terminal event was received.")
+            }
         } catch (error: CancellationException) {
-            if (consumePauseRequest(conversationId)) {
+            stopped = consumeStopRequest(draftKey)
+            if (stopped) {
                 withContext(NonCancellable) {
-                    updateActiveStream(conversationId) { stream ->
-                        stream?.copy(status = ActiveStreamStatus.PAUSED)
+                    updateActiveStream(conversationId, draftKey) { stream ->
+                        stream.copy(status = ActiveStreamStatus.STOPPING)
                     }
                 }
-                keepStream = currentActiveStream(conversationId) != null
             }
             throw error
         } catch (error: Throwable) {
-            clearPauseRequest(conversationId)
+            clearStopRequest(draftKey)
             throw error
         } finally {
-            if (!keepStream) {
-                clearActiveStream(conversationId)
+            if (!stopped) {
+                clearActiveStream(conversationId, draftKey)
             }
         }
     }
 
-    private suspend fun applyAcceptedSend(conversationId: String, event: ChatStreamEvent.AcceptedSend) {
+    private suspend fun applyAcceptedSend(
+        conversationId: String,
+        draftKey: String,
+        event: ChatStreamEvent.AcceptedSend
+    ) {
+        if (currentActiveStream(conversationId)?.draftKey != draftKey) return
         upsertMessageFromDto(event.userMessage, sendState = MessageSendState.SENT)
-        updateActiveStream(conversationId) { stream ->
-            stream?.copy(
+        updateActiveStream(conversationId, draftKey) { stream ->
+            stream.copy(
                 runId = event.runId,
                 assistantMessageId = event.assistantMessageId,
                 accepted = true,
@@ -523,21 +718,23 @@ class ChatRepository @Inject constructor(
         }
     }
 
-    private suspend fun applyCompletedSend(conversationId: String, event: ChatStreamEvent.CompletedSend) {
+    private suspend fun applyCompletedSend(
+        conversationId: String,
+        draftKey: String,
+        event: ChatStreamEvent.CompletedSend
+    ) {
         database.withTransaction {
             upsertMessageFromDto(event.assistantMessage, sendState = MessageSendState.SENT)
             updateConversationMetadataFromSummary(conversationId, event.conversationSummary, event.conversationVersion)
         }
-        updateActiveStream(conversationId) { stream ->
-            stream?.copy(
-                assistantMessageId = event.assistantMessage.id,
-                text = event.assistantMessage.content,
-                status = ActiveStreamStatus.COMPLETED
-            )
-        }
+        clearActiveStream(conversationId, draftKey)
     }
 
-    private suspend fun applyCompletedRegenerate(conversationId: String, event: ChatStreamEvent.CompletedRegenerate) {
+    private suspend fun applyCompletedRegenerate(
+        conversationId: String,
+        draftKey: String,
+        event: ChatStreamEvent.CompletedRegenerate
+    ) {
         database.withTransaction {
             regenerationDao.insert(
                 AssistantRegenerationEntity(
@@ -557,13 +754,7 @@ class ChatRepository @Inject constructor(
             )
             updateConversationMetadataFromSummary(conversationId, event.conversationSummary, event.conversationVersion)
         }
-        updateActiveStream(conversationId) { stream ->
-            stream?.copy(
-                text = event.regeneration.content,
-                committedRegenerationId = event.selectedRegenerationId,
-                status = ActiveStreamStatus.COMPLETED
-            )
-        }
+        clearActiveStream(conversationId, draftKey)
     }
 
     private suspend fun applyRemoteConversationDetail(detail: ConversationDetailDto) {
@@ -699,22 +890,43 @@ class ChatRepository @Inject constructor(
         }
     }
 
-    private fun clearActiveStream(conversationId: String) {
-        if (conversationId.isBlank()) return
-        pauseRequests.remove(conversationId)
-        activeStreams.update { it - conversationId }
+    private fun updateActiveStream(
+        conversationId: String,
+        draftKey: String,
+        transform: (ActiveAssistantStream) -> ActiveAssistantStream
+    ) {
+        activeStreams.update { streams ->
+            val current = streams[conversationId]
+            if (current?.draftKey != draftKey) {
+                streams
+            } else {
+                streams + (conversationId to transform(current))
+            }
+        }
+    }
+
+    private fun clearActiveStream(conversationId: String, draftKey: String) {
+        if (conversationId.isBlank() || draftKey.isBlank()) return
+        stopRequests.remove(draftKey)
+        activeStreams.update { streams ->
+            if (streams[conversationId]?.draftKey == draftKey) {
+                streams - conversationId
+            } else {
+                streams
+            }
+        }
     }
 
     private fun currentActiveStream(conversationId: String): ActiveAssistantStream? {
         return activeStreams.value[conversationId]
     }
 
-    private fun consumePauseRequest(conversationId: String): Boolean {
-        return pauseRequests.remove(conversationId)
+    private fun consumeStopRequest(draftKey: String): Boolean {
+        return stopRequests.remove(draftKey)
     }
 
-    private fun clearPauseRequest(conversationId: String) {
-        pauseRequests.remove(conversationId)
+    private fun clearStopRequest(draftKey: String) {
+        stopRequests.remove(draftKey)
     }
 
     private suspend fun requireMutableMessage(messageId: String): MessageEntity {
@@ -733,10 +945,21 @@ class ChatRepository @Inject constructor(
     }
 
     private fun ensureNotStreaming(conversationId: String) {
-        if (activeStreams.value[conversationId]?.isLive == true) {
-            throw ChatRuleViolation("Wait for the current reply to finish before changing the transcript.")
+        val activeStream = activeStreams.value[conversationId] ?: return
+        when (activeStream.status) {
+            ActiveStreamStatus.STREAMING,
+            ActiveStreamStatus.STOPPING -> {
+                throw ChatRuleViolation("Wait for the current reply to finish before changing the transcript.")
+            }
+
+            ActiveStreamStatus.STOPPED -> {
+                clearActiveStream(conversationId, activeStream.draftKey)
+            }
         }
     }
+
+    private val ActiveStreamStatus?.isTransportBusy: Boolean
+        get() = this == ActiveStreamStatus.STREAMING || this == ActiveStreamStatus.STOPPING
 
     private fun ensureMessageMutable(message: MessageEntity) {
         ensureNotStreaming(message.conversationId)

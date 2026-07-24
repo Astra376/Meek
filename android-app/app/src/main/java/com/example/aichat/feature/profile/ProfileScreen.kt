@@ -54,6 +54,9 @@ import com.example.aichat.core.ui.ShimmerTextLine
 import com.example.aichat.core.ui.ScreenBackgroundBox
 import com.example.aichat.core.network.userFacingMessage
 import com.example.aichat.core.ui.MainPageHeader
+import com.example.aichat.core.ui.ProfileCountStat
+import com.example.aichat.core.ui.ProfileHeader
+import com.example.aichat.core.ui.ProfileHeaderPlaceholder
 import com.example.aichat.core.ui.screenContentPadding
 import com.example.aichat.feature.character.CharacterRepository
 import com.example.aichat.feature.chatlist.ConversationRepository
@@ -189,46 +192,15 @@ fun ProfileRoute(
                 if (state.isLoading) {
                     ProfileHeaderPlaceholder()
                 } else {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
-                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-                ) {
-                    CircleAvatar(
-                        name = state.displayName.ifBlank { "User" },
+                    ProfileHeader(
+                        name = state.displayName,
                         avatarUrl = state.avatarUrl,
-                        modifier = Modifier
-                            .size(104.dp)
-                            .aspectRatio(1f)
-                    )
-                    Column(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(AppChrome.gridSpacing)
-                    ) {
-                        Text(
-                            text = state.displayName.ifBlank { "User" },
-                            style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
-                            color = MaterialTheme.colorScheme.onSurface
+                        stats = listOf(
+                            ProfileCountStat(state.owned.size, "characters"),
+                            ProfileCountStat(0, "followers"),
+                            ProfileCountStat(0, "following")
                         )
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Column(horizontalAlignment = androidx.compose.ui.Alignment.Start) {
-                                Text(text = "${state.owned.size}", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.onSurface)
-                                Text(text = "characters", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                            Column(horizontalAlignment = androidx.compose.ui.Alignment.Start) {
-                                Text(text = "0", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.onSurface)
-                                Text(text = "followers", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                            Column(horizontalAlignment = androidx.compose.ui.Alignment.Start) {
-                                Text(text = "0", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.onSurface)
-                                Text(text = "following", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                        }
-                    }
-                }
+                    )
                 }
             }
             state.bio?.takeIf { it.isNotBlank() }?.let { bio ->
@@ -339,34 +311,6 @@ fun ProfileRoute(
                             .onFailure {
                                 snackbarHostState.showSnackbar(it.userFacingMessage("Couldn't open chat."))
                             }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun ProfileHeaderPlaceholder() {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
-        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-    ) {
-        ShimmerBox(modifier = Modifier.size(104.dp), shape = CircleShape)
-        Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(AppChrome.gridSpacing)
-        ) {
-            ShimmerTextLine(width = 140.dp, height = 24.dp)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                repeat(3) {
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        ShimmerTextLine(width = 24.dp, height = 18.dp)
-                        ShimmerTextLine(width = 58.dp, height = 12.dp)
                     }
                 }
             }

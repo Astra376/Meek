@@ -22,6 +22,12 @@ export interface CharacterRecord {
   updated_at: number;
 }
 
+export interface PublicCharacterOwnerStats {
+  character_count: number;
+  created_at: number;
+  updated_at: number;
+}
+
 export async function insertCharacter(env: Env, input: {
   id: string;
   ownerUserId: string;
@@ -138,6 +144,60 @@ export async function getOwnedCharacters(env: Env, userId: string, offset: numbe
       `
     ).bind(userId, limit, offset)
   );
+}
+
+export async function getPublicCharactersByOwner(
+  env: Env,
+  viewerUserId: string,
+  ownerUserId: string,
+  offset: number,
+  limit: number
+): Promise<CharacterRecord[]> {
+  await ensureCharacterSchema(env);
+  return all<CharacterRecord>(
+    env.DB.prepare(
+      `
+      SELECT
+        characters.*,
+        profiles.display_name AS owner_display_name,
+        CASE WHEN character_likes.user_id IS NULL THEN 0 ELSE 1 END AS liked_by_me
+      FROM characters
+      LEFT JOIN profiles ON profiles.user_id = characters.owner_user_id
+      LEFT JOIN character_likes
+        ON character_likes.character_id = characters.id
+        AND character_likes.user_id = ?
+      WHERE characters.owner_user_id = ?
+        AND characters.visibility = 'public'
+      ORDER BY characters.updated_at DESC, characters.id DESC
+      LIMIT ? OFFSET ?
+      `
+    ).bind(viewerUserId, ownerUserId, limit, offset)
+  );
+}
+
+export async function getPublicCharacterOwnerStats(
+  env: Env,
+  ownerUserId: string
+): Promise<PublicCharacterOwnerStats> {
+  await ensureCharacterSchema(env);
+  const result = await first<PublicCharacterOwnerStats>(
+    env.DB.prepare(
+      `
+      SELECT
+        COUNT(*) AS character_count,
+        COALESCE(MIN(created_at), 0) AS created_at,
+        COALESCE(MAX(updated_at), 0) AS updated_at
+      FROM characters
+      WHERE owner_user_id = ?
+        AND visibility = 'public'
+      `
+    ).bind(ownerUserId)
+  );
+  return result ?? {
+    character_count: 0,
+    created_at: 0,
+    updated_at: 0
+  };
 }
 
 export async function getLikedCharacters(env: Env, userId: string, offset: number, limit: number): Promise<CharacterRecord[]> {
@@ -262,9 +322,9 @@ export async function incrementCharacterActivity(env: Env, characterId: string, 
     env.DB.prepare(
       `
       UPDATE characters
-      SET public_chat_count = public_chat_count + 1, last_active_at = ?, updated_at = ?
+      SET public_chat_count = public_chat_count + 1, last_active_at = ?
       WHERE id = ?
       `
-    ).bind(now, now, characterId)
+    ).bind(now, characterId)
   );
 }

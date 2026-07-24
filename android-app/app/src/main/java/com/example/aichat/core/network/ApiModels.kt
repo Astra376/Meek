@@ -38,6 +38,17 @@ data class ProfileDto(
 )
 
 @Serializable
+data class PublicProfileDto(
+    val userId: String,
+    val displayName: String,
+    val avatarUrl: String? = null,
+    @SerialName("description") val bio: String? = null,
+    val createdAt: Long,
+    val updatedAt: Long,
+    val characterCount: Int
+)
+
+@Serializable
 data class UpdateProfileRequestDto(
     val displayName: String,
     @SerialName("description") val bio: String? = null
@@ -64,6 +75,12 @@ data class CharacterDto(
     val lastActiveAt: Long,
     val createdAt: Long,
     val updatedAt: Long
+)
+
+@Serializable
+data class CharacterLikeStateDto(
+    val likedByMe: Boolean,
+    val likeCount: Int
 )
 
 @Serializable

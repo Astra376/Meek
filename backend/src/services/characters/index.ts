@@ -81,13 +81,13 @@ export async function getCharacter(context: RequestContext, characterId: string)
   if (record.visibility === "private" && record.owner_user_id !== context.user!.userId) {
     forbidden("Private characters are only visible to their owner.");
   }
-  return toCharacterDto(record);
+  return toCharacterDto(record, context.user!.userId);
 }
 
 export async function getMyCharacters(context: RequestContext, cursor: number, limit: number) {
   const records = await getOwnedCharacters(context.env, context.user!.userId, cursor, limit);
   return {
-    items: records.map(toCharacterDto),
+    items: records.map((record) => toCharacterDto(record, context.user!.userId)),
     nextCursor: records.length === limit ? String(cursor + records.length) : null
   };
 }
@@ -95,7 +95,7 @@ export async function getMyCharacters(context: RequestContext, cursor: number, l
 export async function getMyLikedCharacters(context: RequestContext, cursor: number, limit: number) {
   const records = await getLikedCharacters(context.env, context.user!.userId, cursor, limit);
   return {
-    items: records.map(toCharacterDto),
+    items: records.map((record) => toCharacterDto(record, context.user!.userId)),
     nextCursor: records.length === limit ? String(cursor + records.length) : null
   };
 }
@@ -103,9 +103,13 @@ export async function getMyLikedCharacters(context: RequestContext, cursor: numb
 export async function likePublicCharacter(context: RequestContext, characterId: string) {
   const record = await getCharacterById(context.env, context.user!.userId, characterId);
   assert(record?.visibility === "public", 404, "CHARACTER_NOT_FOUND", "Public character not found.");
-  if (!record.liked_by_me) {
-    await likeCharacter(context.env, context.user!.userId, characterId, Date.now());
-  }
+  await likeCharacter(context.env, context.user!.userId, characterId, Date.now());
+  const updated = await getCharacterById(context.env, context.user!.userId, characterId);
+  assert(updated?.visibility === "public", 404, "CHARACTER_NOT_FOUND", "Public character not found.");
+  return {
+    likedByMe: Boolean(updated.liked_by_me),
+    likeCount: updated.like_count
+  };
 }
 
 export async function generateCharacterGreeting(context: RequestContext, input: { name: string; description: string }) {
@@ -135,7 +139,11 @@ export async function generateCharacterGreeting(context: RequestContext, input: 
 export async function unlikePublicCharacter(context: RequestContext, characterId: string) {
   const record = await getCharacterById(context.env, context.user!.userId, characterId);
   assert(record?.visibility === "public", 404, "CHARACTER_NOT_FOUND", "Public character not found.");
-  if (record.liked_by_me) {
-    await unlikeCharacter(context.env, context.user!.userId, characterId);
-  }
+  await unlikeCharacter(context.env, context.user!.userId, characterId);
+  const updated = await getCharacterById(context.env, context.user!.userId, characterId);
+  assert(updated?.visibility === "public", 404, "CHARACTER_NOT_FOUND", "Public character not found.");
+  return {
+    likedByMe: Boolean(updated.liked_by_me),
+    likeCount: updated.like_count
+  };
 }

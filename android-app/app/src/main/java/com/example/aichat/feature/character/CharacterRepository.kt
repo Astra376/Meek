@@ -17,8 +17,19 @@ import com.example.aichat.feature.chat.ChatScenePromptBuilder
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
+import java.util.concurrent.ConcurrentHashMap
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 
 @Singleton
 class CharacterRepository @Inject constructor(
@@ -27,6 +38,9 @@ class CharacterRepository @Inject constructor(
     private val characterApi: CharacterApi,
     private val imageApi: ImageApi
 ) {
+    private val characterMutationMutexes = ConcurrentHashMap<String, Mutex>()
+    private val mutationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
     fun buildSystemPrompt(draft: CharacterDraft): String {
         val bio = draft.appearance.trim().ifBlank { "Uploaded character image." }
         return buildString {
@@ -60,7 +74,23 @@ class CharacterRepository @Inject constructor(
     fun observeLikedCharacters(): Flow<List<CharacterSummary>> =
         characterDao.observeLikedCharacters().map { list -> list.map { it.toModel() } }
 
+    fun observeCharacter(characterId: String): Flow<CharacterSummary?> =
+        characterDao.observeById(characterId).map { it?.toModel() }
+
     suspend fun getCharacter(characterId: String): CharacterSummary? = characterDao.getById(characterId)?.toModel()
+
+    suspend fun refreshCharacter(characterId: String): Result<Unit> {
+        return try {
+            characterMutex(characterId).withLock {
+                characterDao.upsert(characterApi.getCharacter(characterId).toEntity())
+            }
+            Result.success(Unit)
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Throwable) {
+            Result.failure(error)
+        }
+    }
 
     suspend fun refreshOwnedCharacters(): Result<Unit> {
         return runCatching {
@@ -118,27 +148,65 @@ class CharacterRepository @Inject constructor(
     }
 
     suspend fun toggleLike(characterId: String): Result<Unit> {
-        val character = characterDao.getById(characterId) ?: return Result.failure(
-            IllegalArgumentException("Character not found.")
-        )
-        if (character.visibility != CharacterVisibility.PUBLIC.name) {
-            return Result.failure(IllegalStateException("Only public characters can be liked."))
-        }
-
-        return runCatching {
-            if (character.likedByMe) {
-                characterApi.unlikeCharacter(characterId)
-            } else {
-                characterApi.likeCharacter(characterId)
-            }
-            characterDao.upsert(
-                character.copy(
-                    likedByMe = !character.likedByMe,
-                    likeCount = (character.likeCount + if (character.likedByMe) -1 else 1).coerceAtLeast(0)
+        return mutationScope.async(start = CoroutineStart.UNDISPATCHED) {
+            characterMutex(characterId).withLock {
+                val before = characterDao.getById(characterId) ?: return@withLock Result.failure(
+                    IllegalArgumentException("Character not found.")
                 )
+                if (before.visibility != CharacterVisibility.PUBLIC.name) {
+                    return@withLock Result.failure(
+                        IllegalStateException("Only public characters can be liked.")
+                    )
+                }
+
+                val desiredLiked = !before.likedByMe
+                val optimisticCount = (before.likeCount + if (desiredLiked) 1 else -1)
+                    .coerceAtLeast(0)
+
+                try {
+                    characterDao.updateLikeState(characterId, desiredLiked, optimisticCount)
+                    val response = if (desiredLiked) {
+                        characterApi.likeCharacter(characterId)
+                    } else {
+                        characterApi.unlikeCharacter(characterId)
+                    }
+                    characterDao.updateLikeState(
+                        characterId = characterId,
+                        likedByMe = response.likedByMe,
+                        likeCount = response.likeCount.coerceAtLeast(0)
+                    )
+                    Result.success(Unit)
+                } catch (error: CancellationException) {
+                    withContext(NonCancellable) {
+                        rollbackLikeMutation(characterId, desiredLiked, before.likedByMe, before.likeCount)
+                    }
+                    throw error
+                } catch (error: Throwable) {
+                    rollbackLikeMutation(characterId, desiredLiked, before.likedByMe, before.likeCount)
+                    Result.failure(error)
+                }
+            }
+        }.await()
+    }
+
+    private suspend fun rollbackLikeMutation(
+        characterId: String,
+        optimisticLiked: Boolean,
+        originalLiked: Boolean,
+        originalLikeCount: Int
+    ) {
+        val current = characterDao.getById(characterId)
+        if (current?.likedByMe == optimisticLiked) {
+            characterDao.updateLikeState(
+                characterId = characterId,
+                likedByMe = originalLiked,
+                likeCount = originalLikeCount.coerceAtLeast(0)
             )
         }
     }
+
+    private fun characterMutex(characterId: String): Mutex =
+        characterMutationMutexes.computeIfAbsent(characterId) { Mutex() }
 
     suspend fun generatePortrait(seedSource: String): Result<String> {
         if (seedSource.isBlank()) return Result.failure(IllegalArgumentException("Add a name or prompt first."))

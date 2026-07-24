@@ -19,7 +19,8 @@ function authorUsername(record: CharacterRecord): string {
     || "creator";
 }
 
-export function toCharacterDto(record: CharacterRecord) {
+export function toCharacterDto(record: CharacterRecord, viewerUserId?: string) {
+  const canViewDefinition = record.definition_private !== 1 || record.owner_user_id === viewerUserId;
   return {
     id: record.id,
     ownerUserId: record.owner_user_id,
@@ -28,7 +29,7 @@ export function toCharacterDto(record: CharacterRecord) {
     tagline: record.tagline,
     greeting: record.greeting,
     description: record.description,
-    systemPrompt: record.system_prompt,
+    systemPrompt: canViewDefinition ? record.system_prompt : "",
     definitionPrivate: record.definition_private === 1,
     visibility: record.visibility,
     avatarUrl: record.avatar_url,
@@ -38,5 +39,12 @@ export function toCharacterDto(record: CharacterRecord) {
     lastActiveAt: record.last_active_at,
     createdAt: record.created_at,
     updatedAt: record.updated_at
+  };
+}
+
+export function toPublicCharacterDto(record: CharacterRecord) {
+  return {
+    ...toCharacterDto(record),
+    systemPrompt: ""
   };
 }

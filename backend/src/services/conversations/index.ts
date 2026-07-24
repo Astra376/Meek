@@ -142,7 +142,7 @@ export async function getConversationDetail(context: RequestContext, conversatio
     id: conversation.id,
     ownerUserId: conversation.owner_user_id,
     conversationVersion: conversation.version,
-    character: toCharacterDto(character),
+    character: toCharacterDto(character, context.user!.userId),
     messages: messages.map((message) => ({
       id: message.id,
       conversationId: message.conversation_id,

@@ -201,7 +201,8 @@ data class GenerateGreetingResponseDto(
 
 @Serializable
 data class GenerateChatBackgroundRequestDto(
-    val prompt: String
+    val prompt: String,
+    val requestKey: String? = null
 )
 
 @Serializable

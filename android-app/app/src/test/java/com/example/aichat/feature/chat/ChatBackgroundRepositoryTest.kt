@@ -62,6 +62,8 @@ class ChatBackgroundRepositoryTest {
         assertThat(imageApi.backgroundRequests.single().prompt).contains("Astra")
         assertThat(character?.initialSceneUrl).isEqualTo("https://assets.example/scene.jpg")
         assertThat(character?.initialSceneKey).isNotEmpty()
+        assertThat(imageApi.backgroundRequests.single().requestKey)
+            .isEqualTo(character?.initialSceneKey)
         assertThat(scene?.imageUrl).isEqualTo("https://assets.example/scene.jpg")
         assertThat(scene?.sceneKey).isEqualTo(character?.initialSceneKey)
     }
@@ -91,6 +93,7 @@ class ChatBackgroundRepositoryTest {
         val result = repository.ensureInitialBackground(CONVERSATION_ID)
 
         assertThat(result.isFailure).isTrue()
+        assertThat(imageApi.backgroundRequests).hasSize(2)
         assertThat(database.conversationSceneDao().getByConversation(CONVERSATION_ID)).isNull()
         assertThat(database.characterDao().getById(CHARACTER_ID)?.initialSceneUrl).isNull()
     }

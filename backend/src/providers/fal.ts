@@ -28,9 +28,9 @@ interface FalErrorDetails {
 const FAL_QUEUE_ORIGIN = "https://queue.fal.run";
 const FAL_STATUS_ATTEMPTS = 40;
 const FAL_STATUS_POLL_INTERVAL_MS = 2_500;
-const FAL_FETCH_BUDGET = 44;
-const FAL_RESULT_FETCH_RESERVE = 2;
-const FAL_GET_ATTEMPTS = 2;
+const FAL_FETCH_BUDGET = 48;
+const FAL_RESULT_FETCH_RESERVE = 4;
+const FAL_GET_ATTEMPTS = 4;
 const FAL_RETRYABLE_STATUSES = new Set([408, 429, 500, 502, 503, 504]);
 const FAL_MODEL_PATTERN = /^[a-zA-Z0-9._-]+(?:\/[a-zA-Z0-9._-]+)+$/;
 

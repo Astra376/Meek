@@ -59,6 +59,7 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
@@ -667,9 +668,9 @@ internal fun ChatScreenContent(
                             showJumpToLatest = showJumpToLatest,
                             contentPadding = PaddingValues(
                                 start = AppChrome.screenHorizontalPadding,
-                                top = innerPadding.calculateTopPadding() + AppChrome.compactHeaderVerticalPadding,
+                                top = innerPadding.calculateTopPadding() + 2.dp,
                                 end = AppChrome.screenHorizontalPadding,
-                                bottom = AppChrome.gridSpacing
+                                bottom = 4.dp
                             ),
                             onJumpToLatest = {
                                 followLatest = true
@@ -910,6 +911,29 @@ internal fun ChatTranscriptPane(
             )
         }
 
+        val edgeColor = MaterialTheme.colorScheme.background
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .fillMaxWidth()
+                .height(18.dp)
+                .background(
+                    Brush.verticalGradient(
+                        listOf(edgeColor.copy(alpha = 0.92f), Color.Transparent)
+                    )
+                )
+        )
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .height(18.dp)
+                .background(
+                    Brush.verticalGradient(
+                        listOf(Color.Transparent, edgeColor.copy(alpha = 0.92f))
+                    )
+                )
+        )
     }
 }
 
@@ -954,58 +978,72 @@ private fun ChatComposerBar(
     onContinue: () -> Unit,
     onStop: () -> Unit
 ) {
-    Row(
+    val background = MaterialTheme.colorScheme.background
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .imePadding()
-            .padding(
-                horizontal = AppChrome.screenHorizontalPadding,
-                vertical = AppChrome.screenTopPadding
-            ),
-        horizontalArrangement = Arrangement.spacedBy(AppChrome.compactControlGap),
-        verticalAlignment = Alignment.Bottom
     ) {
-        AppTextField(
-            value = composerText,
-            onValueChange = onComposerChanged,
-            placeholder = "Message...",
+        Row(
             modifier = Modifier
-                .weight(1f)
-                .heightIn(min = CHAT_COMPOSER_INITIAL_HEIGHT, max = 160.dp),
-            minLines = 1,
-            maxLines = 6,
-            shape = RoundedCornerShape(24.dp),
-            containerMinHeight = CHAT_COMPOSER_INITIAL_HEIGHT
-        )
-        val canSend = composerText.isNotBlank()
-        val useContinue = !isStreaming && !isStopping && !canSend && canContinue
-        IconCircleButton(
-            containerSize = CHAT_COMPOSER_INITIAL_HEIGHT,
-            selected = isStreaming || isStopping || canSend || useContinue,
-            enabled = !isStopping && (isStreaming || canSend || useContinue),
-            onClick = when {
-                isStreaming -> onStop
-                canSend -> onSend
-                else -> onContinue
-            }
-        ) {
-            Crossfade(
-                targetState = when {
-                    isStreaming || isStopping -> AppIcons.stop
-                    useContinue -> AppIcons.forward
-                    else -> AppIcons.send
-                },
-                label = "chat-send-icon"
-            ) { icon ->
-                AppIcon(
-                    icon,
-                    contentDescription = when {
-                        isStreaming -> "Stop response"
-                        isStopping -> "Stopping response"
-                        useContinue -> "Continue"
-                        else -> "Send"
-                    }
+                .fillMaxWidth()
+                .shadow(
+                    elevation = 7.dp,
+                    shape = RectangleShape,
+                    clip = false,
+                    ambientColor = Color.Black.copy(alpha = 0.11f),
+                    spotColor = Color.Black.copy(alpha = 0.16f)
                 )
+                .background(background.copy(alpha = 0.96f))
+                .padding(
+                    horizontal = AppChrome.screenHorizontalPadding,
+                    vertical = 8.dp
+                ),
+            horizontalArrangement = Arrangement.spacedBy(AppChrome.compactControlGap),
+            verticalAlignment = Alignment.Bottom
+        ) {
+            AppTextField(
+                value = composerText,
+                onValueChange = onComposerChanged,
+                placeholder = "Message...",
+                modifier = Modifier
+                    .weight(1f)
+                    .heightIn(min = CHAT_COMPOSER_INITIAL_HEIGHT, max = 160.dp),
+                minLines = 1,
+                maxLines = 6,
+                shape = RoundedCornerShape(24.dp),
+                containerMinHeight = CHAT_COMPOSER_INITIAL_HEIGHT
+            )
+            val canSend = composerText.isNotBlank()
+            val useContinue = !isStreaming && !isStopping && !canSend && canContinue
+            IconCircleButton(
+                containerSize = CHAT_COMPOSER_INITIAL_HEIGHT,
+                selected = false,
+                enabled = !isStopping && (isStreaming || canSend || useContinue),
+                onClick = when {
+                    isStreaming -> onStop
+                    canSend -> onSend
+                    else -> onContinue
+                }
+            ) {
+                Crossfade(
+                    targetState = when {
+                        isStreaming || isStopping -> AppIcons.stop
+                        useContinue -> AppIcons.forward
+                        else -> AppIcons.send
+                    },
+                    label = "chat-send-icon"
+                ) { icon ->
+                    AppIcon(
+                        icon,
+                        contentDescription = when {
+                            isStreaming -> "Stop response"
+                            isStopping -> "Stopping response"
+                            useContinue -> "Continue"
+                            else -> "Send"
+                        }
+                    )
+                }
             }
         }
     }
@@ -1024,6 +1062,13 @@ private fun ChatHeader(
     Box(
         modifier = Modifier
             .fillMaxWidth()
+            .shadow(
+                elevation = 7.dp,
+                shape = RectangleShape,
+                clip = false,
+                ambientColor = Color.Black.copy(alpha = 0.11f),
+                spotColor = Color.Black.copy(alpha = 0.16f)
+            )
             .background(background)
     ) {
         Column {
@@ -1080,7 +1125,7 @@ private fun ChatHeader(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(18.dp)
+                    .height(14.dp)
                     .background(
                         brush = Brush.verticalGradient(
                             listOf(background, background.copy(alpha = 0f))
@@ -1337,7 +1382,9 @@ private fun MessageVariantPage(
                 CircleAvatar(
                     name = avatarName,
                     avatarUrl = avatarUrl,
-                    modifier = Modifier.size(30.dp)
+                    modifier = Modifier
+                        .size(30.dp)
+                        .shadow(2.dp, RoundedCornerShape(999.dp), clip = false)
                 )
                 Spacer(modifier = Modifier.size(8.dp))
             }
@@ -1355,7 +1402,9 @@ private fun MessageVariantPage(
                 CircleAvatar(
                     name = avatarName,
                     avatarUrl = avatarUrl,
-                    modifier = Modifier.size(30.dp)
+                    modifier = Modifier
+                        .size(30.dp)
+                        .shadow(2.dp, RoundedCornerShape(999.dp), clip = false)
                 )
             }
         }
@@ -1367,19 +1416,36 @@ private fun MessageVariantPage(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 IconCircleButton(
+                    modifier = Modifier.shadow(
+                        2.dp,
+                        RoundedCornerShape(999.dp),
+                        clip = false
+                    ),
                     containerSize = 36.dp,
                     enabled = variantControlsEnabled && pageIndex > 0,
                     onClick = onPrevious
                 ) {
                     AppIcon(AppIcons.previous, contentDescription = "Previous variant", size = 20.dp)
                 }
-                Text(
-                    text = "Variant ${pageIndex + 1}/$pageCount",
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Medium,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
+                Surface(
+                    shape = RoundedCornerShape(999.dp),
+                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
+                    shadowElevation = 2.dp
+                ) {
+                    Text(
+                        text = "Variant ${pageIndex + 1}/$pageCount",
+                        modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp),
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
                 IconCircleButton(
+                    modifier = Modifier.shadow(
+                        2.dp,
+                        RoundedCornerShape(999.dp),
+                        clip = false
+                    ),
                     containerSize = 36.dp,
                     enabled = variantControlsEnabled,
                     onClick = onNext
@@ -1403,13 +1469,13 @@ private fun MessageSurfaceContent(
     Surface(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(24.dp))
             .combinedClickable(
                 onClick = {},
                 onLongClick = onLongPress
             ),
         shape = RoundedCornerShape(24.dp),
-        color = bubbleColor
+        color = bubbleColor,
+        shadowElevation = 2.dp
     ) {
         Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
             if (showTypingIndicator) {
@@ -1443,13 +1509,16 @@ private fun DraftBubble(
             CircleAvatar(
                 name = characterName,
                 avatarUrl = characterAvatarUrl,
-                modifier = Modifier.size(30.dp)
+                modifier = Modifier
+                    .size(30.dp)
+                    .shadow(2.dp, RoundedCornerShape(999.dp), clip = false)
             )
             Spacer(modifier = Modifier.size(8.dp))
             Surface(
                 modifier = Modifier.weight(1f),
                 shape = RoundedCornerShape(24.dp),
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.96f).compositeOver(background)
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.96f).compositeOver(background),
+                shadowElevation = 2.dp
             ) {
                 Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
                     if (showTypingIndicator) {

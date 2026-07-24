@@ -56,4 +56,32 @@ describe("storeRemoteImageInR2", () => {
     });
     expect(put).not.toHaveBeenCalled();
   });
+
+  it("retries a temporarily unavailable generated image before storing it", async () => {
+    const put = vi.fn(async () => ({} as R2Object));
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response("not ready", { status: 503 }))
+      .mockResolvedValueOnce(new Response(
+        new Uint8Array([4, 5, 6]),
+        { headers: { "Content-Type": "image/jpeg" } }
+      ));
+    vi.stubGlobal("fetch", fetchMock);
+    vi.spyOn(globalThis, "setTimeout").mockImplementation(((callback: () => void) => {
+      callback();
+      return 0;
+    }) as typeof setTimeout);
+    const env = {
+      ASSETS: { put },
+      R2_PUBLIC_BASE_URL: "https://worker.example/v1/assets"
+    } as unknown as Env;
+
+    await storeRemoteImageInR2(
+      env,
+      "chat-backgrounds/user_1/background_2.jpg",
+      "https://v3.fal.media/generated.jpg"
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(put).toHaveBeenCalledOnce();
+  });
 });

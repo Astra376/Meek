@@ -239,7 +239,9 @@ class CharacterRepository @Inject constructor(
 
     private suspend fun generateInitialScene(character: com.example.aichat.core.db.CharacterEntity) {
         val scene = ChatScenePromptBuilder.initialScene(character)
-        val imageUrl = imageApi.generateChatBackground(GenerateChatBackgroundRequestDto(scene.prompt)).imageUrl
+        val imageUrl = imageApi.generateChatBackground(
+            GenerateChatBackgroundRequestDto(scene.prompt, scene.key)
+        ).imageUrl
         characterDao.upsert(
             character.copy(
                 initialSceneUrl = imageUrl,

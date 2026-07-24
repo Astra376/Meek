@@ -69,9 +69,7 @@ class ChatBackgroundRepository @Inject constructor(
                 // temporary network/provider failure must not make the chat
                 // permanently lose its last persisted background.
                 val replacementScene = ChatScenePromptBuilder.initialScene(character)
-                val replacementUrl = imageApi.generateChatBackground(
-                    GenerateChatBackgroundRequestDto(replacementScene.prompt)
-                ).imageUrl.trim()
+                val replacementUrl = generateBackground(replacementScene)
                 require(replacementUrl.isNotEmpty()) { "Image generation returned an empty URL." }
                 database.withTransaction {
                     val currentCharacter = database.characterDao().getById(character.id)
@@ -123,9 +121,7 @@ class ChatBackgroundRepository @Inject constructor(
                 val scene = ChatScenePromptBuilder.changedScene(character, messages) ?: return@withLock
                 if (scene.key == existingScene?.sceneKey || scene.key == character.initialSceneKey) return@withLock
 
-                val imageUrl = imageApi.generateChatBackground(
-                    GenerateChatBackgroundRequestDto(scene.prompt)
-                ).imageUrl
+                val imageUrl = generateBackground(scene)
                 sceneDao.upsert(
                     ConversationSceneEntity(
                         conversationId = conversationId,
@@ -164,10 +160,7 @@ class ChatBackgroundRepository @Inject constructor(
         }
 
         val scene = ChatScenePromptBuilder.initialScene(character)
-        val imageUrl = imageApi.generateChatBackground(
-            GenerateChatBackgroundRequestDto(scene.prompt)
-        ).imageUrl.trim()
-        require(imageUrl.isNotEmpty()) { "Image generation returned an empty URL." }
+        val imageUrl = generateBackground(scene)
         database.withTransaction {
             database.characterDao().upsert(
                 character.copy(
@@ -185,5 +178,26 @@ class ChatBackgroundRepository @Inject constructor(
                 )
             )
         }
+    }
+
+    private suspend fun generateBackground(scene: ScenePrompt): String {
+        var lastError: Throwable? = null
+        repeat(2) { attempt ->
+            try {
+                val imageUrl = imageApi.generateChatBackground(
+                    GenerateChatBackgroundRequestDto(scene.prompt, scene.key)
+                ).imageUrl.trim()
+                require(imageUrl.isNotEmpty()) { "Image generation returned an empty URL." }
+                return imageUrl
+            } catch (error: kotlinx.coroutines.CancellationException) {
+                throw error
+            } catch (error: Throwable) {
+                lastError = error
+                if (attempt == 0) {
+                    kotlinx.coroutines.delay(750L)
+                }
+            }
+        }
+        throw checkNotNull(lastError)
     }
 }

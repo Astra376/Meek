@@ -26,6 +26,7 @@ import {
   composeCharacterSystemPrompt,
   scheduleCharacterMemoryConsolidation
 } from "./memory";
+import { formatRoleplayMessage } from "./formatRoleplay";
 
 // Keep the server-side lease beyond the Android client's 180-second read
 // timeout so a slow, still-running provider request cannot be claimed twice.
@@ -321,17 +322,36 @@ async function finishConversationStream(
   conversationId: string,
   runId: string,
   unlinkRequestAbort: () => void,
-  controller: ReadableStreamDefaultController<Uint8Array>
+  controller: ReadableStreamDefaultController<Uint8Array>,
+  leaseAlreadyReleased = false
 ): Promise<void> {
   unlinkRequestAbort();
   try {
-    await releaseConversationRun(context.env, conversationId, runId);
+    if (!leaseAlreadyReleased) {
+      await releaseConversationRun(context.env, conversationId, runId);
+    }
   } catch (error) {
     // A lease expiry remains the last-resort recovery path if D1 itself is
     // unavailable. Do not leave the response open or retain abort listeners.
     console.error("Failed to release conversation stream lease.", error);
   } finally {
     safeClose(controller);
+  }
+}
+
+async function releaseConversationRunBeforeTerminal(
+  context: RequestContext,
+  conversationId: string,
+  runId: string
+): Promise<boolean> {
+  try {
+    await releaseConversationRun(context.env, conversationId, runId);
+    return true;
+  } catch (error) {
+    // The final cleanup path retries this release. Logging here keeps a D1
+    // failure observable without suppressing the terminal stream event.
+    console.error("Failed to release conversation stream lease before terminal event.", error);
+    return false;
   }
 }
 
@@ -347,7 +367,7 @@ async function streamAssistantReply(
     onChunk(chunk);
   }
 
-  const finalText = fullText.trim();
+  const finalText = formatRoleplayMessage(fullText);
   if (!finalText) {
     throw new AppError(502, "OPENROUTER_EMPTY", "The model returned an empty response.");
   }
@@ -446,6 +466,7 @@ export async function continueAssistantAndStream(context: RequestContext, conver
   const conversation = await requireOwnedConversation(context, conversationId);
   const runId = await acquireConversationRun(context, conversationId);
   let unlinkRequestAbort = () => {};
+  let leaseReleased = false;
 
   try {
     const { character, transcript, messages } = await buildAssistantContext(context, conversationId);
@@ -517,6 +538,7 @@ export async function continueAssistantAndStream(context: RequestContext, conver
             throw new AppError(500, "CONVERSATION_SYNC_FAILED", "Conversation state could not be finalized.");
           }
 
+          leaseReleased = await releaseConversationRunBeforeTerminal(context, conversationId, runId);
           safeEnqueue(controller, {
             type: "completed_send",
             runId,
@@ -529,7 +551,7 @@ export async function continueAssistantAndStream(context: RequestContext, conver
         } catch (error) {
           if (abortController.signal.aborted && finalizationPhase === "streaming") {
             finalizationPhase = "partial";
-            const stoppedText = partialText.trim();
+            const stoppedText = formatRoleplayMessage(partialText);
             if (stoppedText) {
               const stoppedAt = Date.now();
               await insertMessage(context.env, {
@@ -549,6 +571,7 @@ export async function continueAssistantAndStream(context: RequestContext, conver
             }
             finalizationPhase = "settled";
           } else if (!abortController.signal.aborted) {
+            leaseReleased = await releaseConversationRunBeforeTerminal(context, conversationId, runId);
             safeEnqueue(controller, {
               type: "failed",
               runId,
@@ -556,7 +579,14 @@ export async function continueAssistantAndStream(context: RequestContext, conver
             });
           }
         } finally {
-          await finishConversationStream(context, conversationId, runId, unlinkRequestAbort, controller);
+          await finishConversationStream(
+            context,
+            conversationId,
+            runId,
+            unlinkRequestAbort,
+            controller,
+            leaseReleased
+          );
         }
       },
       cancel(reason) {
@@ -588,6 +618,7 @@ export async function sendMessageAndStream(
   await requireOwnedConversation(context, conversationId);
   const runId = await acquireConversationRun(context, conversationId);
   let unlinkRequestAbort = () => {};
+  let leaseReleased = false;
 
   try {
     const duplicate = await getMessageById(context.env, userMessageId);
@@ -690,6 +721,7 @@ export async function sendMessageAndStream(
             throw new AppError(500, "CONVERSATION_SYNC_FAILED", "Conversation state could not be finalized.");
           }
 
+          leaseReleased = await releaseConversationRunBeforeTerminal(context, conversationId, runId);
           safeEnqueue(controller, {
             type: "completed_send",
             runId,
@@ -702,7 +734,7 @@ export async function sendMessageAndStream(
         } catch (error) {
           if (abortController.signal.aborted && finalizationPhase === "streaming") {
             finalizationPhase = "partial";
-            const stoppedText = partialText.trim();
+            const stoppedText = formatRoleplayMessage(partialText);
             if (stoppedText) {
               const stoppedAt = Date.now();
               await insertMessage(context.env, {
@@ -722,6 +754,7 @@ export async function sendMessageAndStream(
             }
             finalizationPhase = "settled";
           } else if (!abortController.signal.aborted) {
+            leaseReleased = await releaseConversationRunBeforeTerminal(context, conversationId, runId);
             safeEnqueue(controller, {
               type: "failed",
               runId,
@@ -729,7 +762,14 @@ export async function sendMessageAndStream(
             });
           }
         } finally {
-          await finishConversationStream(context, conversationId, runId, unlinkRequestAbort, controller);
+          await finishConversationStream(
+            context,
+            conversationId,
+            runId,
+            unlinkRequestAbort,
+            controller,
+            leaseReleased
+          );
         }
       },
       cancel(reason) {
@@ -763,6 +803,7 @@ export async function regenerateLatestAssistantAndStream(
   await requireOwnedConversation(context, message.conversation_id);
   const runId = await acquireConversationRun(context, message.conversation_id);
   let unlinkRequestAbort = () => {};
+  let leaseReleased = false;
 
   try {
     const transcript = await loadTranscript(context, message.conversation_id);
@@ -837,6 +878,11 @@ export async function regenerateLatestAssistantAndStream(
             throw new AppError(500, "CONVERSATION_SYNC_FAILED", "Conversation state could not be finalized.");
           }
 
+          leaseReleased = await releaseConversationRunBeforeTerminal(
+            context,
+            message.conversation_id,
+            runId
+          );
           safeEnqueue(controller, {
             type: "completed_regenerate",
             runId,
@@ -860,7 +906,7 @@ export async function regenerateLatestAssistantAndStream(
         } catch (error) {
           if (abortController.signal.aborted && finalizationPhase === "streaming") {
             finalizationPhase = "partial";
-            const stoppedText = partialText.trim();
+            const stoppedText = formatRoleplayMessage(partialText);
             if (stoppedText) {
               const stoppedAt = Date.now();
               await insertRegeneration(context.env, {
@@ -883,6 +929,11 @@ export async function regenerateLatestAssistantAndStream(
             }
             finalizationPhase = "settled";
           } else if (!abortController.signal.aborted) {
+            leaseReleased = await releaseConversationRunBeforeTerminal(
+              context,
+              message.conversation_id,
+              runId
+            );
             safeEnqueue(controller, {
               type: "failed",
               runId,
@@ -895,7 +946,8 @@ export async function regenerateLatestAssistantAndStream(
             message.conversation_id,
             runId,
             unlinkRequestAbort,
-            controller
+            controller,
+            leaseReleased
           );
         }
       },

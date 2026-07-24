@@ -3,6 +3,7 @@ import { createId } from "../../lib/ids";
 import { streamChatText } from "../../providers/openrouter";
 import { getConversationById, insertMessage, updateConversationActivity } from "../../db/queries/conversations";
 import { getCharacterById } from "../../db/queries/characters";
+import { formatRoleplayMessage } from "./formatRoleplay";
 
 // Run thresholds (in milliseconds)
 const THRESHOLDS = [
@@ -82,7 +83,8 @@ export async function processOfflineMessages(env: Env) {
       continue;
     }
 
-    if (!fullText.trim()) continue;
+    const formattedText = formatRoleplayMessage(fullText);
+    if (!formattedText) continue;
 
     // Insert Message
     const assistantMessageId = createId("message");
@@ -92,7 +94,7 @@ export async function processOfflineMessages(env: Env) {
       conversation_id: conv.id,
       position: newPosition,
       role: "assistant",
-      content: fullText.trim(),
+      content: formattedText,
       edited: 0,
       created_at: now,
       updated_at: now,
@@ -123,7 +125,7 @@ export async function processOfflineMessages(env: Env) {
       }
 
       if (shouldSendEmail) {
-        console.log(`[EMAIL DISPATCH] To: ${conv.email}. Subject: ${character.name} sent you a message! Body: "${fullText.trim().slice(0, 50)}..."`);
+        console.log(`[EMAIL DISPATCH] To: ${conv.email}. Subject: ${character.name} sent you a message! Body: "${formattedText.slice(0, 50)}..."`);
         await env.DB.prepare(`UPDATE users SET last_email_sent_at = ? WHERE id = ?`).bind(now, conv.owner_user_id).run();
       }
     }

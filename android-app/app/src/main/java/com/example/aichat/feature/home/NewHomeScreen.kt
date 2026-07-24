@@ -88,6 +88,19 @@ data class NewHomeUiState(
     val errorMessage: String? = null
 )
 
+internal fun mostRecentChatPerCharacter(
+    chats: List<ConversationSummary>
+): List<ConversationSummary> = chats
+    .groupBy(ConversationSummary::characterId)
+    .values
+    .mapNotNull { characterChats ->
+        characterChats.maxWithOrNull(
+            compareBy<ConversationSummary> { it.updatedAt }
+                .thenBy { it.startedAt }
+                .thenBy { it.id }
+        )
+    }
+
 @HiltViewModel
 class NewHomeViewModel @Inject constructor(
     private val authRepository: AuthRepository,
@@ -104,8 +117,9 @@ class NewHomeViewModel @Inject constructor(
         val userId = authRepository.sessionState.value.profile?.userId.orEmpty()
         viewModelScope.launch {
             conversationRepository.observeConversations(userId).collect { chats ->
-                val unreadCount = chats.sumOf { it.unreadCount }
-                val sortedChats = chats.sortedWith(
+                val latestChats = mostRecentChatPerCharacter(chats)
+                val unreadCount = latestChats.sumOf { it.unreadCount }
+                val sortedChats = latestChats.sortedWith(
                     compareByDescending<ConversationSummary> { it.unreadCount > 0 }
                         .thenByDescending { it.hasUnreadBadge }
                         .thenByDescending { it.updatedAt }

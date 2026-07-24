@@ -1,5 +1,7 @@
 package com.example.aichat.feature.character
 
+import android.content.Context
+import android.content.Intent
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -12,17 +14,21 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -41,6 +47,8 @@ import com.example.aichat.core.ui.AppBackButton
 import com.example.aichat.core.ui.AppChrome
 import com.example.aichat.core.ui.CharacterCountBadge
 import com.example.aichat.core.ui.ExpandableText
+import com.example.aichat.core.ui.ScreenBackgroundBox
+import com.example.aichat.feature.chatlist.ConversationRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -50,6 +58,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
 data class CharacterProfileUiState(
@@ -60,11 +70,13 @@ data class CharacterProfileUiState(
 @HiltViewModel
 class CharacterProfileViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
-    private val characterRepository: CharacterRepository
+    private val characterRepository: CharacterRepository,
+    private val conversationRepository: ConversationRepository
 ) : ViewModel() {
     private val characterId: String = checkNotNull(savedStateHandle["characterId"])
     private val isLoading = MutableStateFlow(true)
     private val _events = MutableSharedFlow<String>()
+    private var openChatJob: Job? = null
     val events = _events.asSharedFlow()
 
     val uiState: StateFlow<CharacterProfileUiState> = combine(
@@ -104,32 +116,69 @@ class CharacterProfileViewModel @Inject constructor(
                 .onFailure { _events.emit(it.userFacingMessage("Couldn't update like.")) }
         }
     }
+
+    fun openChat(ownerUserId: String, onReady: (String) -> Unit) {
+        if (ownerUserId.isBlank()) {
+            viewModelScope.launch {
+                _events.emit("Couldn't open chat. Your profile is still loading.")
+            }
+            return
+        }
+        if (openChatJob?.isActive == true) return
+
+        lateinit var job: Job
+        job = viewModelScope.launch(start = CoroutineStart.LAZY) {
+            try {
+                conversationRepository.ensureConversation(ownerUserId, characterId)
+                    .onSuccess(onReady)
+                    .onFailure { _events.emit(it.userFacingMessage("Couldn't open chat.")) }
+            } finally {
+                if (openChatJob === job) {
+                    openChatJob = null
+                }
+            }
+        }
+        openChatJob = job
+        job.start()
+    }
 }
 
 @Composable
 fun CharacterProfileRoute(
+    ownerUserId: String,
     onBack: () -> Unit,
-    onShare: (CharacterSummary) -> Unit,
-    onChat: (String) -> Unit,
+    onOpenConversation: (String) -> Unit,
     onOpenCreator: (String) -> Unit,
-    onError: (String) -> Unit,
+    onShare: ((CharacterSummary) -> Unit)? = null,
+    onError: ((String) -> Unit)? = null,
     viewModel: CharacterProfileViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val snackbarHostState = remember { SnackbarHostState() }
+    val context = LocalContext.current
+    val shareCharacter = onShare ?: context::shareCharacter
 
-    LaunchedEffect(viewModel) {
-        viewModel.events.collect(onError)
+    LaunchedEffect(viewModel, onError) {
+        viewModel.events.collect { message ->
+            if (onError != null) {
+                onError(message)
+            } else {
+                snackbarHostState.showSnackbar(message)
+            }
+        }
     }
 
-    CharacterProfileContent(
-        state = state,
-        onBack = onBack,
-        onShare = onShare,
-        onChat = onChat,
-        onOpenCreator = onOpenCreator,
-        onToggleLike = viewModel::toggleLike,
-        onRetry = viewModel::refresh
-    )
+    ScreenBackgroundBox(snackbarHostState = snackbarHostState.takeIf { onError == null }) {
+        CharacterProfileContent(
+            state = state,
+            onBack = onBack,
+            onShare = shareCharacter,
+            onChat = { viewModel.openChat(ownerUserId, onOpenConversation) },
+            onOpenCreator = onOpenCreator,
+            onToggleLike = viewModel::toggleLike,
+            onRetry = viewModel::refresh
+        )
+    }
 }
 
 @Composable
@@ -146,6 +195,7 @@ internal fun CharacterProfileContent(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .statusBarsPadding()
             .navigationBarsPadding()
             .verticalScroll(rememberScrollState())
             .padding(
@@ -205,6 +255,18 @@ internal fun CharacterProfileContent(
             }
         }
     }
+}
+
+private fun Context.shareCharacter(character: CharacterSummary) {
+    val author = character.authorUsername.ifBlank { "creator" }
+    val intent = Intent(Intent.ACTION_SEND).apply {
+        type = "text/plain"
+        putExtra(
+            Intent.EXTRA_TEXT,
+            "Check out ${character.name} by @$author on Meek."
+        )
+    }
+    startActivity(Intent.createChooser(intent, "Share character"))
 }
 
 @Composable

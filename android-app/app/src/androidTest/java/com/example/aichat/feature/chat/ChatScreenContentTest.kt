@@ -4,12 +4,12 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.performTouchInput
-import androidx.compose.ui.test.swipeDown
+import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.foundation.layout.PaddingValues
 import com.example.aichat.core.design.AppTheme
 import com.example.aichat.core.model.CharacterSummary
@@ -75,8 +75,9 @@ class ChatScreenContentTest {
         }
 
         composeRule.onNodeWithText("Message 29").assertIsDisplayed()
-        composeRule.onNodeWithTag("chat-transcript").performTouchInput { swipeDown() }
-        composeRule.onNodeWithTag("chat-transcript").performTouchInput { swipeDown() }
+        composeRule.onNodeWithTag("chat-transcript")
+            .performScrollToNode(hasText("Message 0"))
+        composeRule.onNodeWithText("Message 0").assertIsDisplayed()
         composeRule.runOnIdle {
             chatState.value = chatState.value.copy(
                 activeStream = ActiveAssistantStream(

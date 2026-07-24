@@ -24,7 +24,9 @@ class CreatorProfileRepository @Inject constructor(
             bio = profile.bio,
             createdAt = profile.createdAt,
             updatedAt = profile.updatedAt,
-            characterCount = profile.characterCount
+            characterCount = profile.characterCount,
+            interactionCount = profile.interactionCount,
+            likeCount = profile.likeCount
         )
     }
 

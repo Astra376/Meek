@@ -1,13 +1,13 @@
 package com.example.aichat.feature.chat
 
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.interaction.DragInteraction
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -33,8 +33,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.foundation.relocation.BringIntoViewRequester
-import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -158,7 +156,6 @@ class ChatViewModel @Inject constructor(
     private val loadedMessageLimit = MutableStateFlow(CHAT_MESSAGE_PAGE_SIZE)
     private val _events = MutableSharedFlow<String>()
     private var activeStreamJob: Job? = null
-    private var openCharacterChatJob: Job? = null
     val events = _events.asSharedFlow()
 
     init {
@@ -323,38 +320,6 @@ class ChatViewModel @Inject constructor(
         }
     }
 
-    fun openCharacterChat(characterId: String, onReady: (String) -> Unit) {
-        val conversation = uiState.value.conversation ?: return
-        if (characterId == conversation.character.id) return
-        if (characterId.isBlank() || conversation.ownerUserId.isBlank()) {
-            viewModelScope.launch {
-                _events.emit("Couldn't open this character. Refresh the profile and try again.")
-            }
-            return
-        }
-        if (openCharacterChatJob?.isActive == true) return
-
-        lateinit var job: Job
-        job = viewModelScope.launch(start = CoroutineStart.LAZY) {
-            try {
-                conversationRepository.ensureConversation(
-                    ownerUserId = conversation.ownerUserId,
-                    characterId = characterId
-                )
-                    .onSuccess(onReady)
-                    .onFailure {
-                        _events.emit(it.userFacingMessage("Couldn't open this character's chat."))
-                    }
-            } finally {
-                if (openCharacterChatJob === job) {
-                    openCharacterChatJob = null
-                }
-            }
-        }
-        openCharacterChatJob = job
-        job.start()
-    }
-
     private fun launchStreamingAction(block: suspend () -> Unit) {
         if (activeStreamJob?.isActive == true || uiState.value.isStreamBusy) return
         lateinit var job: Job
@@ -392,7 +357,8 @@ fun ChatRoute(
     onBack: () -> Unit,
     onOpenMemory: () -> Unit,
     onStartNewChat: (String) -> Unit = {},
-    onOpenConversation: (String) -> Unit = {},
+    onOpenCharacterProfile: (String) -> Unit = {},
+    onOpenCreatorProfile: (String) -> Unit = {},
     viewModel: ChatViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -400,7 +366,9 @@ fun ChatRoute(
     var actionMessage by remember { mutableStateOf<ChatMessage?>(null) }
     var editTarget by remember { mutableStateOf<ChatMessage?>(null) }
     var editText by rememberSaveable { mutableStateOf("") }
-    val messages = state.conversation?.messages.orEmpty()
+    val messages = remember(state.conversation?.messages) {
+        state.conversation?.messages.orEmpty().sortedForReverseLayout()
+    }
 
     LaunchedEffect(Unit) {
         viewModel.events.collect { snackbarHostState.showSnackbar(it) }
@@ -425,9 +393,8 @@ fun ChatRoute(
         onStop = viewModel::stopStreaming,
         onRefreshChat = viewModel::refreshChat,
         onStartNewChat = { viewModel.startNewChat(onStartNewChat) },
-        onChatCharacter = { characterId ->
-            viewModel.openCharacterChat(characterId, onOpenConversation)
-        },
+        onOpenCharacterProfile = onOpenCharacterProfile,
+        onOpenCreatorProfile = onOpenCreatorProfile,
         onLoadOlderMessages = viewModel::loadOlderMessages,
         onMessageLongPress = { actionMessage = it },
         onSelectVariant = { message, index ->
@@ -517,7 +484,8 @@ internal fun ChatScreenContent(
     onStop: () -> Unit = {},
     onRefreshChat: () -> Unit = {},
     onStartNewChat: () -> Unit = {},
-    onChatCharacter: (String) -> Unit = {},
+    onOpenCharacterProfile: (String) -> Unit = {},
+    onOpenCreatorProfile: (String) -> Unit = {},
     onLoadOlderMessages: () -> Unit,
     onMessageLongPress: (ChatMessage) -> Unit,
     onSelectVariant: (ChatMessage, Int) -> Unit,
@@ -529,9 +497,12 @@ internal fun ChatScreenContent(
     val density = LocalDensity.current
     var followLatest by rememberSaveable { mutableStateOf(true) }
     var autoScrolling by remember { mutableStateOf(false) }
+    var activeUserDrag by remember { mutableStateOf<DragInteraction.Start?>(null) }
     var showCharacterDetails by rememberSaveable { mutableStateOf(false) }
 
-    val messages = state.conversation?.messages.orEmpty()
+    val messages = remember(state.conversation?.messages) {
+        state.conversation?.messages.orEmpty().sortedForReverseLayout()
+    }
     val activeStream = state.activeStream
     val committedSendMessage = activeStream
         ?.takeIf { it.mode != ActiveStreamMode.REGENERATE }
@@ -595,12 +566,38 @@ internal fun ChatScreenContent(
         }
     }
 
-    LaunchedEffect(listState) {
-        snapshotFlow { listState.isScrollInProgress to isNearBottom }.collect { (isScrolling, atBottom) ->
-            when {
-                atBottom && !followLatest -> followLatest = true
-                isScrolling && !autoScrolling && !atBottom && followLatest -> followLatest = false
+    LaunchedEffect(listState.interactionSource) {
+        listState.interactionSource.interactions.collect { interaction ->
+            when (interaction) {
+                is DragInteraction.Start -> {
+                    activeUserDrag = interaction
+                    followLatest = false
+                }
+
+                is DragInteraction.Stop -> {
+                    if (activeUserDrag == interaction.start) activeUserDrag = null
+                }
+
+                is DragInteraction.Cancel -> {
+                    if (activeUserDrag == interaction.start) activeUserDrag = null
+                }
             }
+        }
+    }
+
+    LaunchedEffect(listState) {
+        snapshotFlow {
+            listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset
+        }.collect {
+            if (!autoScrolling && !isNearBottom) {
+                followLatest = false
+            }
+        }
+    }
+
+    LaunchedEffect(isNearBottom, activeUserDrag, autoScrolling) {
+        if (isNearBottom && activeUserDrag == null && !autoScrolling) {
+            followLatest = true
         }
     }
 
@@ -703,7 +700,8 @@ internal fun ChatScreenContent(
             CharacterSubpageHost(
                 characterId = character.id,
                 onDismissRequest = { showCharacterDetails = false },
-                onChatCharacter = onChatCharacter,
+                onViewCharacterProfile = onOpenCharacterProfile,
+                onViewCreatorProfile = onOpenCreatorProfile,
                 onRefreshChat = {
                     onRefreshChat()
                     showCharacterDetails = false
@@ -720,6 +718,22 @@ internal fun ChatScreenContent(
             )
         }
     }
+}
+
+private fun List<ChatMessage>.sortedForReverseLayout(): List<ChatMessage> {
+    return sortedWith(
+        compareBy<ChatMessage> { if (it.sendState == MessageSendState.SENT) 1 else 0 }
+            .thenByDescending {
+                if (it.sendState == MessageSendState.SENT) Long.MIN_VALUE else it.createdAt
+            }
+            .thenByDescending {
+                if (it.sendState == MessageSendState.SENT) Long.MIN_VALUE else it.updatedAt
+            }
+            .thenByDescending {
+                if (it.sendState == MessageSendState.SENT) it.position else Int.MIN_VALUE
+            }
+            .thenByDescending { it.id }
+    )
 }
 
 @Composable
@@ -1188,7 +1202,6 @@ private fun VariantMessagePager(
         pageCount = { pageCount }
     )
     val coroutineScope = rememberCoroutineScope()
-    val bringIntoViewRequester = remember { BringIntoViewRequester() }
     var committedPage by remember(variants.size) {
         mutableStateOf(currentIndex.coerceIn(variants.indices))
     }
@@ -1214,8 +1227,6 @@ private fun VariantMessagePager(
                     }
                 }
                 page in variants.indices -> {
-                    val previousHeight = pageHeights.getOrElse(settledVisualPage) { 0 }
-                    val nextHeight = pageHeights.getOrElse(page) { 0 }
                     val shouldPersistSelection = page != committedPage
                     settledVisualPage = page
                     generationRequested = false
@@ -1223,18 +1234,14 @@ private fun VariantMessagePager(
                         committedPage = page
                         onSelectVariant(page)
                     }
-                    if (nextHeight > previousHeight) {
-                        bringIntoViewRequester.bringIntoView()
-                    }
                 }
             }
         }
     }
 
-    // The visible height is pinned to the settled page so the container only
-    // resizes once a swipe comes to rest (animateContentSize), not while an
-    // adjacent, taller variant is peeking in mid-drag. The pager measures its
-    // pages unbounded so onSizeChanged still reports each page's full height.
+    // Keep the pager pinned to the settled page's measured height. Switching
+    // variants updates the height immediately: no artificial reveal animation
+    // and no forced transcript scrolling when the new reply already fits.
     val density = LocalDensity.current
     val settledHeightPx = pageHeights.getOrElse(settledVisualPage) { 0 }
     val isSettledHeightMeasured = settledHeightPx > 0
@@ -1242,7 +1249,6 @@ private fun VariantMessagePager(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .animateContentSize(animationSpec = tween(durationMillis = 220))
             .then(
                 if (isSettledHeightMeasured) {
                     Modifier.height(with(density) { settledHeightPx.toDp() })
@@ -1251,7 +1257,6 @@ private fun VariantMessagePager(
                 }
             )
             .clipToBounds()
-            .bringIntoViewRequester(bringIntoViewRequester)
     ) {
         HorizontalPager(
             state = pagerState,

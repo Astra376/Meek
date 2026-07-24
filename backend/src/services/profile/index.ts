@@ -33,7 +33,9 @@ export function toPublicProfileDto(profile: PublicProfileRecord) {
     description: null,
     createdAt: profile.created_at,
     updatedAt: profile.updated_at,
-    characterCount: profile.character_count
+    characterCount: profile.character_count,
+    interactionCount: profile.interaction_count,
+    likeCount: profile.like_count
   };
 }
 
@@ -51,7 +53,9 @@ async function findPublicProfile(
     avatar_url: null,
     created_at: stats.created_at,
     updated_at: stats.updated_at,
-    character_count: stats.character_count
+    character_count: stats.character_count,
+    interaction_count: stats.interaction_count,
+    like_count: stats.like_count
   };
 }
 

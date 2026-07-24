@@ -38,6 +38,8 @@ class CaptureStatement {
     if (this.sql.includes("COUNT(*) AS character_count")) {
       return {
         character_count: 2,
+        interaction_count: 120,
+        like_count: 15,
         created_at: 100,
         updated_at: 200
       };
@@ -65,6 +67,8 @@ describe("public creator profile privacy", () => {
       created_at: 1,
       updated_at: 2,
       character_count: 3,
+      interaction_count: 120,
+      like_count: 15,
       email: "private@example.test"
     } as PublicProfileRecord & { email: string };
 
@@ -77,7 +81,9 @@ describe("public creator profile privacy", () => {
       description: null,
       createdAt: 1,
       updatedAt: 2,
-      characterCount: 3
+      characterCount: 3,
+      interactionCount: 120,
+      likeCount: 15
     });
     expect(dto).not.toHaveProperty("email");
   });
@@ -184,7 +190,9 @@ describe("public creator profile privacy", () => {
       description: null,
       createdAt: 100,
       updatedAt: 200,
-      characterCount: 2
+      characterCount: 2,
+      interactionCount: 120,
+      likeCount: 15
     });
   });
 });

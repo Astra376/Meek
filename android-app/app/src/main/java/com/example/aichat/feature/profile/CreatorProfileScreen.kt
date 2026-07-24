@@ -7,15 +7,18 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -36,6 +39,7 @@ import com.example.aichat.core.ui.CharacterSummaryCardPlaceholder
 import com.example.aichat.core.ui.ProfileCountStat
 import com.example.aichat.core.ui.ProfileHeader
 import com.example.aichat.core.ui.ProfileHeaderPlaceholder
+import com.example.aichat.core.ui.ScreenBackgroundBox
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -115,22 +119,31 @@ class CreatorProfileViewModel @Inject constructor(
 fun CreatorProfileRoute(
     onBack: () -> Unit,
     onOpenCharacter: (String) -> Unit,
-    onError: (String) -> Unit,
+    onError: ((String) -> Unit)? = null,
     viewModel: CreatorProfileViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val snackbarHostState = remember { SnackbarHostState() }
 
-    LaunchedEffect(viewModel) {
-        viewModel.events.collect(onError)
+    LaunchedEffect(viewModel, onError) {
+        viewModel.events.collect { message ->
+            if (onError != null) {
+                onError(message)
+            } else {
+                snackbarHostState.showSnackbar(message)
+            }
+        }
     }
 
-    CreatorProfileContent(
-        state = state,
-        onBack = onBack,
-        onOpenCharacter = onOpenCharacter,
-        onLoadMore = viewModel::loadMore,
-        onRetry = viewModel::refresh
-    )
+    ScreenBackgroundBox(snackbarHostState = snackbarHostState.takeIf { onError == null }) {
+        CreatorProfileContent(
+            state = state,
+            onBack = onBack,
+            onOpenCharacter = onOpenCharacter,
+            onLoadMore = viewModel::loadMore,
+            onRetry = viewModel::refresh
+        )
+    }
 }
 
 @Composable
@@ -145,6 +158,7 @@ internal fun CreatorProfileContent(
         columns = GridCells.Fixed(2),
         modifier = Modifier
             .fillMaxSize()
+            .statusBarsPadding()
             .navigationBarsPadding(),
         contentPadding = PaddingValues(
             start = AppChrome.screenHorizontalPadding,
@@ -177,7 +191,9 @@ internal fun CreatorProfileContent(
                     name = profile.displayName,
                     avatarUrl = profile.avatarUrl,
                     stats = listOf(
-                        ProfileCountStat(profile.characterCount, "characters")
+                        ProfileCountStat(profile.characterCount, "characters"),
+                        ProfileCountStat(profile.interactionCount, "interactions"),
+                        ProfileCountStat(profile.likeCount, "likes")
                     )
                 )
             } else if (state.isLoading) {

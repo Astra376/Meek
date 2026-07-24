@@ -45,7 +45,9 @@ data class PublicProfileDto(
     @SerialName("description") val bio: String? = null,
     val createdAt: Long,
     val updatedAt: Long,
-    val characterCount: Int
+    val characterCount: Int,
+    val interactionCount: Int,
+    val likeCount: Int
 )
 
 @Serializable

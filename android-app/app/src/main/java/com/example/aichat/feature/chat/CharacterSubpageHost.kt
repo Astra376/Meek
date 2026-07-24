@@ -3,7 +3,6 @@ package com.example.aichat.feature.chat
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -35,7 +34,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
-import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.example.aichat.core.design.AppIcon
@@ -50,76 +48,48 @@ import com.example.aichat.core.ui.AppChrome
 import com.example.aichat.core.ui.CharacterCountBadge
 import com.example.aichat.core.ui.ProfileDateStat
 import com.example.aichat.core.util.formatRelativeTimeAgo
-import com.example.aichat.feature.character.CharacterProfileRoute
 import com.example.aichat.feature.character.CharacterProfileUiState
 import com.example.aichat.feature.character.CharacterProfileViewModel
-import com.example.aichat.feature.profile.CreatorProfileRoute
 
 private const val CharacterIdArgument = "characterId"
-private const val UserIdArgument = "userId"
 private const val DetailsRoute = "details/{$CharacterIdArgument}"
-private const val CharacterProfileRoutePattern = "character/{$CharacterIdArgument}"
-private const val CreatorProfileRoutePattern = "creator/{$UserIdArgument}"
 
 @Composable
 fun CharacterSubpageHost(
     characterId: String,
     onDismissRequest: () -> Unit,
-    onChatCharacter: (String) -> Unit,
+    onViewCharacterProfile: (String) -> Unit,
+    onViewCreatorProfile: (String) -> Unit,
     onRefreshChat: () -> Unit,
     onStartNewChat: () -> Unit,
     onError: (String) -> Unit = {},
     onShareCharacter: ((CharacterSummary) -> Unit)? = null
 ) {
     val navController = rememberNavController()
-    val currentBackStackEntry by navController.currentBackStackEntryAsState()
     val context = LocalContext.current
     val shareCharacter = onShareCharacter ?: { character ->
         context.shareCharacter(character)
     }
 
-    fun navigateToCharacter(targetCharacterId: String) {
+    fun openCharacterProfile(targetCharacterId: String) {
         if (targetCharacterId.isBlank()) {
             onError("This character profile isn't available yet.")
             return
         }
-        val previous = navController.previousBackStackEntry
-        if (
-            previous?.destination?.route == CharacterProfileRoutePattern &&
-            previous.arguments?.getString(CharacterIdArgument) == targetCharacterId
-        ) {
-            navController.popBackStack()
-        } else {
-            navController.navigate("character/${Uri.encode(targetCharacterId)}") {
-                launchSingleTop = true
-            }
-        }
+        onDismissRequest()
+        onViewCharacterProfile(targetCharacterId)
     }
 
-    fun navigateToCreator(targetUserId: String) {
+    fun openCreatorProfile(targetUserId: String) {
         if (targetUserId.isBlank()) {
             onError("This creator profile isn't available yet.")
             return
         }
-        val previous = navController.previousBackStackEntry
-        if (
-            previous?.destination?.route == CreatorProfileRoutePattern &&
-            previous.arguments?.getString(UserIdArgument) == targetUserId
-        ) {
-            navController.popBackStack()
-        } else {
-            navController.navigate("creator/${Uri.encode(targetUserId)}") {
-                launchSingleTop = true
-            }
-        }
+        onDismissRequest()
+        onViewCreatorProfile(targetUserId)
     }
 
     DraggableSubpage(onDismissRequest = onDismissRequest) {
-        BackHandler(
-            enabled = currentBackStackEntry != null && navController.previousBackStackEntry != null
-        ) {
-            navController.popBackStack()
-        }
         NavHost(
             navController = navController,
             startDestination = "details/${Uri.encode(characterId)}",
@@ -134,8 +104,8 @@ fun CharacterSubpageHost(
                 val viewModel: CharacterProfileViewModel = hiltViewModel(backStackEntry)
                 CharacterDetailsRoute(
                     onClose = onDismissRequest,
-                    onViewCharacter = ::navigateToCharacter,
-                    onViewCreator = ::navigateToCreator,
+                    onViewCharacter = ::openCharacterProfile,
+                    onViewCreator = ::openCreatorProfile,
                     onShare = shareCharacter,
                     onRefreshChat = {
                         onDismissRequest()
@@ -147,40 +117,6 @@ fun CharacterSubpageHost(
                     },
                     onError = onError,
                     viewModel = viewModel
-                )
-            }
-
-            composable(
-                route = CharacterProfileRoutePattern,
-                arguments = listOf(
-                    navArgument(CharacterIdArgument) { type = NavType.StringType }
-                )
-            ) { backStackEntry ->
-                val viewModel: CharacterProfileViewModel = hiltViewModel(backStackEntry)
-                CharacterProfileRoute(
-                    onBack = { navController.popBackStack() },
-                    onShare = shareCharacter,
-                    onChat = {
-                        onDismissRequest()
-                        onChatCharacter(it)
-                    },
-                    onOpenCreator = ::navigateToCreator,
-                    onError = onError,
-                    viewModel = viewModel
-                )
-            }
-
-            composable(
-                route = CreatorProfileRoutePattern,
-                arguments = listOf(
-                    navArgument(UserIdArgument) { type = NavType.StringType }
-                )
-            ) { backStackEntry ->
-                CreatorProfileRoute(
-                    onBack = { navController.popBackStack() },
-                    onOpenCharacter = ::navigateToCharacter,
-                    onError = onError,
-                    viewModel = hiltViewModel(backStackEntry)
                 )
             }
         }
@@ -341,21 +277,20 @@ private fun CharacterDetailsBody(
                 label = "likes"
             )
         }
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(top = AppChrome.sectionSpacing),
-            horizontalArrangement = Arrangement.SpaceEvenly
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(AppChrome.gridSpacing)
         ) {
             ProfileDateStat(
                 label = "Created",
-                value = formatRelativeTimeAgo(character.createdAt),
-                modifier = Modifier.weight(1f)
+                value = formatRelativeTimeAgo(character.createdAt)
             )
             ProfileDateStat(
                 label = "Last Updated",
-                value = formatRelativeTimeAgo(character.updatedAt),
-                modifier = Modifier.weight(1f)
+                value = formatRelativeTimeAgo(character.updatedAt)
             )
         }
         Row(

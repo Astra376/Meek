@@ -24,6 +24,8 @@ export interface CharacterRecord {
 
 export interface PublicCharacterOwnerStats {
   character_count: number;
+  interaction_count: number;
+  like_count: number;
   created_at: number;
   updated_at: number;
 }
@@ -185,6 +187,8 @@ export async function getPublicCharacterOwnerStats(
       `
       SELECT
         COUNT(*) AS character_count,
+        COALESCE(SUM(public_chat_count), 0) AS interaction_count,
+        COALESCE(SUM(like_count), 0) AS like_count,
         COALESCE(MIN(created_at), 0) AS created_at,
         COALESCE(MAX(updated_at), 0) AS updated_at
       FROM characters
@@ -195,6 +199,8 @@ export async function getPublicCharacterOwnerStats(
   );
   return result ?? {
     character_count: 0,
+    interaction_count: 0,
+    like_count: 0,
     created_at: 0,
     updated_at: 0
   };

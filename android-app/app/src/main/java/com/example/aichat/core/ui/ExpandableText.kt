@@ -1,7 +1,8 @@
 package com.example.aichat.core.ui
 
-import androidx.compose.foundation.text.ClickableText
+import androidx.compose.foundation.clickable
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -12,7 +13,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
@@ -23,12 +23,9 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
 
-private const val ExpandAnnotation = "expand"
-private const val CollapseAnnotation = "collapse"
 private const val ExpandSuffix = "\u2026 More"
 private const val CollapseSuffix = " \u2026Less"
 
-@Suppress("DEPRECATION")
 @Composable
 fun ExpandableText(
     text: String,
@@ -87,14 +84,12 @@ fun ExpandableText(
             expanded && canExpand -> annotatedActionText(
                 body = text,
                 suffix = CollapseSuffix,
-                tag = CollapseAnnotation,
                 actionColor = actionColor
             )
 
             canExpand -> annotatedActionText(
                 body = collapsedPrefix.orEmpty(),
                 suffix = ExpandSuffix,
-                tag = ExpandAnnotation,
                 actionColor = actionColor
             )
 
@@ -102,47 +97,40 @@ fun ExpandableText(
         }
     }
 
-    ClickableText(
+    Text(
         text = displayText,
         modifier = modifier
             .onSizeChanged { availableWidth = it.width }
-            .semantics {
+            .then(
                 if (canExpand) {
-                    stateDescription = if (expanded) "Expanded" else "Collapsed"
-                    onClick(label = if (expanded) "Less" else "More") {
-                        expanded = !expanded
-                        true
-                    }
+                    Modifier
+                        .clickable(
+                            onClickLabel = if (expanded) "Less" else "More"
+                        ) {
+                            expanded = !expanded
+                        }
+                        .semantics {
+                            stateDescription = if (expanded) "Expanded" else "Collapsed"
+                        }
+                } else {
+                    Modifier
                 }
-            },
+            ),
         style = resolvedStyle,
         maxLines = if (expanded) Int.MAX_VALUE else collapsedMaxLines,
-        overflow = TextOverflow.Clip,
-        onClick = { offset ->
-            when {
-                displayText.hasAnnotation(ExpandAnnotation, offset) -> expanded = true
-                displayText.hasAnnotation(CollapseAnnotation, offset) -> expanded = false
-            }
-        }
+        overflow = TextOverflow.Clip
     )
 }
 
 private fun annotatedActionText(
     body: String,
     suffix: String,
-    tag: String,
     actionColor: Color
 ): AnnotatedString = buildAnnotatedString {
     append(body)
-    pushStringAnnotation(tag = tag, annotation = tag)
     pushStyle(SpanStyle(color = actionColor))
     append(suffix)
     pop()
-    pop()
-}
-
-private fun AnnotatedString.hasAnnotation(tag: String, offset: Int): Boolean {
-    return getStringAnnotations(tag = tag, start = offset, end = offset).isNotEmpty()
 }
 
 private fun findLargestFittingPrefix(

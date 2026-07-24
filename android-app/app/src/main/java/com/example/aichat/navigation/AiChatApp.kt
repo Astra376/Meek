@@ -1,5 +1,6 @@
 package com.example.aichat.navigation
 
+import android.net.Uri
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.Animatable
@@ -64,6 +65,7 @@ import com.example.aichat.core.ui.AppChrome
 import com.example.aichat.core.ui.LoadingScreen
 import com.example.aichat.feature.activity.ActivityRoute
 import com.example.aichat.feature.character.CharacterStudioRoute
+import com.example.aichat.feature.character.CharacterProfileRoute
 import com.example.aichat.feature.chat.ChatRoute
 import com.example.aichat.feature.chat.CharacterMemoryRoute
 import com.example.aichat.feature.chatlist.ChatListRoute
@@ -71,6 +73,7 @@ import com.example.aichat.feature.home.HomeRoute
 import com.example.aichat.feature.home.NewHomeRoute
 import com.example.aichat.feature.home.SearchRoute
 import com.example.aichat.feature.profile.EditProfileRoute
+import com.example.aichat.feature.profile.CreatorProfileRoute
 import com.example.aichat.feature.profile.ProfileRoute
 import com.example.aichat.feature.profile.SettingsRoute
 import com.example.aichat.feature.signin.SignInRoute
@@ -132,6 +135,8 @@ private val bottomDestinations = listOf(
 private val subpageRoutes = setOf(
     "chat/{conversationId}",
     "chat/{conversationId}/memory",
+    "character-profile/{characterId}",
+    "creator-profile/{userId}",
     "create-character",
     "edit-profile",
     "search",
@@ -278,7 +283,109 @@ private fun MainShell(
                     }
                 },
                 onStartNewChat = replaceCurrentChat,
-                onOpenConversation = replaceCurrentChat
+                onOpenCharacterProfile = { characterId ->
+                    rootNavController.navigate(
+                        "character-profile/${Uri.encode(characterId)}"
+                    ) {
+                        launchSingleTop = true
+                    }
+                },
+                onOpenCreatorProfile = { userId ->
+                    rootNavController.navigate(
+                        "creator-profile/${Uri.encode(userId)}"
+                    ) {
+                        launchSingleTop = true
+                    }
+                }
+            )
+        }
+
+        composable(
+            route = "character-profile/{characterId}",
+            enterTransition = {
+                slideInHorizontally(
+                    initialOffsetX = { it },
+                    animationSpec = tween(durationMillis = 220)
+                )
+            },
+            exitTransition = {
+                slideOutHorizontally(
+                    targetOffsetX = { -it },
+                    animationSpec = tween(durationMillis = 220)
+                )
+            },
+            popEnterTransition = {
+                slideInHorizontally(
+                    initialOffsetX = { -it },
+                    animationSpec = tween(durationMillis = 220)
+                )
+            },
+            popExitTransition = {
+                slideOutHorizontally(
+                    targetOffsetX = { it },
+                    animationSpec = tween(durationMillis = 220)
+                )
+            }
+        ) {
+            CharacterProfileRoute(
+                ownerUserId = ownerUserId,
+                onBack = { rootNavController.popBackStack() },
+                onOpenConversation = { conversationId ->
+                    rootNavController.navigate("chat/$conversationId") {
+                        popUpTo("main_tabs")
+                        launchSingleTop = true
+                    }
+                },
+                onOpenCreator = { userId ->
+                    if (userId.isNotBlank()) {
+                        rootNavController.navigate(
+                            "creator-profile/${Uri.encode(userId)}"
+                        ) {
+                            launchSingleTop = true
+                        }
+                    }
+                }
+            )
+        }
+
+        composable(
+            route = "creator-profile/{userId}",
+            enterTransition = {
+                slideInHorizontally(
+                    initialOffsetX = { it },
+                    animationSpec = tween(durationMillis = 220)
+                )
+            },
+            exitTransition = {
+                slideOutHorizontally(
+                    targetOffsetX = { -it },
+                    animationSpec = tween(durationMillis = 220)
+                )
+            },
+            popEnterTransition = {
+                slideInHorizontally(
+                    initialOffsetX = { -it },
+                    animationSpec = tween(durationMillis = 220)
+                )
+            },
+            popExitTransition = {
+                slideOutHorizontally(
+                    targetOffsetX = { it },
+                    animationSpec = tween(durationMillis = 220)
+                )
+            }
+        ) {
+            CreatorProfileRoute(
+                onBack = { rootNavController.popBackStack() },
+                onOpenCharacter = { characterId ->
+                    if (characterId.isNotBlank()) {
+                        rootNavController.navigate(
+                            "character-profile/${Uri.encode(characterId)}"
+                        ) {
+                            launchSingleTop = true
+                        }
+                    }
+                }
             )
         }
 

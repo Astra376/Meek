@@ -25,6 +25,8 @@ export interface PublicProfileRecord {
   created_at: number;
   updated_at: number;
   character_count: number;
+  interaction_count: number;
+  like_count: number;
 }
 
 export async function getUserByGoogleSubject(env: Env, googleSubject: string): Promise<UserRecord | null> {
@@ -57,14 +59,20 @@ export async function getPublicProfileByUserId(env: Env, userId: string): Promis
         profiles.avatar_url,
         profiles.created_at,
         profiles.updated_at,
-        (
-          SELECT COUNT(*)
-          FROM characters
-          WHERE characters.owner_user_id = profiles.user_id
-            AND characters.visibility = 'public'
-        ) AS character_count
+        COUNT(characters.id) AS character_count,
+        COALESCE(SUM(characters.public_chat_count), 0) AS interaction_count,
+        COALESCE(SUM(characters.like_count), 0) AS like_count
       FROM profiles
+      LEFT JOIN characters
+        ON characters.owner_user_id = profiles.user_id
+        AND characters.visibility = 'public'
       WHERE profiles.user_id = ?
+      GROUP BY
+        profiles.user_id,
+        profiles.display_name,
+        profiles.avatar_url,
+        profiles.created_at,
+        profiles.updated_at
       LIMIT 1
       `
     ).bind(userId)

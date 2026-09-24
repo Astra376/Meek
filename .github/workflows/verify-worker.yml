@@ -40,7 +40,8 @@ jobs:
                   print(label, 'preflight status:', error.code, 'body:', error.read(120).decode('utf-8', errors='replace'))
           assert passed, 'Cloudflare blocked all HTTP user agents before the Worker'
           try:
-              urllib.request.urlopen(base + '/v1/home/feed', timeout=15)
+              protected = urllib.request.Request(base + '/v1/home/feed', headers={'User-Agent': 'okhttp/4.12.0'})
+              urllib.request.urlopen(protected, timeout=15)
           except urllib.error.HTTPError as error:
               body = json.load(error)
               assert error.code == 401 and body.get('code') == 'AUTH_REQUIRED', (

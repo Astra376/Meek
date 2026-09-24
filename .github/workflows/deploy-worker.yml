@@ -64,6 +64,45 @@ jobs:
               output.write(f'CLOUDFLARE_ACCOUNT_ID={matches[0]}\n')
           print(f'Confirmed Cloudflare account {matches[0]} owns robloxproxy.workers.dev')
           PY
+      - name: Inspect existing Durable Object implementation
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          python3 - <<'PY'
+          import email
+          import os
+          import re
+          import urllib.request
+
+          request = urllib.request.Request(
+              f'https://api.cloudflare.com/client/v4/accounts/{os.environ["CLOUDFLARE_ACCOUNT_ID"]}/workers/scripts/character-chat-worker',
+              headers={"Authorization": f'Bearer {os.environ["CLOUDFLARE_API_TOKEN"]}'},
+          )
+          with urllib.request.urlopen(request, timeout=30) as response:
+              body = response.read()
+              content_type = response.headers.get("Content-Type", "application/javascript")
+          if content_type.startswith("multipart/"):
+              message = email.message_from_bytes(
+                  f'Content-Type: {content_type}\r\nMIME-Version: 1.0\r\n\r\n'.encode() + body
+              )
+              parts = [part.get_payload(decode=True) for part in message.walk() if not part.is_multipart()]
+          else:
+              parts = [body]
+          source = '\n'.join(part.decode('utf-8', errors='replace') for part in parts)
+          positions = [match.start() for match in re.finditer('ImageGenerationJob', source)]
+          if not positions:
+              raise SystemExit('Live Worker did not contain the ImageGenerationJob class name')
+          snippets = [source[max(0, pos - 300):min(len(source), pos + 18000)] for pos in positions[:3]]
+          output = os.path.join(os.environ['RUNNER_TEMP'], 'image-generation-job-excerpts.txt')
+          with open(output, 'w') as result:
+              result.write('\n\n--- next occurrence ---\n\n'.join(snippets))
+          print(f'Found {len(positions)} class references in live Worker script; saved excerpts for compatibility review')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: live-worker-class-excerpts
+          path: ${{ runner.temp }}/image-generation-job-excerpts.txt
+          retention-days: 1
       - name: Deploy to Cloudflare
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

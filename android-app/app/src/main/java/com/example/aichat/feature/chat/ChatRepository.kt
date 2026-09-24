@@ -715,8 +715,11 @@ class ChatRepository @Inject constructor(
             // reaches the phone. Recover that answer instead of losing it.
             val detail = withTimeoutOrNull(8_000) { conversationApi.getConversation(conversationId) }
                 ?: return false
+            if (detail.messages.none { it.id == assistantId && it.role.equals("assistant", ignoreCase = true) }) {
+                return false
+            }
             database.withTransaction { applyRemoteConversationDetail(detail) }
-            detail.messages.any { it.id == assistantId && it.role.equals("assistant", ignoreCase = true) }
+            true
         } catch (error: CancellationException) {
             throw error
         } catch (_: Exception) {

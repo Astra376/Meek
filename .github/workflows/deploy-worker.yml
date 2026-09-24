@@ -64,12 +64,13 @@ jobs:
               output.write(f'CLOUDFLARE_ACCOUNT_ID={matches[0]}\n')
           print(f'Confirmed Cloudflare account {matches[0]} owns robloxproxy.workers.dev')
           PY
-      - name: Inspect existing Durable Object implementation
+      - name: Inspect live chat implementation
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: |
           python3 - <<'PY'
           import email
+          import hashlib
           import os
           import re
           import urllib.request
@@ -89,21 +90,25 @@ jobs:
           else:
               parts = [body]
           source = '\n'.join(part.decode('utf-8', errors='replace') for part in parts)
-          positions = [match.start() for match in re.finditer('ImageGenerationJob', source)]
-          if not positions:
-              raise SystemExit('Live Worker did not contain the ImageGenerationJob class name')
-          snippets = [source[max(0, pos - 300):min(len(source), pos + 18000)] for pos in positions[:3]]
-          output = os.path.join(os.environ['RUNNER_TEMP'], 'image-generation-job-excerpts.txt')
+          markers = list(re.finditer(r'^// src/([^\n]+)', source, re.MULTILINE))
+          snippets = []
+          names = []
+          for index, marker in enumerate(markers):
+              name = marker.group(1)
+              if name.startswith(('services/chat/', 'providers/openrouter', 'lib/deadline', 'services/images/jobs')):
+                  names.append(name)
+                  end = markers[index + 1].start() if index + 1 < len(markers) else len(source)
+                  snippets.append(source[marker.start():end])
+          if not snippets:
+              raise SystemExit('Could not locate chat code in the live Worker')
+          output = os.path.join(os.environ['RUNNER_TEMP'], 'live-chat-sections.txt')
           with open(output, 'w') as result:
-              result.write('\n\n--- next occurrence ---\n\n'.join(snippets))
-          print(f'Found {len(positions)} class references in live Worker script; saved excerpts for compatibility review')
+              result.write('\n'.join(snippets))
+          print(f'Live Worker SHA256: {hashlib.sha256(source.encode()).hexdigest()}')
+          print('Saved sections: ' + ', '.join(names))
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: live-worker-class-excerpts
-          path: ${{ runner.temp }}/image-generation-job-excerpts.txt
+          name: live-worker-chat-sections
+          path: ${{ runner.temp }}/live-chat-sections.txt
           retention-days: 1
-      - name: Deploy to Cloudflare
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-        run: npx wrangler deploy

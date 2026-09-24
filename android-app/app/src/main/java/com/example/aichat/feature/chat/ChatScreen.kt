@@ -216,7 +216,7 @@ class ChatViewModel @Inject constructor(
                     val message = error.userFacingMessage("Message send failed.")
                     _events.emit(
                         if (error is SendMessageFailedException && error.accepted) {
-                            "$message Tap send to retry the reply."
+                            "$message Tap Continue to retry the reply."
                         } else {
                             message
                         }

@@ -34,24 +34,86 @@ class OpenRouterFailure extends Error {
 }
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
-const REQUEST_ATTEMPTS = 3;
+const REQUEST_ATTEMPTS = 2;
 const RETRYABLE_STATUSES = new Set([408, 429, 500, 502, 503, 504]);
+// Keep generation shorter than the Android call timeout and the D1 run lease.
+const GENERATION_TIMEOUT_MS = 100_000;
+const STREAM_IDLE_TIMEOUT_MS = 35_000;
+
+class OpenRouterTimeout extends Error {}
+
+function generationDeadline(source?: AbortSignal) {
+  const controller = new AbortController();
+  const forwardAbort = () => controller.abort(source?.reason);
+  if (source?.aborted) forwardAbort();
+  else source?.addEventListener("abort", forwardAbort, { once: true });
+
+  const timeout = () => controller.abort(new OpenRouterTimeout("Model generation timed out."));
+  const totalTimer = setTimeout(timeout, GENERATION_TIMEOUT_MS);
+  let idleTimer: ReturnType<typeof setTimeout>;
+  const resetIdleTimer = () => {
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(timeout, STREAM_IDLE_TIMEOUT_MS);
+  };
+  resetIdleTimer();
+
+  return {
+    signal: controller.signal,
+    resetIdleTimer,
+    dispose: () => {
+      clearTimeout(totalTimer);
+      clearTimeout(idleTimer);
+      source?.removeEventListener("abort", forwardAbort);
+    }
+  };
+}
+
+// Aborting fetch normally rejects pending reads, but keep the deadline effective
+// even if an upstream response stalls without observing its signal.
+function untilAborted<T>(pending: Promise<T>, signal?: AbortSignal): Promise<T> {
+  if (!signal) return pending;
+  if (signal.aborted) return Promise.reject(signal.reason);
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => {
+      signal.removeEventListener("abort", onAbort);
+      reject(signal.reason);
+    };
+    signal.addEventListener("abort", onAbort, { once: true });
+    pending.then(
+      (value) => {
+        signal.removeEventListener("abort", onAbort);
+        resolve(value);
+      },
+      (error) => {
+        signal.removeEventListener("abort", onAbort);
+        reject(error);
+      }
+    );
+  });
+}
 
 function configuredModels(env: Env): string[] {
   const candidates = [
     env.OPENROUTER_MODEL,
     ...(env.OPENROUTER_FALLBACK_MODELS ?? "").split(",")
   ];
-  return [...new Set(candidates.map((model) => model.trim()).filter(Boolean))];
+  return [...new Set(candidates.filter((model): model is string => typeof model === "string")
+    .map((model) => model.trim()).filter(Boolean))];
 }
 
 function modelSelection(env: Env): { model: string } | { models: string[] } {
   const models = configuredModels(env);
+  if (!models.length) {
+    throw new AppError(503, "MODEL_CONFIGURATION_ERROR", "The AI service is not configured. Please try again later.");
+  }
   if (models.length > 1) return { models };
   return { model: models[0] };
 }
 
 function requestHeaders(env: Env): Record<string, string> {
+  if (!env.OPENROUTER_API_KEY?.trim()) {
+    throw new AppError(503, "MODEL_CONFIGURATION_ERROR", "The AI service is not configured. Please try again later.");
+  }
   return {
     "Content-Type": "application/json",
     Authorization: `Bearer ${env.OPENROUTER_API_KEY}`,
@@ -69,13 +131,13 @@ function retryAfterMs(response: Response): number {
   return Number.isFinite(date) ? Math.max(0, date - Date.now()) : 0;
 }
 
-async function parseFailure(response: Response): Promise<OpenRouterFailure> {
+async function parseFailure(response: Response, signal?: AbortSignal): Promise<OpenRouterFailure> {
   let providerMessage = "Text generation failed.";
   let providerCode: number | string | undefined;
   let errorType: string | undefined;
   let providerName: string | undefined;
   try {
-    const data = (await response.json()) as OpenRouterErrorPayload;
+    const data = (await untilAborted(response.json(), signal)) as OpenRouterErrorPayload;
     providerMessage = data.error?.message?.trim() || providerMessage;
     providerCode = data.error?.code;
     errorType = data.error?.metadata?.error_type;
@@ -100,6 +162,9 @@ async function parseFailure(response: Response): Promise<OpenRouterFailure> {
 
 function publicError(error: unknown): AppError {
   if (error instanceof AppError) return error;
+  if (error instanceof OpenRouterTimeout) {
+    return new AppError(504, "MODEL_PROVIDER_TIMEOUT", "The model took too long to reply. Please try again.");
+  }
   if (error instanceof OpenRouterFailure) {
     const normalized = error.message.toLowerCase();
     if (
@@ -153,31 +218,37 @@ async function requestOpenRouter(
 ): Promise<Response> {
   let lastFailure: unknown;
   for (let attempt = 0; attempt < REQUEST_ATTEMPTS; attempt += 1) {
+    let retryDelay = 0;
     try {
-      const response = await fetch(OPENROUTER_URL, {
+      const response = await untilAborted(fetch(OPENROUTER_URL, {
         method: "POST",
         headers: requestHeaders(env),
         body: JSON.stringify(body),
         signal
-      });
+      }), signal);
       if (response.ok) return response;
 
-      const failure = await parseFailure(response);
+      const failure = await parseFailure(response, signal);
       lastFailure = failure;
       if (!failure.retryable || attempt === REQUEST_ATTEMPTS - 1) throw failure;
-      await waitBeforeRetry(attempt, failure.retryAfterMs, signal);
+      retryDelay = failure.retryAfterMs;
     } catch (error) {
-      if (signal?.aborted) throw error;
+      if (signal?.aborted) throw signal.reason ?? error;
       lastFailure = error;
+      if (error instanceof AppError) throw error;
       if (error instanceof OpenRouterFailure && !error.retryable) throw error;
       if (attempt === REQUEST_ATTEMPTS - 1) throw error;
-      await waitBeforeRetry(attempt, 0, signal);
     }
+    await waitBeforeRetry(attempt, retryDelay, signal);
   }
   throw lastFailure;
 }
 
-async function* readCompletionStream(response: Response): AsyncGenerator<string, void, void> {
+async function* readCompletionStream(
+  response: Response,
+  signal?: AbortSignal,
+  onActivity?: () => void
+): AsyncGenerator<string, void, void> {
   const body = response.body;
   if (!body) {
     throw new OpenRouterFailure(502, "The model returned an empty response.", true);
@@ -197,6 +268,7 @@ async function* readCompletionStream(response: Response): AsyncGenerator<string,
       .filter(Boolean);
 
     for (const data of dataLines) {
+      onActivity?.();
       if (data === "[DONE]") continue;
       let parsed: OpenRouterErrorPayload & {
         choices?: Array<{ delta?: { content?: string } }>;
@@ -224,7 +296,8 @@ async function* readCompletionStream(response: Response): AsyncGenerator<string,
 
   try {
     while (true) {
-      const { done, value } = await reader.read();
+      const { done, value } = await untilAborted(reader.read(), signal);
+      if (signal?.aborted) throw signal.reason;
       if (done) break;
       buffer += decoder.decode(value, { stream: true });
       buffer = normalizeSseNewlines(buffer);
@@ -239,7 +312,14 @@ async function* readCompletionStream(response: Response): AsyncGenerator<string,
       for (const chunk of parseEvent(normalizeSseNewlines(buffer))) yield chunk;
     }
   } finally {
-    reader.releaseLock();
+    if (signal?.aborted) {
+      void reader.cancel().catch(() => {});
+      // A pending read in a non-cooperative stream can retain the lock until
+      // its cancel settles. The Response is no longer used at this point.
+      try { reader.releaseLock(); } catch { /* Pending read. */ }
+    } else {
+      reader.releaseLock();
+    }
   }
 
   if (!emittedContent) {
@@ -253,6 +333,7 @@ export async function* streamChatText(
   signal?: AbortSignal
 ): AsyncGenerator<string, void, void> {
   let emittedAnyContent = false;
+  const deadline = generationDeadline(signal);
   try {
     for (let streamAttempt = 0; streamAttempt < 2; streamAttempt += 1) {
       try {
@@ -263,8 +344,8 @@ export async function* streamChatText(
           temperature: 0.8,
           stream: true,
           provider: { allow_fallbacks: true }
-        }, signal);
-        for await (const chunk of readCompletionStream(response)) {
+        }, deadline.signal);
+        for await (const chunk of readCompletionStream(response, deadline.signal, deadline.resetIdleTimer)) {
           emittedAnyContent = true;
           yield chunk;
         }
@@ -273,14 +354,17 @@ export async function* streamChatText(
         const canRestart =
           !emittedAnyContent &&
           streamAttempt === 0 &&
+          !deadline.signal.aborted &&
           (!(error instanceof OpenRouterFailure) || error.retryable);
         if (!canRestart) throw error;
-        await waitBeforeRetry(streamAttempt, 0, signal);
+        await waitBeforeRetry(streamAttempt, 0, deadline.signal);
       }
     }
   } catch (error) {
     if (signal?.aborted) throw error;
-    throw publicError(error);
+    throw publicError(deadline.signal.aborted ? deadline.signal.reason : error);
+  } finally {
+    deadline.dispose();
   }
 }
 

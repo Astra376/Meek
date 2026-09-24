@@ -21,6 +21,7 @@ const conversationMocks = vi.hoisted(() => ({
   listMessages: vi.fn(),
   listRegenerationsForConversation: vi.fn(),
   releaseConversationRun: vi.fn(),
+  renewConversationRun: vi.fn(),
   updateConversationActivity: vi.fn(),
   updateMessageContent: vi.fn(),
   updateMessageSelection: vi.fn(),
@@ -282,6 +283,7 @@ beforeEach(() => {
   conversationMocks.listMessages.mockResolvedValue([]);
   conversationMocks.listRegenerationsForConversation.mockResolvedValue([]);
   conversationMocks.releaseConversationRun.mockResolvedValue(undefined);
+  conversationMocks.renewConversationRun.mockResolvedValue(true);
   conversationMocks.updateConversationActivity.mockResolvedValue(undefined);
   conversationMocks.updateMessageSelection.mockResolvedValue(undefined);
 
@@ -419,7 +421,7 @@ describe.each<Operation>(["SEND", "CONTINUE", "REGENERATE"])(
   }
 );
 
-it("uses a lease longer than the client timeout and also settles through ReadableStream.cancel", async () => {
+it("uses a short renewable lease and also settles through ReadableStream.cancel", async () => {
   configureTranscript("CONTINUE");
   const provider = configureProvider("mid-stream");
   const { context, removeAbortListener } = createContext();
@@ -436,7 +438,49 @@ it("uses a lease longer than the client timeout and also settles through Readabl
   const claimCall = conversationMocks.claimConversationRun.mock.calls[0];
   const claimedAt = claimCall[3] as number;
   const expiresAt = claimCall[4] as number;
-  expect(expiresAt - claimedAt).toBeGreaterThan(180_000);
+  expect(expiresAt - claimedAt).toBe(60_000);
   expect(insertedMessages().filter((message) => message.role === "assistant")).toHaveLength(1);
   expect(removeAbortListener).toHaveBeenCalled();
+});
+
+it("renews a live generation but stops renewing when the client disconnects", async () => {
+  vi.useFakeTimers();
+  try {
+    configureTranscript("CONTINUE");
+    const provider = configureProvider("before first chunk");
+    const { context, requestAbortController } = createContext();
+    const response = await startOperation("CONTINUE", context);
+    await provider.started.promise;
+
+    await vi.advanceTimersByTimeAsync(20_000);
+    expect(conversationMocks.renewConversationRun).toHaveBeenCalledTimes(1);
+    requestAbortController.abort();
+    await response.text();
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(conversationMocks.renewConversationRun).toHaveBeenCalledTimes(1);
+    expect(conversationMocks.releaseConversationRun).toHaveBeenCalledTimes(1);
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+it("starts generation if supplemental memory is stuck", async () => {
+  vi.useFakeTimers();
+  try {
+    configureTranscript("SEND");
+    memoryMocks.buildCharacterMemoryPrompt.mockImplementation(() => new Promise(() => {}));
+    openRouterMocks.streamChatText.mockImplementation(async function* () {
+      yield COMPLETE_TEXT;
+    });
+    const { context } = createContext();
+    const responsePromise = startOperation("SEND", context);
+
+    await vi.advanceTimersByTimeAsync(5_000);
+    const response = await responsePromise;
+    expect(await response.text()).toContain('"type":"completed_send"');
+    expect(openRouterMocks.streamChatText).toHaveBeenCalledTimes(1);
+    expect(insertedMessages().map((message) => message.role)).toEqual(["user", "assistant"]);
+  } finally {
+    vi.useRealTimers();
+  }
 });

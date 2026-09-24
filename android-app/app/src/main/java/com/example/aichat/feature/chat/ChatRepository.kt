@@ -43,6 +43,7 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import java.util.concurrent.ConcurrentHashMap
 
 private class StreamFailedException(
@@ -471,6 +472,7 @@ class ChatRepository @Inject constructor(
         } catch (error: Throwable) {
             if (error is CancellationException) throw error
             clearStopRequest(draftKey)
+            if (accepted && reconcileCompletedReply(conversationId, draftKey)) return
             if (!accepted) {
                 markMessageFailed(userMessageId)
             }
@@ -587,6 +589,7 @@ class ChatRepository @Inject constructor(
             }
             throw error
         } catch (error: Throwable) {
+            if (error is CancellationException) throw error
             clearStopRequest(draftKey)
             throw error
         } finally {
@@ -692,12 +695,32 @@ class ChatRepository @Inject constructor(
             }
             throw error
         } catch (error: Throwable) {
+            if (error is CancellationException) throw error
             clearStopRequest(draftKey)
+            if (accepted && reconcileCompletedReply(conversationId, draftKey)) return
             throw error
         } finally {
             if (!stopped) {
                 clearActiveStream(conversationId, draftKey)
             }
+        }
+    }
+
+    private suspend fun reconcileCompletedReply(conversationId: String, draftKey: String): Boolean {
+        val stream = currentActiveStream(conversationId)
+            ?.takeIf { it.draftKey == draftKey } ?: return false
+        val assistantId = stream.assistantMessageId ?: return false
+        return try {
+            // The Worker can commit the reply before the terminal SSE event
+            // reaches the phone. Recover that answer instead of losing it.
+            val detail = withTimeoutOrNull(8_000) { conversationApi.getConversation(conversationId) }
+                ?: return false
+            database.withTransaction { applyRemoteConversationDetail(detail) }
+            detail.messages.any { it.id == assistantId && it.role.equals("assistant", ignoreCase = true) }
+        } catch (error: CancellationException) {
+            throw error
+        } catch (_: Exception) {
+            false
         }
     }
 

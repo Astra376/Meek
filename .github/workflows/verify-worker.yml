@@ -1,0 +1,38 @@
+name: Verify Meek Worker
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/verify-worker.yml
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check production Worker HTTP responses
+        run: |
+          python3 - <<'PY'
+          import json
+          import urllib.error
+          import urllib.request
+
+          base = 'https://character-chat-worker.robloxproxy.workers.dev'
+          preflight = urllib.request.Request(
+              base + '/v1/conversations/test/messages/stream',
+              method='OPTIONS',
+          )
+          with urllib.request.urlopen(preflight, timeout=15) as response:
+              assert response.status == 204, response.status
+          try:
+              urllib.request.urlopen(base + '/v1/home/feed', timeout=15)
+          except urllib.error.HTTPError as error:
+              body = json.load(error)
+              assert error.code == 401 and body.get('code') == 'AUTH_REQUIRED', (
+                  error.code, body,
+              )
+          else:
+              raise AssertionError('Protected route did not require authentication')
+          print('Production Worker responds to CORS preflight and rejects unauthenticated requests correctly')
+          PY

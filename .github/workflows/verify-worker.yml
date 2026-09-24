@@ -23,8 +23,14 @@ jobs:
               base + '/v1/conversations/test/messages/stream',
               method='OPTIONS',
           )
-          with urllib.request.urlopen(preflight, timeout=15) as response:
-              assert response.status == 204, response.status
+          try:
+              with urllib.request.urlopen(preflight, timeout=15) as response:
+                  assert response.status == 204, response.status
+          except urllib.error.HTTPError as error:
+              print('Preflight status:', error.code)
+              print('Preflight headers:', {key: value for key, value in error.headers.items() if key.lower() in ('server', 'content-type', 'cf-ray', 'www-authenticate')})
+              print('Preflight body:', error.read(600).decode('utf-8', errors='replace'))
+              raise
           try:
               urllib.request.urlopen(base + '/v1/home/feed', timeout=15)
           except urllib.error.HTTPError as error:

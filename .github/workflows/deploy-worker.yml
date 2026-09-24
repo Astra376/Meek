@@ -86,9 +86,13 @@ jobs:
               message = email.message_from_bytes(
                   f'Content-Type: {content_type}\r\nMIME-Version: 1.0\r\n\r\n'.encode() + body
               )
-              parts = [part.get_payload(decode=True) for part in message.walk() if not part.is_multipart()]
+              module_parts = [part for part in message.walk() if not part.is_multipart()]
+              print('Worker parts: ' + ', '.join(f'{part.get_param("name", header="content-disposition")}/{part.get_content_type()}/{len(part.get_payload(decode=True))}' for part in module_parts))
+              parts = [part.get_payload(decode=True) for part in module_parts]
           else:
               parts = [body]
+          print('Worker response content type: ' + content_type.split(';', 1)[0])
+          print('Worker main module header: ' + str(response.headers.get('CF-WORKER-MAIN-MODULE-PART')))
           source = '\n'.join(part.decode('utf-8', errors='replace') for part in parts)
           markers = list(re.finditer(r'^// src/([^\n]+)', source, re.MULTILINE))
           snippets = []

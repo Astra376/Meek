@@ -471,6 +471,43 @@ class ChatRepositoryTest {
     }
 
     @Test
+    fun sendMessage_lostTerminalEvent_recoversTheReplyAlreadySavedOnServer() = runTest {
+        seedConversation(version = 1)
+        streamingClient.sendHandler = { conversationId, userMessageId, _ ->
+            val user = remoteMessage(
+                id = userMessageId,
+                conversationId = conversationId,
+                position = 1,
+                role = "user",
+                content = "hello",
+                createdAt = 100L,
+                updatedAt = 100L
+            )
+            conversationApi.detail = conversationDetail(
+                messages = listOf(user, remoteMessage(
+                    id = "assistant-recovered",
+                    position = 2,
+                    role = "assistant",
+                    content = "the reply",
+                    createdAt = 200L,
+                    updatedAt = 200L
+                ))
+            )
+            flow {
+                emit(ChatStreamEvent.AcceptedSend("run-1", 1, user, "assistant-recovered"))
+                emit(ChatStreamEvent.Delta("run-1", "the reply"))
+                // The connection closes without delivering completed_send.
+            }
+        }
+
+        repository.sendMessage(CONVERSATION_ID, "hello").getOrThrow()
+
+        assertThat(messageDao.getMessages(CONVERSATION_ID).map { it.content })
+            .containsExactly("hello", "the reply").inOrder()
+        assertThat(repository.observeActiveStream(CONVERSATION_ID).first()).isNull()
+    }
+
+    @Test
     fun continueAssistant_eofAfterPartialDelta_failsAndClearsDraft() = runTest {
         seedConversation(version = 1)
         streamingClient.continueHandler = {

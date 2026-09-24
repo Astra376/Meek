@@ -14,6 +14,7 @@ import okhttp3.HttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import java.util.concurrent.TimeUnit
 
 sealed interface ChatStreamEvent {
     data class AcceptedSend(
@@ -89,6 +90,11 @@ class WorkerStreamingClient private constructor(
     ) : this(okHttpClient, json, baseUrl.toString())
 
     private val jsonMediaType = "application/json".toMediaType()
+    // A peer that holds the SSE connection open must not leave the composer
+    // spinning forever. The Worker generation deadline is 100 seconds.
+    private val streamingHttpClient = okHttpClient.newBuilder()
+        .callTimeout(125, TimeUnit.SECONDS)
+        .build()
     private val baseUrl = if (configuredBaseUrl.endsWith("/")) {
         configuredBaseUrl
     } else {
@@ -124,7 +130,7 @@ class WorkerStreamingClient private constructor(
     }
 
     private fun stream(request: Request, expectedStream: ExpectedStream): Flow<ChatStreamEvent> = callbackFlow {
-        val call = okHttpClient.newCall(request)
+        val call = streamingHttpClient.newCall(request)
         val readerJob = launch(Dispatchers.IO) {
             val response = try {
                 call.execute()

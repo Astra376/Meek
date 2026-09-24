@@ -12,6 +12,7 @@ import {
   listMessages,
   listRegenerationsForConversation,
   releaseConversationRun,
+  renewConversationRun,
   updateConversationActivity,
   updateMessageContent,
   updateMessageSelection,
@@ -28,11 +29,12 @@ import {
 } from "./memory";
 import { formatRoleplayMessage } from "./formatRoleplay";
 
-// Keep the server-side lease beyond the Android client's 180-second read
-// timeout so a slow, still-running provider request cannot be claimed twice.
-const RUN_LOCK_WINDOW_MS = 4 * 60 * 1000;
+// Renew while generating; a killed Worker leaves a lock for at most a minute.
+const RUN_LOCK_WINDOW_MS = 60_000;
+const RUN_LOCK_RENEW_MS = 20_000;
 const MAX_MODEL_INPUT_CHARACTERS = 200_000;
 const MIN_RECENT_TRANSCRIPT_CHARACTERS = 16_000;
+const MEMORY_LOAD_TIMEOUT_MS = 5_000;
 
 type TranscriptMessage = {
   id: string;
@@ -209,9 +211,42 @@ async function acquireConversationRun(context: RequestContext, conversationId: s
   const now = Date.now();
   const claimed = await claimConversationRun(context.env, conversationId, runId, now, now + RUN_LOCK_WINDOW_MS);
   if (!claimed) {
+    console.warn("Conversation generation blocked by an active run", { conversationId });
     throw new AppError(409, "STREAM_IN_PROGRESS", "Wait for the current reply to finish before changing the transcript.");
   }
   return runId;
+}
+
+function keepConversationRunAlive(
+  context: RequestContext,
+  conversationId: string,
+  runId: string,
+  abortController: AbortController
+): () => void {
+  let stopped = false;
+  let timer: ReturnType<typeof setTimeout>;
+  const stop = () => {
+    stopped = true;
+    clearTimeout(timer);
+    abortController.signal.removeEventListener("abort", stop);
+  };
+  const renew = async () => {
+    if (stopped) return;
+    try {
+      const now = Date.now();
+      if (!await renewConversationRun(context.env, conversationId, runId, now, now + RUN_LOCK_WINDOW_MS)) {
+        throw new AppError(409, "STREAM_LOST", "The reply was interrupted. Please try again.");
+      }
+    } catch (error) {
+      console.error("Conversation generation lease could not be renewed", error);
+      abortController.abort(error);
+    } finally {
+      if (!stopped) timer = setTimeout(renew, RUN_LOCK_RENEW_MS);
+    }
+  };
+  abortController.signal.addEventListener("abort", stop, { once: true });
+  timer = setTimeout(renew, RUN_LOCK_RENEW_MS);
+  return stop;
 }
 
 async function buildAssistantContext(
@@ -241,7 +276,22 @@ async function buildAssistantContext(
       content: options.appendedUserContent
     });
   }
-  const memoryPrompt = await buildCharacterMemoryPrompt(context, conversationId);
+  // Memory is supplemental. A failed or stuck memory migration must not keep
+  // a saved user turn from ever reaching the model.
+  let memoryPrompt = "";
+  let memoryTimer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    memoryPrompt = await Promise.race([
+      buildCharacterMemoryPrompt(context, conversationId),
+      new Promise<string>((_resolve, reject) => {
+        memoryTimer = setTimeout(() => reject(new Error("Memory load timed out.")), MEMORY_LOAD_TIMEOUT_MS);
+      })
+    ]);
+  } catch (error) {
+    console.warn("Chat memory unavailable; generating from the transcript", error);
+  } finally {
+    clearTimeout(memoryTimer);
+  }
   const systemContent = composeCharacterSystemPrompt(character.system_prompt, memoryPrompt);
   const transcriptBudget = Math.max(
     MIN_RECENT_TRANSCRIPT_CHARACTERS,
@@ -466,16 +516,19 @@ export async function continueAssistantAndStream(context: RequestContext, conver
   const conversation = await requireOwnedConversation(context, conversationId);
   const runId = await acquireConversationRun(context, conversationId);
   let unlinkRequestAbort = () => {};
+  let stopLease = () => {};
   let leaseReleased = false;
 
   try {
-    const { character, transcript, messages } = await buildAssistantContext(context, conversationId);
-    const continuationMessages = messagesForContinuation(messages, transcript.at(-1)?.role);
-    const assistantMessageId = createId("message");
-    const assistantPosition = (transcript.at(-1)?.position ?? -1) + 1;
     const linkedAbort = createLinkedAbortController(context.request.signal);
     const abortController = linkedAbort.abortController;
     unlinkRequestAbort = linkedAbort.unlink;
+    stopLease = keepConversationRunAlive(context, conversationId, runId, abortController);
+    const { character, transcript, messages } = await buildAssistantContext(context, conversationId);
+    throwIfAborted(abortController.signal);
+    const continuationMessages = messagesForContinuation(messages, transcript.at(-1)?.role);
+    const assistantMessageId = createId("message");
+    const assistantPosition = (transcript.at(-1)?.position ?? -1) + 1;
     let partialText = "";
     let finalizationPhase: "streaming" | "full" | "partial" | "settled" = "streaming";
 
@@ -538,6 +591,7 @@ export async function continueAssistantAndStream(context: RequestContext, conver
             throw new AppError(500, "CONVERSATION_SYNC_FAILED", "Conversation state could not be finalized.");
           }
 
+          stopLease();
           leaseReleased = await releaseConversationRunBeforeTerminal(context, conversationId, runId);
           safeEnqueue(controller, {
             type: "completed_send",
@@ -571,6 +625,7 @@ export async function continueAssistantAndStream(context: RequestContext, conver
             }
             finalizationPhase = "settled";
           } else if (!abortController.signal.aborted) {
+            stopLease();
             leaseReleased = await releaseConversationRunBeforeTerminal(context, conversationId, runId);
             safeEnqueue(controller, {
               type: "failed",
@@ -579,6 +634,7 @@ export async function continueAssistantAndStream(context: RequestContext, conver
             });
           }
         } finally {
+          stopLease();
           await finishConversationStream(
             context,
             conversationId,
@@ -603,6 +659,7 @@ export async function continueAssistantAndStream(context: RequestContext, conver
       }
     });
   } catch (error) {
+    stopLease();
     unlinkRequestAbort();
     await releaseConversationRun(context.env, conversationId, runId);
     throw error;
@@ -618,9 +675,14 @@ export async function sendMessageAndStream(
   await requireOwnedConversation(context, conversationId);
   const runId = await acquireConversationRun(context, conversationId);
   let unlinkRequestAbort = () => {};
+  let stopLease = () => {};
   let leaseReleased = false;
 
   try {
+    const linkedAbort = createLinkedAbortController(context.request.signal);
+    const abortController = linkedAbort.abortController;
+    unlinkRequestAbort = linkedAbort.unlink;
+    stopLease = keepConversationRunAlive(context, conversationId, runId, abortController);
     const duplicate = await getMessageById(context.env, userMessageId);
     if (duplicate) {
       throw new AppError(409, "DUPLICATE_MESSAGE_ID", "This message has already been sent.");
@@ -629,6 +691,7 @@ export async function sendMessageAndStream(
     const { conversation, character, transcript, messages } = await buildAssistantContext(context, conversationId, {
       appendedUserContent: content
     });
+    throwIfAborted(abortController.signal);
     const assistantMessageId = createId("message");
     const userNow = Date.now();
     const userPosition = (transcript.at(-1)?.position ?? -1) + 1;
@@ -656,9 +719,6 @@ export async function sendMessageAndStream(
       selected_regeneration_id: null
     });
 
-    const linkedAbort = createLinkedAbortController(context.request.signal);
-    const abortController = linkedAbort.abortController;
-    unlinkRequestAbort = linkedAbort.unlink;
     let partialText = "";
     let finalizationPhase: "streaming" | "full" | "partial" | "settled" = "streaming";
     const stream = new ReadableStream<Uint8Array>({
@@ -721,6 +781,7 @@ export async function sendMessageAndStream(
             throw new AppError(500, "CONVERSATION_SYNC_FAILED", "Conversation state could not be finalized.");
           }
 
+          stopLease();
           leaseReleased = await releaseConversationRunBeforeTerminal(context, conversationId, runId);
           safeEnqueue(controller, {
             type: "completed_send",
@@ -754,6 +815,7 @@ export async function sendMessageAndStream(
             }
             finalizationPhase = "settled";
           } else if (!abortController.signal.aborted) {
+            stopLease();
             leaseReleased = await releaseConversationRunBeforeTerminal(context, conversationId, runId);
             safeEnqueue(controller, {
               type: "failed",
@@ -762,6 +824,7 @@ export async function sendMessageAndStream(
             });
           }
         } finally {
+          stopLease();
           await finishConversationStream(
             context,
             conversationId,
@@ -786,6 +849,7 @@ export async function sendMessageAndStream(
       }
     });
   } catch (error) {
+    stopLease();
     unlinkRequestAbort();
     await releaseConversationRun(context.env, conversationId, runId);
     throw error;
@@ -803,9 +867,14 @@ export async function regenerateLatestAssistantAndStream(
   await requireOwnedConversation(context, message.conversation_id);
   const runId = await acquireConversationRun(context, message.conversation_id);
   let unlinkRequestAbort = () => {};
+  let stopLease = () => {};
   let leaseReleased = false;
 
   try {
+    const linkedAbort = createLinkedAbortController(context.request.signal);
+    const abortController = linkedAbort.abortController;
+    unlinkRequestAbort = linkedAbort.unlink;
+    stopLease = keepConversationRunAlive(context, message.conversation_id, runId, abortController);
     const transcript = await loadTranscript(context, message.conversation_id);
     let latest: TranscriptMessage;
     try {
@@ -817,10 +886,8 @@ export async function regenerateLatestAssistantAndStream(
     const { conversation, messages } = await buildAssistantContext(context, message.conversation_id, {
       untilPosition: latest.position
     });
+    throwIfAborted(abortController.signal);
     const regenerationId = createId("regen");
-    const linkedAbort = createLinkedAbortController(context.request.signal);
-    const abortController = linkedAbort.abortController;
-    unlinkRequestAbort = linkedAbort.unlink;
     let partialText = "";
     let finalizationPhase: "streaming" | "full" | "partial" | "settled" = "streaming";
 
@@ -878,6 +945,7 @@ export async function regenerateLatestAssistantAndStream(
             throw new AppError(500, "CONVERSATION_SYNC_FAILED", "Conversation state could not be finalized.");
           }
 
+          stopLease();
           leaseReleased = await releaseConversationRunBeforeTerminal(
             context,
             message.conversation_id,
@@ -929,6 +997,7 @@ export async function regenerateLatestAssistantAndStream(
             }
             finalizationPhase = "settled";
           } else if (!abortController.signal.aborted) {
+            stopLease();
             leaseReleased = await releaseConversationRunBeforeTerminal(
               context,
               message.conversation_id,
@@ -941,6 +1010,7 @@ export async function regenerateLatestAssistantAndStream(
             });
           }
         } finally {
+          stopLease();
           await finishConversationStream(
             context,
             message.conversation_id,
@@ -965,6 +1035,7 @@ export async function regenerateLatestAssistantAndStream(
       }
     });
   } catch (error) {
+    stopLease();
     unlinkRequestAbort();
     await releaseConversationRun(context.env, message.conversation_id, runId);
     throw error;

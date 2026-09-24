@@ -333,3 +333,22 @@ export async function releaseConversationRun(env: Env, conversationId: string, r
     ).bind(conversationId, runId)
   );
 }
+
+export async function renewConversationRun(
+  env: Env,
+  conversationId: string,
+  runId: string,
+  now: number,
+  expiresAt: number
+): Promise<boolean> {
+  const result = await run(
+    env.DB.prepare(
+      `
+      UPDATE conversations
+      SET active_run_expires_at = ?
+      WHERE id = ? AND active_run_id = ? AND active_run_expires_at > ?
+      `
+    ).bind(expiresAt, conversationId, runId, now)
+  );
+  return Number(result.meta.changes ?? 0) > 0;
+}

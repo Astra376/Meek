@@ -64,55 +64,7 @@ jobs:
               output.write(f'CLOUDFLARE_ACCOUNT_ID={matches[0]}\n')
           print(f'Confirmed Cloudflare account {matches[0]} owns robloxproxy.workers.dev')
           PY
-      - name: Inspect live chat implementation
+      - name: Patch the running Worker code and verify
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-        run: |
-          python3 - <<'PY'
-          import email
-          import hashlib
-          import os
-          import re
-          import urllib.request
-
-          request = urllib.request.Request(
-              f'https://api.cloudflare.com/client/v4/accounts/{os.environ["CLOUDFLARE_ACCOUNT_ID"]}/workers/scripts/character-chat-worker',
-              headers={"Authorization": f'Bearer {os.environ["CLOUDFLARE_API_TOKEN"]}'},
-          )
-          with urllib.request.urlopen(request, timeout=30) as response:
-              body = response.read()
-              content_type = response.headers.get("Content-Type", "application/javascript")
-          if content_type.startswith("multipart/"):
-              message = email.message_from_bytes(
-                  f'Content-Type: {content_type}\r\nMIME-Version: 1.0\r\n\r\n'.encode() + body
-              )
-              module_parts = [part for part in message.walk() if not part.is_multipart()]
-              print('Worker parts: ' + ', '.join(f'{part.get_param("name", header="content-disposition")}/{part.get_content_type()}/{len(part.get_payload(decode=True))}' for part in module_parts))
-              parts = [part.get_payload(decode=True) for part in module_parts]
-          else:
-              parts = [body]
-          print('Worker response content type: ' + content_type.split(';', 1)[0])
-          print('Worker main module header: ' + str(response.headers.get('CF-WORKER-MAIN-MODULE-PART')))
-          source = '\n'.join(part.decode('utf-8', errors='replace') for part in parts)
-          markers = list(re.finditer(r'^// src/([^\n]+)', source, re.MULTILINE))
-          snippets = []
-          names = []
-          for index, marker in enumerate(markers):
-              name = marker.group(1)
-              if name.startswith(('services/chat/', 'providers/openrouter', 'lib/deadline', 'services/images/jobs')):
-                  names.append(name)
-                  end = markers[index + 1].start() if index + 1 < len(markers) else len(source)
-                  snippets.append(source[marker.start():end])
-          if not snippets:
-              raise SystemExit('Could not locate chat code in the live Worker')
-          output = os.path.join(os.environ['RUNNER_TEMP'], 'live-chat-sections.txt')
-          with open(output, 'w') as result:
-              result.write('\n'.join(snippets))
-          print(f'Live Worker SHA256: {hashlib.sha256(source.encode()).hexdigest()}')
-          print('Saved sections: ' + ', '.join(names))
-          PY
-      - uses: actions/upload-artifact@v4
-        with:
-          name: live-worker-chat-sections
-          path: ${{ runner.temp }}/live-chat-sections.txt
-          retention-days: 1
+        run: python3 scripts/hotfix_live_chat.py --deploy

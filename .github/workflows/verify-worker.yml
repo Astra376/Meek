@@ -19,18 +19,26 @@ jobs:
           import urllib.request
 
           base = 'https://character-chat-worker.robloxproxy.workers.dev'
-          preflight = urllib.request.Request(
-              base + '/v1/conversations/test/messages/stream',
-              method='OPTIONS',
-          )
-          try:
-              with urllib.request.urlopen(preflight, timeout=15) as response:
-                  assert response.status == 204, response.status
-          except urllib.error.HTTPError as error:
-              print('Preflight status:', error.code)
-              print('Preflight headers:', {key: value for key, value in error.headers.items() if key.lower() in ('server', 'content-type', 'cf-ray', 'www-authenticate')})
-              print('Preflight body:', error.read(600).decode('utf-8', errors='replace'))
-              raise
+          passed = False
+          for label, agent in [
+              ('Android', 'okhttp/4.12.0'),
+              ('curl', 'curl/8.5.0'),
+              ('desktop', 'Mozilla/5.0 (Linux; Android 15) AppleWebKit/537.36 Chrome/125.0 Mobile Safari/537.36'),
+          ]:
+              preflight = urllib.request.Request(
+                  base + '/v1/conversations/test/messages/stream',
+                  method='OPTIONS',
+                  headers={'User-Agent': agent},
+              )
+              try:
+                  with urllib.request.urlopen(preflight, timeout=15) as response:
+                      print(label, 'preflight status:', response.status)
+                      passed = response.status == 204
+                      if passed:
+                          break
+              except urllib.error.HTTPError as error:
+                  print(label, 'preflight status:', error.code, 'body:', error.read(120).decode('utf-8', errors='replace'))
+          assert passed, 'Cloudflare blocked all HTTP user agents before the Worker'
           try:
               urllib.request.urlopen(base + '/v1/home/feed', timeout=15)
           except urllib.error.HTTPError as error:

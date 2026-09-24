@@ -51,3 +51,19 @@ jobs:
               raise AssertionError('Protected route did not require authentication')
           print('Production Worker responds to CORS preflight and rejects unauthenticated requests correctly')
           PY
+      - name: Check active Cloudflare deployment
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import urllib.request
+
+          url = 'https://api.cloudflare.com/client/v4/accounts/6418d8b7a0996630c6eb574d93c85b54/workers/scripts/character-chat-worker/deployments'
+          request = urllib.request.Request(url, headers={'Authorization': 'Bearer ' + os.environ['CLOUDFLARE_API_TOKEN']})
+          with urllib.request.urlopen(request, timeout=15) as response:
+              deployment = json.load(response)['result']['deployments'][0]
+          print('Active deployment:', deployment['created_on'], deployment['versions'])
+          assert deployment['created_on'] >= '2026-09-24T05:33:00', 'Chat patch is not active'
+          PY

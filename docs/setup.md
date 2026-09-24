@@ -149,6 +149,20 @@ Do **not** put these secrets in `wrangler.toml`.
 
 ### 4.5 Deploy the Worker
 
+**Existing production Worker (September 2026):** The live `character-chat-worker`
+contains newer routes, bindings, and the `ImageGenerationJob` Durable Object that
+are absent from this checkout. Do not run the command below against that live
+Worker until its current source and configuration are brought into this repo.
+Cloudflare rejects a direct deploy because the class is missing. Do not delete
+that class or its stored objects to force a deploy.
+
+The September chat startup fix was applied to the running script using
+`backend/scripts/hotfix_live_chat.py` and Cloudflare's content-only update API,
+which preserved the live bindings and Durable Object. The script checks the
+exact pre-fix Worker hash and is not a general deployment command.
+
+For a new Cloudflare account with no existing Worker, deploy with:
+
 ```bash
 npm run deploy
 ```

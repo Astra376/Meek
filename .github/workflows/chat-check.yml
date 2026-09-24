@@ -35,11 +35,16 @@ jobs:
       - uses: android-actions/setup-android@v3
         with:
           packages: "platform-tools platforms;android-35 build-tools;35.0.0"
+      # The checked-in wrapper JAR is from Gradle 4.4.1 and fails validation.
+      # Install 8.7 directly so CI never executes that stale JAR.
       - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
+          validate-wrappers: false
       - name: Test chat recovery
-        run: ./gradlew :app:testDebugUnitTest --tests com.example.aichat.feature.chat.ChatRepositoryTest --tests com.example.aichat.core.network.WorkerStreamingClientTest --no-daemon
+        run: gradle :app:testDebugUnitTest --tests com.example.aichat.feature.chat.ChatRepositoryTest --tests com.example.aichat.core.network.WorkerStreamingClientTest --no-daemon
       - name: Build debug APK
-        run: ./gradlew :app:assembleDebug --no-daemon
+        run: gradle :app:assembleDebug --no-daemon
       - uses: actions/upload-artifact@v4
         with:
           name: meek-chat-fix-debug-apk

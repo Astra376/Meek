@@ -129,10 +129,11 @@ def main():
     runtime_check(modules, main_module, schema, expect_blocked=original != patched)
     updated_modules = list(modules)
     updated_modules[index] = (modules[index][0], modules[index][1], patched.encode())
-    print("Checking patched handlers against local synthetic conversations", flush=True)
-    runtime_check(updated_modules, main_module, schema)
-    if not args.deploy or original == patched:
-        print("Runtime checks passed; " + ("patch already deployed" if original == patched else "no production write requested"))
+    if original != patched:
+        print("Checking patched handlers against local synthetic conversations", flush=True)
+        runtime_check(updated_modules, main_module, schema)
+    if not args.deploy:
+        print("Runtime checks passed; no production write requested")
         return
 
     current, _, current_etag = get_live_script(account_id, token)
@@ -154,6 +155,15 @@ def main():
     digest = lambda values: hashlib.sha256(b"\n".join(payload for _, _, payload in values)).digest()
     if digest(verified) != digest(updated_modules):
         raise ValueError("Deployment readback differs from tested code")
+    request = urllib.request.Request(
+        f"{API_BASE}/accounts/{account_id}/workers/scripts/{SCRIPT_NAME}/deployments",
+        headers={"Authorization": f"Bearer {token}", "Cache-Control": "no-cache"},
+    )
+    with urllib.request.urlopen(request, timeout=30) as response:
+        active = json.load(response)["result"]["deployments"][0]
+    print("Verified active deployment", active["created_on"], active["versions"], flush=True)
+    if active["created_on"] <= deployment["created_on"] or len(active["versions"]) != 1 or active["versions"][0]["percentage"] != 100:
+        raise ValueError("Tested code read back correctly but production traffic activation is not confirmed")
     print("Production transcript patch deployed and exact Worker content verified; configuration preserved")
 
 

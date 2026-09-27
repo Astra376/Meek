@@ -450,8 +450,8 @@ fun ChatRoute(
         }
     }
 
-    LaunchedEffect(state.isStreamBusy, state.isMutating) {
-        if (state.isStreamBusy || state.isMutating) {
+    LaunchedEffect(state.isMutating) {
+        if (state.isMutating) {
             actionMessage = null
             editTarget = null
         }
@@ -482,7 +482,7 @@ fun ChatRoute(
         onOpenPersonas = onOpenPersonas,
         onChatPreferences = { showPreferences = true },
         onLoadOlderMessages = viewModel::loadOlderMessages,
-        onMessageLongPress = { if (!state.isStreamBusy && !state.isMutating) actionMessage = it },
+        onMessageLongPress = { if (!state.isMutating) actionMessage = it },
         onSelectVariant = { message, index ->
             viewModel.selectRegeneration(message.id, message.variantIdAt(index))
         },
@@ -515,7 +515,7 @@ fun ChatRoute(
     actionMessage?.let { message ->
         val isLatestAssistant = messages.firstOrNull()?.takeIf { it.role == MessageRole.ASSISTANT && it.sendState == MessageSendState.SENT }?.id == message.id
         MessageActionsDialog(
-            canRegenerate = isLatestAssistant,
+            canRegenerate = isLatestAssistant && !state.isStreamBusy,
             readAloud = if (message.role == MessageRole.ASSISTANT) {
                 { com.example.aichat.feature.voice.ReadAloudButton(conversationId = message.conversationId, messageId = message.id, onError = { error ->
                     actionMessage = null
@@ -743,6 +743,7 @@ internal fun ChatScreenContent(
                             activeStream = activeStream,
                             streamDisplayText = streamDisplayText,
                             isStreaming = state.isStreamBusy || state.isMutating,
+                            isMutating = state.isMutating,
                             showSendDraft = showSendDraft,
                             characterName = state.conversation.character.name,
                             characterAvatarUrl = state.conversation.character.avatarUrl,
@@ -917,7 +918,8 @@ internal fun ChatTranscriptPane(
     onMessageLongPress: (ChatMessage) -> Unit,
     onSelectVariant: (ChatMessage, Int) -> Unit,
     onSelectPreviousVariant: (ChatMessage) -> Unit,
-    onSelectNextVariant: (ChatMessage) -> Unit
+    onSelectNextVariant: (ChatMessage) -> Unit,
+    isMutating: Boolean = false
 ) {
     val latestAssistantId = messages.firstOrNull()?.takeIf {
         (activeStream == null || activeStream.mode == ActiveStreamMode.REGENERATE || activeStream.assistantMessageId == it.id) &&
@@ -981,7 +983,7 @@ internal fun ChatTranscriptPane(
                     generationKey = activeStream?.draftKey.takeIf { isActiveRegenerate },
                     generationId = activeStream?.regenerationId.takeIf { isActiveRegenerate },
                     isLatestAssistant = message.id == latestAssistantId,
-                    actionsEnabled = !isStreaming && message.sendState == MessageSendState.SENT,
+                    actionsEnabled = !isMutating && message.sendState == MessageSendState.SENT,
                     variantControlsEnabled = !isStreaming && message.id == latestAssistantId,
                     characterName = characterName,
                     characterAvatarUrl = characterAvatarUrl,
@@ -1264,7 +1266,7 @@ private fun MessageBubble(
             avatarUrl = avatarUrl,
             bubbleColor = bubbleColor,
             variantControlsEnabled = variantControlsEnabled,
-            onLongPress = onLongPress,
+            onLongPress = { if (actionsEnabled) onLongPress() },
             onSelectVariant = onSelectVariant,
             onSelectPreviousVariant = onSelectPreviousVariant,
             onSelectNextVariant = onSelectNextVariant,
@@ -1283,7 +1285,7 @@ private fun MessageBubble(
             showTypingIndicator = showTypingIndicator,
             showVariantControls = false,
             variantControlsEnabled = variantControlsEnabled,
-            onLongPress = onLongPress,
+            onLongPress = { if (actionsEnabled) onLongPress() },
             onPrevious = onSelectPreviousVariant,
             onNext = onSelectNextVariant
         )

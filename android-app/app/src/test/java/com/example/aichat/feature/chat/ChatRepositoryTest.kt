@@ -743,6 +743,9 @@ class ChatRepositoryTest {
         chatApi.rewindHandler = {
             requested.complete(Unit)
             finish.await()
+            conversationApi.detail = conversationDetail((1..3).map {
+                remoteMessage("message-$it", it, "assistant", "message $it", it.toLong(), it.toLong())
+            })
         }
         val rewind = async { repository.rewind("message-3") }
         requested.await()
@@ -785,8 +788,13 @@ class ChatRepositoryTest {
         val requested = CompletableDeferred<Unit>()
         val finish = CompletableDeferred<Unit>()
         conversationApi.beforeGet = {
-            requested.complete(Unit)
-            finish.await()
+            if (!requested.isCompleted) {
+                requested.complete(Unit)
+                finish.await()
+            }
+        }
+        chatApi.rewindHandler = {
+            conversationApi.detail = checkNotNull(conversationApi.detail).copy(messages = checkNotNull(conversationApi.detail).messages.take(1))
         }
         val refresh = async { repository.refreshConversation(CONVERSATION_ID) }
         requested.await()
@@ -817,6 +825,12 @@ class ChatRepositoryTest {
         messageDao.insert(sentMessage("assistant-1", 1, "ASSISTANT", "original", 100, 100)
             .copy(selectedRegenerationId = "variant-1"))
         database.assistantRegenerationDao().insert(AssistantRegenerationEntity("variant-1", "assistant-1", "variant", 101))
+        conversationApi.detail = conversationDetail(listOf(remoteMessage("assistant-1", 1, "assistant", "original", 100, 100,
+            regenerations = listOf(AssistantRegenerationDto("variant-1", "assistant-1", "variant", 101)))))
+        chatApi.editHandler = { _, body ->
+            val detail = checkNotNull(conversationApi.detail)
+            conversationApi.detail = detail.copy(messages = detail.messages.map { it.copy(content = body.content) })
+        }
         repository.selectRegeneration("assistant-1", ChatRepository.ORIGINAL_VARIANT_ID).getOrThrow()
         repository.editMessage("assistant-1", "changed original").getOrThrow()
 
@@ -901,6 +915,9 @@ class ChatRepositoryTest {
             repository.observeActiveStream(CONVERSATION_ID).first { it == null }
         }
         assertThat(messageDao.getById("recovered-reply")?.content).isEqualTo("Finished on server")
+        chatApi.editHandler = { _, body ->
+            conversationApi.detail = conversationDetail(listOf(remoteMessage("recovered-reply", 1, "assistant", body.content, 100, 200)))
+        }
         repository.editMessage("recovered-reply", "Edited").getOrThrow()
     }
 
@@ -971,6 +988,76 @@ class ChatRepositoryTest {
         chatApi.editHandler = { _, _ -> throw java.io.IOException("response lost after commit") }
         repository.editMessage("assistant-1", "edited").getOrThrow()
         assertThat(messageDao.getById("assistant-1")?.content).isEqualTo("edited")
+    }
+
+    @Test
+    fun successResponseWithoutSavedEdit_doesNotReportSuccess() = runTest {
+        seedConversation(version = 1)
+        messageDao.insert(sentMessage("assistant-1", 1, "ASSISTANT", "original", 100, 100))
+        conversationApi.detail = conversationDetail(listOf(remoteMessage("assistant-1", 1, "assistant", "original", 100, 100)))
+
+        assertThat(repository.editMessage("assistant-1", "unsaved").isFailure).isTrue()
+        assertThat(messageDao.getById("assistant-1")?.content).isEqualTo("original")
+    }
+
+    @Test
+    fun successResponseWithoutSavedRewind_restoresServerTranscript() = runTest {
+        seedConversation(version = 1)
+        messageDao.insertAll((1..3).map { sentMessage("message-$it", it, "ASSISTANT", "message $it", 100, 100) })
+        conversationApi.detail = conversationDetail((1..3).map { remoteMessage("message-$it", it, "assistant", "message $it", 100, 100) })
+
+        assertThat(repository.rewind("message-1").isFailure).isTrue()
+        assertThat(messageDao.getMessages(CONVERSATION_ID)).hasSize(3)
+    }
+
+    @Test
+    fun rewindDuringRecoveredRun_reachesServerAndConfirmsSavedHistory() = runTest {
+        seedConversation(version = 1)
+        val target = remoteMessage("message-1", 1, "assistant", "Keep this", 100, 100)
+        conversationApi.detail = conversationDetail(listOf(target, remoteMessage("message-2", 2, "user", "Remove this", 100, 100)))
+            .copy(activeRunId = "abandoned-run", activeRunExpiresAt = System.currentTimeMillis() + 60_000)
+        repository.refreshConversation(CONVERSATION_ID).getOrThrow()
+        chatApi.rewindHandler = { conversationApi.detail = conversationDetail(listOf(target)) }
+
+        repository.rewind("message-1").getOrThrow()
+        assertThat(chatApi.rewindTargets).containsExactly("message-1")
+        assertThat(messageDao.getMessages(CONVERSATION_ID).map { it.id }).containsExactly("message-1")
+        assertThat(repository.observeActiveStream(CONVERSATION_ID).first()).isNull()
+    }
+
+    @Test
+    fun editDuringRecoveredRun_reachesServerAndConfirmsSavedText() = runTest {
+        seedConversation(version = 1)
+        val original = remoteMessage("message-1", 1, "assistant", "Original", 100, 100)
+        conversationApi.detail = conversationDetail(listOf(original))
+            .copy(activeRunId = "abandoned-run", activeRunExpiresAt = System.currentTimeMillis() + 60_000)
+        repository.refreshConversation(CONVERSATION_ID).getOrThrow()
+        chatApi.editHandler = { _, body -> conversationApi.detail = conversationDetail(listOf(original.copy(content = body.content))) }
+
+        repository.editMessage("message-1", "Corrected").getOrThrow()
+        assertThat(messageDao.getById("message-1")?.content).isEqualTo("Corrected")
+        assertThat(repository.observeActiveStream(CONVERSATION_ID).first()).isNull()
+    }
+
+    @Test
+    fun rewindDuringLocalStream_cancelsOldReplyBeforeSaving() = runTest {
+        seedConversation(version = 1)
+        messageDao.insert(sentMessage("message-1", 1, "ASSISTANT", "Keep this", 100, 100))
+        val events = MutableSharedFlow<ChatStreamEvent>(replay = 8)
+        streamingClient.continueHandler = { events }
+        val streamJob = backgroundScope.launch { repository.continueAssistant(CONVERSATION_ID) }
+        repository.observeActiveStream(CONVERSATION_ID).first { it != null }
+        events.emit(ChatStreamEvent.AcceptedContinue("old-run", 1, "pending-reply"))
+        events.emit(ChatStreamEvent.Delta("old-run", "Discard partial text"))
+        repository.observeActiveStream(CONVERSATION_ID).first { it?.text == "Discard partial text" }
+        chatApi.rewindHandler = {
+            conversationApi.detail = conversationDetail(listOf(remoteMessage("message-1", 1, "assistant", "Keep this", 100, 100)))
+        }
+
+        repository.rewind("message-1").getOrThrow()
+        streamJob.join()
+        assertThat(messageDao.getMessages(CONVERSATION_ID).map { it.id }).containsExactly("message-1")
+        assertThat(repository.observeActiveStream(CONVERSATION_ID).first()).isNull()
     }
 
     private suspend fun seedConversation(version: Long) {
@@ -1128,9 +1215,10 @@ class ChatRepositoryTest {
         }
 
         override suspend fun getConversation(conversationId: String): ConversationDetailDto {
+            val snapshot = detail
             beforeGet()
             failure?.let { throw it }
-            return detail ?: ConversationDetailDto(
+            return snapshot ?: ConversationDetailDto(
                 id = conversationId,
                 ownerUserId = USER_ID,
                 conversationVersion = 1,

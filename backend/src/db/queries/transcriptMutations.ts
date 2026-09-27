@@ -14,10 +14,22 @@ function activityUpdate(env: Env, conversationId: string, now: number) {
     WHERE id = ? AND changes() > 0`).bind(now, now, conversationId);
 }
 
+function cancelRunForMutation(env: Env, ownerId: string, conversationId: string, messageId: string) {
+  // An explicit edit/rewind supersedes a pending reply. Cancel and mutate in
+  // one transaction so an old stream cannot put the removed history back.
+  // Invalid targets and other owners must never cancel a live generation.
+  return env.DB.prepare(`UPDATE conversations
+    SET active_run_id = NULL, active_run_expires_at = NULL
+    WHERE id = ? AND owner_user_id = ? AND EXISTS (
+      SELECT 1 FROM messages WHERE id = ? AND conversation_id = ?
+    )`).bind(conversationId, ownerId, messageId, conversationId);
+}
+
 export async function editMessageAtomically(
   env: Env, ownerId: string, conversationId: string, messageId: string, content: string, now: number
 ): Promise<boolean> {
   const result = await env.DB.batch([
+    cancelRunForMutation(env, ownerId, conversationId, messageId),
     env.DB.prepare(`UPDATE assistant_regenerations SET content = ?
       WHERE id = (SELECT selected_regeneration_id FROM messages WHERE id = ? AND conversation_id = ? AND role = 'assistant')
         AND message_id = ? AND ${unlockedOwner}
@@ -31,7 +43,7 @@ export async function editMessageAtomically(
     `).bind(content, now, messageId, conversationId, conversationId, ownerId, now),
     activityUpdate(env, conversationId, now)
   ]);
-  return Number(result[1].meta.changes) > 0;
+  return Number(result[2].meta.changes) > 0;
 }
 
 export async function rewindToMessageAtomically(
@@ -40,22 +52,23 @@ export async function rewindToMessageAtomically(
   // Resolve the exact ID in the DELETE, rather than a client offset or a stale
   // position. Repeating this request leaves the same message as the endpoint.
   const result = await env.DB.batch([
+    cancelRunForMutation(env, ownerId, conversationId, messageId),
     env.DB.prepare(`DELETE FROM messages
       WHERE conversation_id = ? AND position > (
         SELECT target.position FROM messages target WHERE target.id = ? AND target.conversation_id = ?
       ) AND ${unlockedOwner}
     `).bind(conversationId, messageId, conversationId, conversationId, ownerId, now),
     activityUpdate(env, conversationId, now),
-    // Distinguish an already-rewound transcript from a write fenced out by a
-    // competing generation or a removed target, within this same transaction.
+    // Distinguish an already-rewound transcript from a removed target within
+    // the same transaction; a zero-row delete is not proof of success.
     env.DB.prepare(`SELECT 1 AS allowed FROM messages target
       WHERE target.id = ? AND target.conversation_id = ? AND ${unlockedOwner}
     `).bind(messageId, conversationId, conversationId, ownerId, now)
   ]);
-  if (!result[2].results?.length) {
+  if (!result[3].results?.length) {
     throw new AppError(409, "TRANSCRIPT_CHANGED", "The conversation changed before the rewind. Refresh and try again.");
   }
-  return Number(result[0].meta.changes);
+  return Number(result[1].meta.changes);
 }
 
 export async function selectRegenerationAtomically(

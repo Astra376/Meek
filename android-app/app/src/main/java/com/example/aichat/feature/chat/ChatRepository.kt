@@ -109,6 +109,7 @@ class ChatRepository @Inject constructor(
     private val operationLocks = ConcurrentHashMap<String, Mutex>()
     private val transcriptRevisions = ConcurrentHashMap<String, Long>()
     private val mutations = MutableStateFlow<Set<String>>(emptySet())
+    private val mutationRequests = ConcurrentHashMap.newKeySet<String>()
 
     fun observeMutationBusy(conversationId: String): Flow<Boolean> =
         mutations.map { conversationId in it }
@@ -119,18 +120,15 @@ class ChatRepository @Inject constructor(
 
     private suspend fun <T> conversationOperation(
         conversationId: String,
-        mutation: Boolean = false,
         block: suspend () -> T
     ): T {
         val lock = operationLocks.getOrPut(conversationId) { Mutex() }
         if (!lock.tryLock()) throw ChatRuleViolation("A chat update is already in progress.")
         transcriptRevisions.merge(conversationId, 1L) { previous, _ -> previous + 1L }
-        if (mutation) mutations.update { it + conversationId }
         try {
             ensureNotStreaming(conversationId)
             return block()
         } finally {
-            if (mutation) mutations.update { it - conversationId }
             lock.unlock()
         }
     }
@@ -456,19 +454,37 @@ class ChatRepository @Inject constructor(
 
     private suspend fun mutateMessage(
         messageId: String,
+        interruptReply: Boolean = false,
         block: suspend (MessageEntity) -> Unit
     ): Result<Unit> = operationScope.async {
         captureResult {
             val original = messageDao.getById(messageId)
                 ?: throw IllegalArgumentException("Message not found.")
-            conversationOperation(original.conversationId, mutation = true) {
-                val message = requireMutableMessage(messageId)
-                block(message)
+            val conversationId = original.conversationId
+            if (!mutationRequests.add(conversationId)) throw ChatRuleViolation("A chat update is already in progress.")
+            mutations.update { it + conversationId }
+            try {
+                if (interruptReply) {
+                    val stream = currentActiveStream(conversationId)
+                    if (stream != null) {
+                        if (stream.status == ActiveStreamStatus.STREAMING) requestStop(conversationId, stream.draftKey)
+                        generationJobs[conversationId]?.cancelAndJoin()
+                        // The edit/rewind transaction cancels any remaining server
+                        // run. A stale remote-only draft must not block the request.
+                        clearActiveStream(conversationId, stream.draftKey)
+                    }
+                }
+                conversationOperation(conversationId) {
+                    block(requireMutableMessage(messageId))
+                }
+            } finally {
+                mutations.update { it - conversationId }
+                mutationRequests.remove(conversationId)
             }
         }
     }.await()
 
-    suspend fun editMessage(messageId: String, newContent: String): Result<Unit> = mutateMessage(messageId) { message ->
+    suspend fun editMessage(messageId: String, newContent: String): Result<Unit> = mutateMessage(messageId, interruptReply = true) { message ->
         val normalized = newContent.trim()
         if (normalized.isBlank()) throw IllegalArgumentException("Message can't be empty.")
         val conversation = conversationDao.getById(message.conversationId)
@@ -477,31 +493,27 @@ class ChatRepository @Inject constructor(
             applyLocalEdit(message, normalized)
             updateConversationMetadataFromTranscript(message.conversationId)
         }
-        try {
-            chatApi.editMessage(message.id, EditMessageRequestDto(normalized))
-        } catch (error: Throwable) {
-            val reconciled = if (error is CancellationException) null else reconcileMutation(message.conversationId) { detail ->
+        commitMutation(
+            conversationId = message.conversationId,
+            request = { chatApi.editMessage(message.id, EditMessageRequestDto(normalized)) },
+            isApplied = { detail ->
                 val remote = detail.messages.firstOrNull { it.id == message.id }
                 val visible = remote?.let { saved ->
                     saved.regenerations.firstOrNull { it.id == saved.selectedRegenerationId }?.content ?: saved.content
                 }
                 visible == normalized
-            }
-            if (reconciled == true) return@mutateMessage
-            if (reconciled == null) {
-                withContext(NonCancellable) {
-                    database.withTransaction {
-                        messageDao.update(message)
-                        selected?.let { regenerationDao.insert(it) }
-                        conversation?.let { conversationDao.upsert(it) }
-                    }
+            },
+            rollback = {
+                database.withTransaction {
+                    messageDao.update(message)
+                    selected?.let { regenerationDao.insert(it) }
+                    conversation?.let { conversationDao.upsert(it) }
                 }
             }
-            throw error
-        }
+        )
     }
 
-    suspend fun rewind(messageId: String): Result<Unit> = mutateMessage(messageId) { message ->
+    suspend fun rewind(messageId: String): Result<Unit> = mutateMessage(messageId, interruptReply = true) { message ->
         val conversation = conversationDao.getById(message.conversationId)
         val removed = messageDao.getMessagesRemovedByRewind(message.conversationId, message.position)
         val removedRegenerations = regenerationDao.getRemovedByRewind(message.conversationId, message.position)
@@ -510,26 +522,21 @@ class ChatRepository @Inject constructor(
             deleteLocalOnlyMessages(message.conversationId)
             updateConversationMetadataFromTranscript(message.conversationId)
         }
-        try {
-            // Keep the tapped identity even while the visible transcript changes.
-            chatApi.rewind(message.id)
-        } catch (error: Throwable) {
-            val reconciled = if (error is CancellationException) null else reconcileMutation(message.conversationId) { detail ->
+        commitMutation(
+            conversationId = message.conversationId,
+            request = { chatApi.rewind(message.id) },
+            isApplied = { detail ->
                 val target = detail.messages.firstOrNull { it.id == message.id }
                 target != null && detail.messages.none { it.position > target.position }
-            }
-            if (reconciled == true) return@mutateMessage
-            if (reconciled == null) {
-                withContext(NonCancellable) {
-                    database.withTransaction {
-                        messageDao.insertAll(removed)
-                        regenerationDao.insertAll(removedRegenerations)
-                        conversation?.let { conversationDao.upsert(it) }
-                    }
+            },
+            rollback = {
+                database.withTransaction {
+                    messageDao.insertAll(removed)
+                    regenerationDao.insertAll(removedRegenerations)
+                    conversation?.let { conversationDao.upsert(it) }
                 }
             }
-            throw error
-        }
+        )
     }
 
     suspend fun regenerateLatestAssistant(messageId: String): Result<Unit> {
@@ -571,22 +578,45 @@ class ChatRepository @Inject constructor(
             messageDao.update(message.copy(selectedRegenerationId = selectedId, updatedAt = System.currentTimeMillis()))
             updateConversationMetadataFromTranscript(message.conversationId)
         }
-        try {
-            chatApi.selectRegeneration(message.id, SelectRegenerationRequestDto(selectedId))
-        } catch (error: Throwable) {
-            val reconciled = if (error is CancellationException) null else reconcileMutation(message.conversationId) { detail ->
+        commitMutation(
+            conversationId = message.conversationId,
+            request = { chatApi.selectRegeneration(message.id, SelectRegenerationRequestDto(selectedId)) },
+            isApplied = { detail ->
                 detail.messages.firstOrNull { it.id == message.id }?.let { it.selectedRegenerationId == selectedId } == true
-            }
-            if (reconciled == true) return@mutateMessage
-            if (reconciled == null) {
-                withContext(NonCancellable) {
-                    database.withTransaction {
-                        messageDao.update(message)
-                        conversation?.let { conversationDao.upsert(it) }
-                    }
+            },
+            rollback = {
+                database.withTransaction {
+                    messageDao.update(message)
+                    conversation?.let { conversationDao.upsert(it) }
                 }
             }
+        )
+    }
+
+    private suspend fun commitMutation(
+        conversationId: String,
+        request: suspend () -> Unit,
+        isApplied: (ConversationDetailDto) -> Boolean,
+        rollback: suspend () -> Unit
+    ) {
+        val requestError = try {
+            request()
+            null
+        } catch (error: CancellationException) {
+            withContext(NonCancellable) { rollback() }
             throw error
+        } catch (error: Throwable) {
+            error
+        }
+        // A successful HTTP response alone is not confirmation. Keep the
+        // operation locked until a fresh server transcript contains the change.
+        when (reconcileMutation(conversationId, isApplied)) {
+            true -> return
+            false -> throw requestError ?: java.io.IOException("The server did not save this change. Please retry.")
+            null -> {
+                withContext(NonCancellable) { rollback() }
+                throw requestError ?: java.io.IOException("Couldn't confirm this change was saved. Reopen the chat to check.")
+            }
         }
     }
 

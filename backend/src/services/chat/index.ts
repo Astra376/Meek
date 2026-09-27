@@ -379,11 +379,11 @@ async function streamAssistantReply(
   return finalText;
 }
 
-async function requireMutableMessage(context: RequestContext, messageId: string) {
+async function requireMutableMessage(context: RequestContext, messageId: string, interruptReply = false) {
   const message = await getMessageById(context.env, messageId);
   if (!message) throw new AppError(404, "MESSAGE_NOT_FOUND", "Message not found.");
   const conversation = await requireOwnedConversation(context, message.conversation_id);
-  assertConversationUnlocked(conversation);
+  if (!interruptReply) assertConversationUnlocked(conversation);
   // The first request after a Worker upgrade can be an edit of old history.
   // Install invalidation triggers before that write, not in its later summary.
   await ensureConversationMemorySchema(context.env);
@@ -393,7 +393,7 @@ async function requireMutableMessage(context: RequestContext, messageId: string)
 export async function editMessage(context: RequestContext, messageId: string, newContent: string) {
   const content = newContent.trim();
   if (!content) throw new AppError(400, "CHAT_RULE_ERROR", "Message content cannot be empty.");
-  const message = await requireMutableMessage(context, messageId);
+  const message = await requireMutableMessage(context, messageId, true);
   const updated = await editMessageAtomically(
     context.env, context.user!.userId, message.conversation_id, messageId, content, Date.now()
   );
@@ -402,7 +402,7 @@ export async function editMessage(context: RequestContext, messageId: string, ne
 }
 
 export async function rewindConversation(context: RequestContext, messageId: string) {
-  const message = await requireMutableMessage(context, messageId);
+  const message = await requireMutableMessage(context, messageId, true);
   const deleted = await rewindToMessageAtomically(context.env, context.user!.userId, message.conversation_id, messageId, Date.now());
   if (deleted > 0) scheduleCharacterMemoryConsolidation(context, message.conversation_id, message.position + 1);
 }

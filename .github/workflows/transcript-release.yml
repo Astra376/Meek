@@ -1,0 +1,90 @@
+name: Transcript persistence fix
+
+on:
+  push:
+    branches: [fix/transcript-persistence-release]
+    paths: ['android-app/**', 'backend/src/**', '.github/workflows/transcript-release.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npx vitest run src/db/queries/transcriptMutations.test.ts src/services/chat/streamLifecycle.test.ts
+      - run: npx tsc --noEmit
+
+  android:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: android-app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: "platform-tools platforms;android-35 build-tools;35.0.0"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
+          validate-wrappers: false
+      - name: Test persistence and build phone update
+        run: >-
+          gradle --no-daemon --max-workers=2 :app:testDebugUnitTest
+          --tests com.example.aichat.feature.chat.ChatRepositoryTest
+          --tests com.example.aichat.core.network.ChatRequestQueueTest
+          :app:assembleRelease
+          -PAI_CHAT_VERSION_CODE=1072 -PAI_CHAT_VERSION_NAME=1.1.72
+          -PAI_CHAT_BUILD_SHA=${GITHUB_SHA::7}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: meek-transcript-fix-apk
+          path: android-app/app/build/outputs/apk/release/app-release.apk
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: transcript-test-reports
+          path: android-app/app/build/test-results/testDebugUnitTest/
+
+  publish:
+    needs: [backend, android]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: meek-transcript-fix-apk
+      - name: Publish installable update
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          mv app-release.apk Meek-1.1.72.apk
+          sha256sum Meek-1.1.72.apk > Meek-1.1.72.apk.sha256
+          cat > /tmp/transcript-notes.md <<'NOTES'
+          Fix rewind, message editing, and server confirmation of transcript changes.
+          Open Meek-1.1.72.apk on your Android phone and choose Update.
+          Uses the same signing certificate as the existing phone preview.
+          NOTES
+          if gh release view transcript-fix-2026-09-27 >/dev/null 2>&1; then
+            gh release upload transcript-fix-2026-09-27 Meek-1.1.72.apk Meek-1.1.72.apk.sha256 --clobber
+          else
+            gh release create transcript-fix-2026-09-27 Meek-1.1.72.apk Meek-1.1.72.apk.sha256 --target "$GITHUB_SHA" --title 'Meek 1.1.72: transcript persistence' --prerelease --notes-file /tmp/transcript-notes.md
+          fi

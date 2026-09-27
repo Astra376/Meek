@@ -39,9 +39,12 @@ def fragments(source):
 def patch_source(source, updated):
     before = fragments(source)
     after = fragments(updated)
-    if before == after:
+    # Wrangler adds debug-name annotations to an otherwise identical bundle.
+    def without_debug_names(parts):
+        return {name: re.sub(r'^__name\([\w$]+, "[\w$]+"\);\n?', '', value, flags=re.M) for name, value in parts.items()}
+    if without_debug_names(before) == without_debug_names(after):
         return source
-    if before != EXPECTED:
+    if without_debug_names(before) != without_debug_names(EXPECTED):
         changed = [name for name in before if before[name] != EXPECTED[name]]
         # Diagnose compiler naming/formatting without disclosing live source.
         # Only tokens already present in public baseline source are printable.
@@ -99,6 +102,13 @@ def main():
     account_id = os.environ["CLOUDFLARE_ACCOUNT_ID"]
     token = os.environ["CLOUDFLARE_API_TOKEN"]
     modules, main_module, etag = get_live_script(account_id, token)
+    request = urllib.request.Request(
+        f"{API_BASE}/accounts/{account_id}/workers/scripts/{SCRIPT_NAME}/deployments",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    with urllib.request.urlopen(request, timeout=30) as response:
+        deployment = json.load(response)["result"]["deployments"][0]
+    print("Active Worker deployment", deployment["created_on"], deployment["versions"], flush=True)
     targets = [index for index, (_, _, payload) in enumerate(modules) if b"// src/db/queries/transcriptMutations.ts" in payload]
     if len(targets) != 1:
         raise ValueError("Expected one live transcript module")

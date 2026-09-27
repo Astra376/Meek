@@ -34,7 +34,11 @@ function token(userId) {
 try {
   const db = await mf.getD1Database('DB');
   // Rebuild only empty schema locally. Production user records are never read.
-  for (const row of schema) await db.prepare(row.sql).run();
+  for (const row of schema) {
+    // D1 owns these metadata tables; a new local database supplies its own.
+    if (row.name.startsWith('_cf_')) continue;
+    await db.prepare(row.sql).run();
+  }
   async function insert(table, values) {
     const columns = (await db.prepare(`PRAGMA table_info(${table})`).all()).results;
     const record = {};

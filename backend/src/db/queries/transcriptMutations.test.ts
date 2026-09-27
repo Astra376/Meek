@@ -1,7 +1,7 @@
 import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it } from "vitest";
 import type { Env } from "../../env";
-import { listContextMessages } from "./conversations";
+import { insertMessage, listContextMessages } from "./conversations";
 import { editMessageAtomically, rewindToMessageAtomically, selectRegenerationAtomically } from "./transcriptMutations";
 
 function database() {
@@ -86,21 +86,43 @@ describe("atomic transcript changes", () => {
     } finally { sqlite.close(); }
   });
 
-  it("cannot mutate after a new stream acquired the lease or for a different owner", async () => {
+  it("does not let invalid requests or other owners cancel a running reply", async () => {
     const { env, sqlite } = database();
     try {
       sqlite.exec("UPDATE conversations SET active_run_id='run', active_run_expires_at=500");
-      expect(await editMessageAtomically(env, "owner", "conversation", "assistant-1", "Edited", 1)).toBe(false);
       expect(await selectRegenerationAtomically(env, "owner", "conversation", "assistant-2", "version-2", 1)).toBe(false);
-      await expect(rewindToMessageAtomically(env, "owner", "conversation", "assistant-1", 1))
+      expect(await editMessageAtomically(env, "owner", "conversation", "missing", "Edited", 1)).toBe(false);
+      await expect(rewindToMessageAtomically(env, "owner", "conversation", "missing", 1))
         .rejects.toMatchObject({ status: 409, code: "TRANSCRIPT_CHANGED" });
       expect(sqlite.prepare("SELECT COUNT(*) AS count FROM messages").get()?.count).toBe(4);
-      sqlite.exec("UPDATE conversations SET active_run_id=NULL");
       expect(await editMessageAtomically(env, "intruder", "conversation", "assistant-1", "Edited", 1)).toBe(false);
       await expect(rewindToMessageAtomically(env, "intruder", "conversation", "assistant-1", 1))
         .rejects.toMatchObject({ status: 409, code: "TRANSCRIPT_CHANGED" });
       expect(sqlite.prepare("SELECT COUNT(*) AS count FROM messages").get()?.count).toBe(4);
       expect(sqlite.prepare("SELECT version FROM conversations").get()?.version).toBe(0);
+      expect(sqlite.prepare("SELECT active_run_id FROM conversations").get()?.active_run_id).toBe("run");
+    } finally { sqlite.close(); }
+  });
+
+  it.each(["edit", "rewind"])("%s cancels a pending generation and rejects its late saved reply", async (operation) => {
+    const { env, sqlite } = database();
+    try {
+      const now = Date.now();
+      sqlite.prepare("UPDATE conversations SET active_run_id='run', active_run_expires_at=?").run(now + 75_000);
+      if (operation === "edit") {
+        expect(await editMessageAtomically(env, "owner", "conversation", "user-1", "Corrected", now)).toBe(true);
+        expect(sqlite.prepare("SELECT content FROM messages WHERE id='user-1'").get()?.content).toBe("Corrected");
+      } else {
+        expect(await rewindToMessageAtomically(env, "owner", "conversation", "assistant-1", now)).toBe(2);
+        expect(sqlite.prepare("SELECT COUNT(*) AS count FROM messages").get()?.count).toBe(2);
+      }
+      expect(sqlite.prepare("SELECT active_run_id, active_run_expires_at, version FROM conversations").get())
+        .toMatchObject({ active_run_id: null, active_run_expires_at: null, version: 1 });
+      await expect(insertMessage(env, {
+        id: "late-reply", conversation_id: "conversation", position: 4, role: "assistant",
+        content: "Old context", edited: 0, created_at: now, updated_at: now, selected_regeneration_id: null
+      }, "run")).rejects.toMatchObject({ code: "RUN_CANCELLED" });
+      expect(sqlite.prepare("SELECT id FROM messages WHERE id='late-reply'").get()).toBeUndefined();
     } finally { sqlite.close(); }
   });
 

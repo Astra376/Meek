@@ -5,6 +5,7 @@ Checks exercise the real downloaded handlers with synthetic local D1 data.
 """
 
 import argparse
+import difflib
 import hashlib
 import json
 import os
@@ -42,6 +43,21 @@ def patch_source(source, updated):
         return source
     if before != EXPECTED:
         changed = [name for name in before if before[name] != EXPECTED[name]]
+        # Diagnose compiler naming/formatting without disclosing live source.
+        # Only tokens already present in public baseline source are printable.
+        token_pattern = r'[A-Za-z_$][\w$]*|[^\s]'
+        for name in changed:
+            known = re.findall(token_pattern, EXPECTED[name])
+            actual = re.findall(token_pattern, before[name])
+            allowed = set(known)
+            changes = []
+            for op, a, b, c, d in difflib.SequenceMatcher(None, known, actual, autojunk=False).get_opcodes():
+                if op == "equal":
+                    continue
+                public = actual[c:d]
+                safe = [value if value in allowed else "<unmatched-identifier>" if re.fullmatch(r'[A-Za-z_$][\w$]*', value) else "<unmatched-token>" for value in public]
+                changes.append({"kind": op, "expected": known[a:b][:15], "actual_known_tokens": safe[:15], "count": d-c})
+            print("Public-token comparison", name, json.dumps(changes[:16]), flush=True)
         raise ValueError(f"Live transcript code differs from reviewed baseline: {changed}; no deployment performed")
     for name, old in before.items():
         if source.count(old) != 1:

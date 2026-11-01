@@ -1,12 +1,8 @@
 name: Deploy Meek and build Android APK
 
+# This is a one-time/manual deployment workflow. Do not redeploy a pinned
+# historical Worker version on unrelated future pushes.
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'backend/**'
-      - 'android-app/**'
-      - '.github/workflows/deploy-meek.yml'
   workflow_dispatch:
 
 permissions:

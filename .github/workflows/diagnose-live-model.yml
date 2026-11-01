@@ -34,5 +34,5 @@ jobs:
                   name=b.get('name','')
                   if name in ('OPENROUTER_MODEL','OPENROUTER_FALLBACK_MODELS'):
                       print(json.dumps({k:val for k,val in b.items() if k in ('name','type','text','value') and not (k in ('text','value') and name not in ('OPENROUTER_MODEL','OPENROUTER_FALLBACK_MODELS'))}))
-                  elif 'OPENROUTER' in name: print(name,b.get('type'))
+                  elif name in ('OPENROUTER_BACKGROUND_MODEL','OPENROUTER_ULTRA_MODEL','OPENROUTER_PROVIDERS'): print(name, b.get('text') or b.get('value'), b.get('type'))
           PY

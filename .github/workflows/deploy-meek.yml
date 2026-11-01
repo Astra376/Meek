@@ -1,10 +1,7 @@
 name: Remove Meek legacy DeepSeek fallback
 
+# Manual only: do not generate and deploy redundant Worker versions on every push.
 on:
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/deploy-meek.yml'
   workflow_dispatch:
 
 permissions:

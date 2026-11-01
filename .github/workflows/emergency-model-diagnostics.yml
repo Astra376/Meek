@@ -25,7 +25,7 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: '6418d8b7a0996630c6eb574d93c85b54'
         run: |
           set -euo pipefail
-          npx wrangler versions secret delete OPENROUTER_PROVIDERS --name character-chat-worker --yes 2>&1 | tee /tmp/provider-fix.log
+          printf 'y\\n' | npx wrangler versions secret delete OPENROUTER_PROVIDERS --name character-chat-worker 2>&1 | tee /tmp/provider-fix.log
           VERSION=$(grep -Eo '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' /tmp/provider-fix.log | tail -n1)
           test -n "$VERSION"
           npx wrangler versions deploy "$VERSION@100%" --name character-chat-worker --yes

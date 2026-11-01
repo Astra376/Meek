@@ -36,7 +36,7 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: |
           python3 - <<'PY'
-          import json, os, urllib.request
+          import json, os, urllib.request, urllib.error
           endpoint = 'https://api.cloudflare.com/client/v4/accounts/6418d8b7a0996630c6eb574d93c85b54/workers/scripts/character-chat-worker/secrets-bulk'
           body = json.dumps({'secrets': {'OPENROUTER_MODEL': {
               'type': 'secret_text', 'name': 'OPENROUTER_MODEL',
@@ -46,8 +46,11 @@ jobs:
               'Authorization': 'Bearer ' + os.environ['CLOUDFLARE_API_TOKEN'],
               'Content-Type': 'application/merge-patch+json'
           })
-          with urllib.request.urlopen(req, timeout=30) as response:
-              result = json.load(response)
+          try:
+              with urllib.request.urlopen(req, timeout=30) as response:
+                  result = json.load(response)
+          except urllib.error.HTTPError as error:
+              raise RuntimeError('Cloudflare API rejected model update: '+error.read(2000).decode('utf-8', 'replace')) from error
           if not result.get('success'):
               raise RuntimeError('Cloudflare rejected the model binding update: '+str(result.get('errors')))
           assert 'OPENROUTER_MODEL' in result.get('result', {}), 'No model secret acknowledged'

@@ -1,8 +1,6 @@
 name: Verify live Meek model fix
 on:
-  push:
-    branches: [main]
-    paths: ['.github/workflows/diagnose-live-model.yml']
+  workflow_dispatch:
 permissions:
   contents: read
 jobs:

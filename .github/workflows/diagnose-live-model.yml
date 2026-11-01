@@ -1,4 +1,4 @@
-name: Diagnose live Meek model routing
+name: Set Meek Ultra model to MiMo V2.6 Pro
 on:
   push:
     branches: [main]
@@ -7,32 +7,26 @@ on:
 permissions:
   contents: read
 jobs:
-  inspect:
+  deploy:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
     steps:
-      - name: Inspect deployed versions and model bindings
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - name: Create Ultra model version and deploy to production
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: '6418d8b7a0996630c6eb574d93c85b54'
         run: |
-          python3 - <<'PY'
-          import json,os,urllib.request
-          base='https://api.cloudflare.com/client/v4/accounts/6418d8b7a0996630c6eb574d93c85b54/workers/scripts/character-chat-worker'
-          headers={'Authorization':'Bearer '+os.environ['CLOUDFLARE_API_TOKEN']}
-          def get(url):
-              with urllib.request.urlopen(urllib.request.Request(url,headers=headers),timeout=20) as r: return json.load(r)
-          dep=get(base+'/deployments')['result']['deployments'][0]
-          print('Current deployment:',dep['created_on'])
-          print('Deployed versions:',dep['versions'])
-          for v in dep['versions']:
-              vid=v.get('version_id') or v.get('id')
-              if not vid: continue
-              details=get(base+'/versions/'+vid)['result']
-              binds=details.get('resources',{}).get('bindings',{})
-              print('Version',vid,'bindings:')
-              items=binds if isinstance(binds,list) else list(binds.values()) if isinstance(binds,dict) else []
-              for b in items:
-                  name=b.get('name','')
-                  if name in ('OPENROUTER_MODEL','OPENROUTER_FALLBACK_MODELS'):
-                      print(json.dumps({k:val for k,val in b.items() if k in ('name','type','text','value') and not (k in ('text','value') and name not in ('OPENROUTER_MODEL','OPENROUTER_FALLBACK_MODELS'))}))
-                  elif name in ('OPENROUTER_BACKGROUND_MODEL','OPENROUTER_ULTRA_MODEL','OPENROUTER_PROVIDERS'): print(name, b.get('text') or b.get('value'), b.get('type'))
-          PY
+          set -euo pipefail
+          printf '%s' 'xiaomi/mimo-v2.6-pro' | npx wrangler versions secret put OPENROUTER_ULTRA_MODEL --name character-chat-worker 2>&1 | tee /tmp/model-version.log
+          VERSION=$(grep -Eo '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' /tmp/model-version.log | tail -n1)
+          test -n "$VERSION"
+          npx wrangler versions deploy "$VERSION@100%" --name character-chat-worker --yes

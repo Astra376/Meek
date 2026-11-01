@@ -28,11 +28,31 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npx tsc --noEmit
-      - name: Deploy Cloudflare Worker
-        run: npx wrangler deploy
+      # Production still exports ImageGenerationJob Durable Objects from a newer
+      # Worker version than this repository. Only update the model binding;
+      # uploading this older source would remove the production class.
+      - name: Update production model without replacing Worker code
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: '6418d8b7a0996630c6eb574d93c85b54'
+        run: |
+          python3 - <<'PY'
+          import json, os, urllib.request
+          endpoint = 'https://api.cloudflare.com/client/v4/accounts/6418d8b7a0996630c6eb574d93c85b54/workers/scripts/character-chat-worker/secrets-bulk'
+          body = json.dumps({'secrets': {'OPENROUTER_MODEL': {
+              'type': 'secret_text', 'name': 'OPENROUTER_MODEL',
+              'text': 'xiaomi/mimo-v2.6-pro'
+          }}}).encode()
+          req = urllib.request.Request(endpoint, data=body, method='PATCH', headers={
+              'Authorization': 'Bearer ' + os.environ['CLOUDFLARE_API_TOKEN'],
+              'Content-Type': 'application/merge-patch+json'
+          })
+          with urllib.request.urlopen(req, timeout=30) as response:
+              result = json.load(response)
+          if not result.get('success'):
+              raise RuntimeError('Cloudflare rejected the model binding update: '+str(result.get('errors')))
+          assert 'OPENROUTER_MODEL' in result.get('result', {}), 'No model secret acknowledged'
+          print('Updated live OpenRouter model binding while preserving Worker code and Durable Objects')
+          PY
 
   android-apk:
     runs-on: ubuntu-latest

@@ -1,4 +1,4 @@
-name: Patch deployed Meek standard chat model
+name: Verify live Meek model fix
 on:
   push:
     branches: [main]
@@ -6,47 +6,27 @@ on:
 permissions:
   contents: read
 jobs:
-  fix:
+  verify:
     runs-on: ubuntu-latest
     steps:
-      - name: Replace only hardcoded DeepSeek Flash in deployed Worker
+      - name: Verify Worker content and deployment
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: |
           python3 - <<'PY'
-          import urllib.request, urllib.error, os, re, json, secrets
+          import urllib.request,os,json
           from email.parser import BytesParser
           from email.policy import default
-          root='https://api.cloudflare.com/client/v4/accounts/6418d8b7a0996630c6eb574d93c85b54/workers/scripts/character-chat-worker'
+          base='https://api.cloudflare.com/client/v4/accounts/6418d8b7a0996630c6eb574d93c85b54/workers/scripts/character-chat-worker'
           headers={'Authorization':'Bearer '+os.environ['CLOUDFLARE_API_TOKEN']}
-          req=urllib.request.Request(root+'/content/v2',headers=headers)
-          with urllib.request.urlopen(req,timeout=30) as resp:
-              original=resp.read()
-              content_type=resp.headers.get('Content-Type','')
-          parsed=BytesParser(policy=default).parsebytes(('Content-Type: '+content_type+'\r\nMIME-Version: 1.0\r\n\r\n').encode()+original)
-          parts=list(parsed.iter_parts()) if parsed.is_multipart() else []
-          print('Bundle parts:', [(p.get_filename(),p.get_content_type()) for p in parts])
-          candidates=[p for p in parts if 'javascript' in p.get_content_type()]
-          assert len(candidates)==1, 'Expected exactly one Worker JS module'
-          module_name=candidates[0].get_filename() or 'main.js'
-          script=candidates[0].get_payload(decode=True).decode('utf-8')
-          # Deployed bundle contains this exact model policy constant; patch no other code.
-          pattern=r'\bvar STANDARD_MODEL = "deepseek/deepseek-v4-flash-0731";'
-          assert len(re.findall(pattern,script))==1, 'Expected exact live model policy not found once'
-          patched=re.sub(pattern,'var STANDARD_MODEL = "xiaomi/mimo-v2.6-pro";',script)
-          assert len(patched)==len(script)-len('deepseek/deepseek-v4-flash-0731')+len('xiaomi/mimo-v2.6-pro')
-          assert 'var ULTRA_MODEL = "deepseek/deepseek-v4-pro-0813";' in patched, 'Unexpected production code layout'
-          assert 'ImageGenerationJob' in patched, 'Production Durable Object is missing'
-          # Cloudflare content-only API preserves configuration and binding metadata.
-          boundary='----meek-model-fix-'+secrets.token_hex(12)
-          def part(name,data,mime):
-              return (('--'+boundary+'\r\nContent-Disposition: form-data; name="'+name+'"'+ ('; filename="'+name+'"' if name!='metadata' else '')+'\r\nContent-Type: '+mime+'\r\n\r\n').encode()+data+b'\r\n')
-          body=part('metadata',json.dumps({'main_module':module_name}).encode(),'application/json')+part(module_name,patched.encode(),'application/javascript+module')+('--'+boundary+'--\r\n').encode()
-          req=urllib.request.Request(root+'/content',data=body,method='PUT',headers={**headers,'Content-Type':'multipart/form-data; boundary='+boundary})
-          try:
-              with urllib.request.urlopen(req,timeout=45) as resp: result=json.load(resp)
-          except urllib.error.HTTPError as e:
-              raise RuntimeError('Code-only update rejected: '+e.read(2000).decode('utf-8','replace')) from e
-          assert result.get('success'),str(result.get('errors'))
-          print('SUCCESS: replaced hardcoded STANDARD_MODEL DeepSeek Flash with MiMo in deployed Worker, without changing other code or bindings.')
+          with urllib.request.urlopen(urllib.request.Request(base+'/content/v2',headers=headers),timeout=25) as r:
+              body=r.read()
+              ct=r.headers['Content-Type']
+          parsed=BytesParser(policy=default).parsebytes(('Content-Type: '+ct+'\r\nMIME-Version: 1.0\r\n\r\n').encode()+body)
+          script='\n'.join(p.get_payload(decode=True).decode('utf-8') for p in parsed.iter_parts() if 'javascript' in p.get_content_type())
+          assert 'var STANDARD_MODEL = "xiaomi/mimo-v2.6-pro";' in script
+          assert 'var STANDARD_MODEL = "deepseek/deepseek-v4-flash-0731";' not in script
+          print('VERIFIED: deployed Worker source STANDARD_MODEL uses MiMo V2.6 Pro, not DeepSeek Flash.')
+          with urllib.request.urlopen(urllib.request.Request(base+'/deployments',headers=headers),timeout=20) as r: d=json.load(r)['result']['deployments'][0]
+          print('Latest deployment:',d['created_on'],d['versions'])
           PY

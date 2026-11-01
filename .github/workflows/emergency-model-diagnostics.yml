@@ -1,4 +1,4 @@
-name: Fix MiMo provider routing in live Meek
+name: Hotfix Meek MiMo provider routing
 on:
   push:
     branches: [main]
@@ -6,48 +6,50 @@ on:
 permissions:
   contents: read
 jobs:
-  fix:
+  hotfix:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: backend
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-          cache: npm
-          cache-dependency-path: backend/package-lock.json
-      - run: npm ci
-      - name: Clear Venice-only provider binding without changing Worker code
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: '6418d8b7a0996630c6eb574d93c85b54'
-        run: |
-          set -euo pipefail
-          printf 'y\\n' | npx wrangler versions secret delete OPENROUTER_PROVIDERS --name character-chat-worker 2>&1 | tee /tmp/provider-fix.log
-          VERSION=$(grep -Eo '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' /tmp/provider-fix.log | tail -n1)
-          test -n "$VERSION"
-          npx wrangler versions deploy "$VERSION@100%" --name character-chat-worker --yes
-      - name: Verify deployed version has no restrictive provider
+      - name: Patch only MiMo provider routing in live Worker bundle
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: |
           python3 - <<'PY'
-          import json,os,urllib.request
-          base='https://api.cloudflare.com/client/v4/accounts/6418d8b7a0996630c6eb574d93c85b54/workers/scripts/character-chat-worker'
+          import os,re,json,secrets,urllib.request,urllib.error
+          from email.parser import BytesParser
+          from email.policy import default
+          root='https://api.cloudflare.com/client/v4/accounts/6418d8b7a0996630c6eb574d93c85b54/workers/scripts/character-chat-worker'
           headers={'Authorization':'Bearer '+os.environ['CLOUDFLARE_API_TOKEN']}
-          def get(path):
-              with urllib.request.urlopen(urllib.request.Request(base+path,headers=headers),timeout=20) as r: return json.load(r)['result']
-          versions=get('/deployments')['deployments'][0]['versions']
-          assert len(versions)==1 and versions[0]['percentage']==100
-          v=get('/versions/'+versions[0]['version_id'])
-          binds=v.get('resources',{}).get('bindings',[])
-          if isinstance(binds,dict): binds=list(binds.values())
-          names={b['name']:b for b in binds}
-          provider=names.get('OPENROUTER_PROVIDERS',{})
-          assert not provider.get('text'), 'Provider restriction is still configured'
-          assert names.get('OPENROUTER_API_KEY',{}).get('type')=='secret_text', 'OpenRouter key missing'
-          assert names.get('OPENROUTER_MODEL',{}).get('type')=='secret_text', 'Main model binding missing'
-          print('VERIFIED: 100% traffic on new version, provider restriction empty, OpenRouter bindings present')
+          with urllib.request.urlopen(urllib.request.Request(root+'/content/v2',headers=headers),timeout=30) as response:
+              original=response.read()
+              typ=response.headers['Content-Type']
+          parsed=BytesParser(policy=default).parsebytes(('Content-Type: '+typ+'\r\nMIME-Version: 1.0\r\n\r\n').encode()+original)
+          parts=[p for p in parsed.iter_parts() if 'javascript' in p.get_content_type()]
+          assert len(parts)==1,'Unexpected live Worker bundle shape'
+          module_name=parts[0].get_filename() or 'index.js'
+          code=parts[0].get_payload(decode=True).decode('utf-8')
+          assert 'var STANDARD_MODEL = "xiaomi/mimo-v2.6-pro";' in code,'Standard model is not MiMo'
+          old='const only = (env.OPENROUTER_PROVIDERS ?? "").split(",").map((name) => name.trim()).filter(Boolean);'
+          new='const only = (env.OPENROUTER_MODEL === "xiaomi/mimo-v2.6-pro" ? "" : (env.OPENROUTER_PROVIDERS ?? "")).split(",").map((name) => name.trim()).filter(Boolean);'
+          assert code.count(old)==1,'Expected exact provider policy pattern once'
+          patched=code.replace(old,new)
+          assert 'ImageGenerationJob' in patched,'Missing required Durable Object'
+          boundary='----meek-provider-fix-'+secrets.token_hex(12)
+          def part(name,data,mime):
+              return (('--'+boundary+'\r\nContent-Disposition: form-data; name="'+name+'"'+ ('; filename="'+name+'"' if name!='metadata' else '')+'\r\nContent-Type: '+mime+'\r\n\r\n').encode()+data+b'\r\n')
+          body=part('metadata',json.dumps({'main_module':module_name}).encode(),'application/json')+part(module_name,patched.encode(),'application/javascript+module')+('--'+boundary+'--\r\n').encode()
+          req=urllib.request.Request(root+'/content',data=body,method='PUT',headers={**headers,'Content-Type':'multipart/form-data; boundary='+boundary})
+          try:
+              with urllib.request.urlopen(req,timeout=45) as response: result=json.load(response)
+          except urllib.error.HTTPError as e:
+              raise RuntimeError('Cloudflare rejected hotfix: '+e.read(1800).decode('utf-8','replace')) from e
+          assert result.get('success'),str(result.get('errors'))
+          print('DEPLOYED: MiMo bypasses Venice provider filter; source and other bindings preserved.')
+          with urllib.request.urlopen(urllib.request.Request(root+'/content/v2',headers=headers),timeout=30) as response:
+              latest=response.read()
+              typ=response.headers['Content-Type']
+          p=BytesParser(policy=default).parsebytes(('Content-Type: '+typ+'\r\nMIME-Version: 1.0\r\n\r\n').encode()+latest)
+          saved='\n'.join(x.get_payload(decode=True).decode('utf-8') for x in p.iter_parts() if 'javascript' in x.get_content_type())
+          assert new in saved,'Live code verification failed'
+          assert 'var STANDARD_MODEL = "xiaomi/mimo-v2.6-pro";' in saved
+          print('VERIFIED: live code has MiMo default and unrestricted model-compatible provider routing.')
           PY

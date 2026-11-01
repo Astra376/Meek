@@ -1,15 +1,17 @@
-name: Deploy Meek and build Android APK
+name: Remove Meek legacy DeepSeek fallback
 
-# This is a one-time/manual deployment workflow. Do not redeploy a pinned
-# historical Worker version on unrelated future pushes.
 on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/deploy-meek.yml'
   workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
-  deploy-worker:
+  remove-fallback:
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -22,36 +24,13 @@ jobs:
           cache: npm
           cache-dependency-path: backend/package-lock.json
       - run: npm ci
-      - run: npm test
-      - run: npx tsc --noEmit
-      - name: Deploy staged MiMo model version without changing Worker source
+      - name: Delete production DeepSeek fallback and deploy preserved code
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: '6418d8b7a0996630c6eb574d93c85b54'
-        run: npx wrangler versions deploy 60be75a7-344b-4a72-9132-278c94afd83d@100% --name character-chat-worker --yes
-
-  android-apk:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: android-app
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-      - uses: android-actions/setup-android@v3
-        with:
-          packages: "platform-tools platforms;android-35 build-tools;35.0.0"
-      - uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.7'
-          validate-wrappers: false
-      - name: Build Meek debug APK
-        run: gradle :app:assembleDebug --no-daemon
-      - uses: actions/upload-artifact@v4
-        with:
-          name: meek-mimo-v2-6-pro-debug-apk
-          path: android-app/app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
+        run: |
+          set -euo pipefail
+          printf 'y\n' | npx wrangler versions secret delete OPENROUTER_FALLBACK_MODELS --name character-chat-worker 2>&1 | tee /tmp/delete-fallback.log
+          VERSION=$(grep -Eo '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' /tmp/delete-fallback.log | tail -n1)
+          test -n "$VERSION"
+          npx wrangler versions deploy "$VERSION@100%" --name character-chat-worker --yes

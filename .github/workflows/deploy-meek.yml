@@ -28,34 +28,20 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npx tsc --noEmit
-      # Production still exports ImageGenerationJob Durable Objects from a newer
-      # Worker version than this repository. Only update the model binding;
-      # uploading this older source would remove the production class.
-      - name: Update production model without replacing Worker code
+      # Preserve the existing production code and Durable Object exports.
+      # Versions secret put creates a new version, unlike secret bulk which is
+      # blocked when the latest version is not deployed.
+      - name: Create a version with MiMo as the model
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: '6418d8b7a0996630c6eb574d93c85b54'
         run: |
-          python3 - <<'PY'
-          import json, os, urllib.request, urllib.error
-          endpoint = 'https://api.cloudflare.com/client/v4/accounts/6418d8b7a0996630c6eb574d93c85b54/workers/scripts/character-chat-worker/secrets-bulk'
-          body = json.dumps({'secrets': {'OPENROUTER_MODEL': {
-              'type': 'secret_text', 'name': 'OPENROUTER_MODEL',
-              'text': 'xiaomi/mimo-v2.6-pro'
-          }}}).encode()
-          req = urllib.request.Request(endpoint, data=body, method='PATCH', headers={
-              'Authorization': 'Bearer ' + os.environ['CLOUDFLARE_API_TOKEN'],
-              'Content-Type': 'application/merge-patch+json'
-          })
-          try:
-              with urllib.request.urlopen(req, timeout=30) as response:
-                  result = json.load(response)
-          except urllib.error.HTTPError as error:
-              raise RuntimeError('Cloudflare API rejected model update: '+error.read(2000).decode('utf-8', 'replace')) from error
-          if not result.get('success'):
-              raise RuntimeError('Cloudflare rejected the model binding update: '+str(result.get('errors')))
-          assert 'OPENROUTER_MODEL' in result.get('result', {}), 'No model secret acknowledged'
-          print('Updated live OpenRouter model binding while preserving Worker code and Durable Objects')
-          PY
+          printf '%s' 'xiaomi/mimo-v2.6-pro' | npx wrangler versions secret put OPENROUTER_MODEL --name character-chat-worker
+      - name: Deploy latest version containing MiMo
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: '6418d8b7a0996630c6eb574d93c85b54'
+        run: npx wrangler versions deploy --name character-chat-worker --yes
 
   android-apk:
     runs-on: ubuntu-latest

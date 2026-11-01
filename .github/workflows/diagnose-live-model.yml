@@ -1,4 +1,4 @@
-name: Inspect deployed Meek model references
+name: Patch deployed Meek standard chat model
 on:
   push:
     branches: [main]
@@ -6,42 +6,39 @@ on:
 permissions:
   contents: read
 jobs:
-  inspect:
+  fix:
     runs-on: ubuntu-latest
     steps:
-      - name: Search actual deployed Worker code for DeepSeek Flash
+      - name: Replace only hardcoded DeepSeek Flash in deployed Worker
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: |
           python3 - <<'PY'
-          import urllib.request, os, re, io, zipfile, json
-          base='https://api.cloudflare.com/client/v4/accounts/6418d8b7a0996630c6eb574d93c85b54/workers/scripts/character-chat-worker'
-          req=urllib.request.Request(base+'/content/v2',headers={'Authorization':'Bearer '+os.environ['CLOUDFLARE_API_TOKEN']})
-          with urllib.request.urlopen(req,timeout=30) as res:
-              data=res.read()
-              typ=res.headers.get('Content-Type','')
-          print('Content type:',typ,'size:',len(data))
-          s=data.decode('utf-8','replace')
-          for pattern in ['deepseek-v4-flash','deepseek-v4.1-flash','deepseek/deepseek','OPENROUTER_MODEL','OPENROUTER_ULTRA_MODEL','OPENROUTER_FALLBACK_MODELS']:
-              print('Occurrences',pattern, s.lower().count(pattern.lower()))
-              for m in list(re.finditer(re.escape(pattern),s,re.I))[:3]:
-                  print('  Context:', re.sub(r'\s+',' ',s[max(0,m.start()-100):min(len(s),m.end()+100)])[:260])
-          PY
-      - name: Inspect deployed Worker for Flash routing
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-        run: |
-          python3 - <<'PY'
-          import os,re,urllib.request
-          url='https://api.cloudflare.com/client/v4/accounts/6418d8b7a0996630c6eb574d93c85b54/workers/scripts/character-chat-worker'
-          req=urllib.request.Request(url,headers={'Authorization':'Bearer '+os.environ['CLOUDFLARE_API_TOKEN']})
-          with urllib.request.urlopen(req,timeout=25) as res:
-              content=res.read().decode('utf-8','replace')
-          patterns=['deepseek-v4-flash','deepseek-v4.1','deepseek/','OPENROUTER_MODEL','OPENROUTER_FALLBACK_MODELS','provider','models:']
-          print('Script length:',len(content))
-          for needle in patterns:
-              print('MATCH',needle,'COUNT',len(list(re.finditer(re.escape(needle),content,re.I))))
-          for needle in ('deepseek-v4-flash','deepseek-v4.1'):
-              for m in list(re.finditer(re.escape(needle),content,re.I))[:8]:
-                  print('FLASH_CONTEXT:',content[max(0,m.start()-160):m.end()+160].replace('\\n',' ')[:400])
+          import urllib.request, urllib.error, os, re, json, secrets
+          root='https://api.cloudflare.com/client/v4/accounts/6418d8b7a0996630c6eb574d93c85b54/workers/scripts/character-chat-worker'
+          headers={'Authorization':'Bearer '+os.environ['CLOUDFLARE_API_TOKEN']}
+          req=urllib.request.Request(root+'/content/v2',headers=headers)
+          with urllib.request.urlopen(req,timeout=30) as resp:
+              original=resp.read()
+              content_type=resp.headers.get('Content-Type','')
+          script=original.decode('utf-8')
+          # Deployed bundle contains this exact model policy constant; patch no other code.
+          pattern=r'\bvar STANDARD_MODEL = "deepseek/deepseek-v4-flash-0731";'
+          assert len(re.findall(pattern,script))==1, 'Expected exact live model policy not found once'
+          patched=re.sub(pattern,'var STANDARD_MODEL = "xiaomi/mimo-v2.6-pro";',script)
+          assert len(patched)==len(script)-len('deepseek/deepseek-v4-flash-0731')+len('xiaomi/mimo-v2.6-pro')
+          assert 'var ULTRA_MODEL = "deepseek/deepseek-v4-pro-0813";' in patched, 'Unexpected production code layout'
+          assert 'ImageGenerationJob' in patched, 'Production Durable Object is missing'
+          # Cloudflare content-only API preserves configuration and binding metadata.
+          boundary='----meek-model-fix-'+secrets.token_hex(12)
+          def part(name,data,mime):
+              return (('--'+boundary+'\r\nContent-Disposition: form-data; name="'+name+'"'+ ('; filename="'+name+'"' if name!='metadata' else '')+'\r\nContent-Type: '+mime+'\r\n\r\n').encode()+data+b'\r\n')
+          body=part('metadata',json.dumps({'main_module':'main.js'}).encode(),'application/json')+part('main.js',patched.encode(),'application/javascript+module')+('--'+boundary+'--\r\n').encode()
+          req=urllib.request.Request(root+'/content',data=body,method='PUT',headers={**headers,'Content-Type':'multipart/form-data; boundary='+boundary})
+          try:
+              with urllib.request.urlopen(req,timeout=45) as resp: result=json.load(resp)
+          except urllib.error.HTTPError as e:
+              raise RuntimeError('Code-only update rejected: '+e.read(2000).decode('utf-8','replace')) from e
+          assert result.get('success'),str(result.get('errors'))
+          print('SUCCESS: replaced hardcoded STANDARD_MODEL DeepSeek Flash with MiMo in deployed Worker, without changing other code or bindings.')
           PY

@@ -15,13 +15,21 @@ jobs:
         run: |
           python3 - <<'PY'
           import urllib.request, urllib.error, os, re, json, secrets
+          from email.parser import BytesParser
+          from email.policy import default
           root='https://api.cloudflare.com/client/v4/accounts/6418d8b7a0996630c6eb574d93c85b54/workers/scripts/character-chat-worker'
           headers={'Authorization':'Bearer '+os.environ['CLOUDFLARE_API_TOKEN']}
           req=urllib.request.Request(root+'/content/v2',headers=headers)
           with urllib.request.urlopen(req,timeout=30) as resp:
               original=resp.read()
               content_type=resp.headers.get('Content-Type','')
-          script=original.decode('utf-8')
+          parsed=BytesParser(policy=default).parsebytes(('Content-Type: '+content_type+'\r\nMIME-Version: 1.0\r\n\r\n').encode()+original)
+          parts=list(parsed.iter_parts()) if parsed.is_multipart() else []
+          print('Bundle parts:', [(p.get_filename(),p.get_content_type()) for p in parts])
+          candidates=[p for p in parts if 'javascript' in p.get_content_type()]
+          assert len(candidates)==1, 'Expected exactly one Worker JS module'
+          module_name=candidates[0].get_filename() or 'main.js'
+          script=candidates[0].get_payload(decode=True).decode('utf-8')
           # Deployed bundle contains this exact model policy constant; patch no other code.
           pattern=r'\bvar STANDARD_MODEL = "deepseek/deepseek-v4-flash-0731";'
           assert len(re.findall(pattern,script))==1, 'Expected exact live model policy not found once'
@@ -33,7 +41,7 @@ jobs:
           boundary='----meek-model-fix-'+secrets.token_hex(12)
           def part(name,data,mime):
               return (('--'+boundary+'\r\nContent-Disposition: form-data; name="'+name+'"'+ ('; filename="'+name+'"' if name!='metadata' else '')+'\r\nContent-Type: '+mime+'\r\n\r\n').encode()+data+b'\r\n')
-          body=part('metadata',json.dumps({'main_module':'main.js'}).encode(),'application/json')+part('main.js',patched.encode(),'application/javascript+module')+('--'+boundary+'--\r\n').encode()
+          body=part('metadata',json.dumps({'main_module':module_name}).encode(),'application/json')+part(module_name,patched.encode(),'application/javascript+module')+('--'+boundary+'--\r\n').encode()
           req=urllib.request.Request(root+'/content',data=body,method='PUT',headers={**headers,'Content-Type':'multipart/form-data; boundary='+boundary})
           try:
               with urllib.request.urlopen(req,timeout=45) as resp: result=json.load(resp)

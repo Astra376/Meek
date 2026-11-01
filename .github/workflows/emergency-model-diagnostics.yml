@@ -1,0 +1,50 @@
+name: Diagnose Meek live chat failures
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/emergency-model-diagnostics.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Inspect deployed Worker safely
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          python3 - <<'PY'
+          import os,json,re,urllib.request,urllib.error
+          from email.parser import BytesParser
+          from email.policy import default
+          root='https://api.cloudflare.com/client/v4/accounts/6418d8b7a0996630c6eb574d93c85b54/workers/scripts/character-chat-worker'
+          headers={'Authorization':'Bearer '+os.environ['CLOUDFLARE_API_TOKEN']}
+          def get(url):
+              with urllib.request.urlopen(urllib.request.Request(url,headers=headers),timeout=20) as r: return json.load(r)
+          deploy=get(root+'/deployments')['result']['deployments'][0]
+          print('Deployment:',deploy['created_on'],deploy['versions'])
+          for v in deploy['versions']:
+              version=get(root+'/versions/'+v['version_id'])['result']
+              bindings=version.get('resources',{}).get('bindings',[])
+              if isinstance(bindings,dict): bindings=list(bindings.values())
+              print('Bindings:',[(b.get('name'),b.get('type'), b.get('text') if b.get('name') in ('OPENROUTER_FALLBACK_MODELS','OPENROUTER_PROVIDERS') else '[set]') for b in bindings])
+          with urllib.request.urlopen(urllib.request.Request(root+'/content/v2',headers=headers),timeout=30) as response:
+              data=response.read(); typ=response.headers['Content-Type']
+          parsed=BytesParser(policy=default).parsebytes(('Content-Type: '+typ+'\r\nMIME-Version: 1.0\r\n\r\n').encode()+data)
+          code='\n'.join(p.get_payload(decode=True).decode('utf-8') for p in parsed.iter_parts() if 'javascript' in p.get_content_type())
+          for key in ('var STANDARD_MODEL =','var ULTRA_MODEL =','function resolveChatModel','function modelSelection(','function configuredModels(','function streamChatText(','OPENROUTER_PROVIDERS','venice'):
+              m=re.search(re.escape(key),code)
+              if m:
+                  snippet=code[max(0,m.start()-240):m.start()+1100]
+                  snippet=re.sub(r'Bearer [^" ]+','Bearer [REDACTED]',snippet)
+                  print('CODE',key,re.sub(r'\s+',' ',snippet)[:1300])
+          for path,method in [('/v1/home/feed','GET'),('/v1/conversations/test/messages/stream','OPTIONS')]:
+              try:
+                  req=urllib.request.Request('https://character-chat-worker.robloxproxy.workers.dev'+path,method=method,headers={'User-Agent':'okhttp/4.12.0'})
+                  with urllib.request.urlopen(req,timeout=20) as response:
+                      print('HTTP',method,path,response.status,response.read(350).decode('utf-8','replace'))
+              except urllib.error.HTTPError as e:
+                  print('HTTP',method,path,e.code,e.read(350).decode('utf-8','replace'))
+              except Exception as e: print('HTTP error',type(e).__name__,str(e)[:300])
+          PY

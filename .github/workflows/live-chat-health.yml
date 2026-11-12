@@ -1,4 +1,4 @@
-name: Diagnose Meek live chat November
+name: Recover Meek live chat provider routing
 on:
   push:
     paths:
@@ -7,55 +7,77 @@ on:
 permissions:
   contents: read
 jobs:
-  inspect:
+  recover:
     runs-on: ubuntu-latest
     steps:
-      - name: Inspect production routing and availability without changing it
+      - name: Patch only live chat OpenRouter provider filter, preserving bindings
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: |
           python3 - <<'PY'
-          import json,os,re,urllib.request,urllib.error
+          import json,os,re,secrets,subprocess,tempfile,urllib.request,urllib.error
           from email.parser import BytesParser
           from email.policy import default
           root='https://api.cloudflare.com/client/v4/accounts/6418d8b7a0996630c6eb574d93c85b54/workers/scripts/character-chat-worker'
-          headers={'Authorization':'Bearer '+os.environ['CLOUDFLARE_API_TOKEN']}
-          def get(url,auth=False):
-              req=urllib.request.Request(url,headers=headers if auth else {'User-Agent':'okhttp/4.12.0'})
-              with urllib.request.urlopen(req,timeout=25) as response: return response.read(),response.headers
-          print('=== Production bindings (names/types only, no secrets) ===')
-          body,_=get(root+'/settings',True)
-          settings=json.loads(body)['result']
-          for b in settings.get('bindings',[]):
-              if b['name'].startswith('OPENROUTER_'):
-                  print(b['name'],b['type'], 'value='+str(b.get('text','')) if b['name'] in ('OPENROUTER_PROVIDERS','OPENROUTER_FALLBACK_MODELS') else '')
-          body,ct=get(root+'/content/v2',True)
-          parsed=BytesParser(policy=default).parsebytes(('Content-Type: '+ct['Content-Type']+'\r\nMIME-Version: 1.0\r\n\r\n').encode()+body)
-          parts=[p for p in parsed.iter_parts() if 'javascript' in p.get_content_type()]
-          print('Worker JS module parts',len(parts),'ImageGenerationJob present?',any('ImageGenerationJob' in p.get_payload(decode=True).decode('utf-8') for p in parts))
-          code='\n'.join(p.get_payload(decode=True).decode('utf-8') for p in parts)
-          for label,pat in [
-            ('standard model',r'var STANDARD_MODEL = [^;]+;'),
-            ('ultra model',r'var ULTRA_MODEL = [^;]+;'),
-            ('provider selection',r'function chatProviderSelection\(env\) \{.{0,750}'),
-            ('chat stream first token timeout',r'var FIRST_TOKEN_MS = [^;]+;'),
-            ('chat stream idle timeout',r'var STREAM_IDLE_MS = [^;]+;'),
-            ('chat stream total timeout',r'var STREAM_TOTAL_MS = [^;]+;'),
-          ]:
-            m=re.search(pat,code,re.S)
-            print(label+':',repr(m.group(0)[:750]) if m else 'NOT FOUND')
-          print('=== Live unauthenticated protocol probes ===')
+          auth={'Authorization':'Bearer '+os.environ['CLOUDFLARE_API_TOKEN']}
+          def get(path):
+              with urllib.request.urlopen(urllib.request.Request(root+path,headers=auth),timeout=30) as r:
+                  return r.read(),r.headers
+          dep,_=get('/deployments')
+          deployment=json.loads(dep)['result']['deployments'][0]
+          versions=deployment['versions']
+          assert any(v['version_id']=='10d86e17-ea6c-458a-a44c-a9c4b0414c2b' and v['percentage']==100 for v in versions), 'Unexpected production version, refusing to overwrite concurrent changes'
+          original,headers=get('/content/v2')
+          parsed=BytesParser(policy=default).parsebytes(('Content-Type: '+headers['Content-Type']+'\r\nMIME-Version: 1.0\r\n\r\n').encode()+original)
+          parts=list(parsed.iter_parts())
+          modules=[p for p in parts if 'javascript' in p.get_content_type()]
+          assert len(modules)==1,'Unexpected live Worker module count'
+          assert len(parts) in (1,2),'Unexpected extra Worker bundle attachments'
+          module=modules[0]
+          module_name=module.get_filename() or 'index.js'
+          code=module.get_payload(decode=True).decode('utf-8')
+          assert 'ImageGenerationJob' in code,'Durable object missing from active Worker'
+          assert 'var STANDARD_MODEL = "xiaomi/mimo-v2.6-pro";' in code,'Standard MiMo model not configured'
+          old='const only = (env.OPENROUTER_MODEL === "xiaomi/mimo-v2.6-pro" ? "" : (env.OPENROUTER_PROVIDERS ?? "")).split(",").map((name) => name.trim()).filter(Boolean);'
+          new='const only = []; // Allow all compatible providers for every chat model, with OpenRouter fallback enabled.'
+          assert code.count(old)==1,'Provider restriction code changed; refusing unsafe replacement'
+          patched=code.replace(old,new,1)
+          assert patched.count(new)==1
+          with tempfile.TemporaryDirectory() as tmp:
+              path=os.path.join(tmp,'worker.mjs')
+              with open(path,'w') as f:f.write(patched)
+              subprocess.run(['node','--check',path],check=True)
+          boundary='----meek-provider-recovery-'+secrets.token_hex(12)
+          def part(name,data,mime):
+              disposition='form-data; name="'+name+'"'+('; filename="'+name+'"' if name!='metadata' else '')
+              return ('--'+boundary+'\r\nContent-Disposition: '+disposition+'\r\nContent-Type: '+mime+'\r\n\r\n').encode()+data+b'\r\n'
+          body=(part('metadata',json.dumps({'main_module':module_name}).encode(),'application/json')
+              +part(module_name,patched.encode(),'application/javascript+module')
+              +('--'+boundary+'--\r\n').encode())
+          req=urllib.request.Request(root+'/content',data=body,method='PUT',headers={**auth,'Content-Type':'multipart/form-data; boundary='+boundary})
+          try:
+              with urllib.request.urlopen(req,timeout=60) as response:
+                  result=json.load(response)
+          except urllib.error.HTTPError as e:
+              raise RuntimeError('Cloudflare update failed: '+e.read(900).decode('utf-8','replace')) from e
+          assert result.get('success'),str(result.get('errors'))
+          current,ct=get('/content/v2')
+          reparsed=BytesParser(policy=default).parsebytes(('Content-Type: '+ct['Content-Type']+'\r\nMIME-Version: 1.0\r\n\r\n').encode()+current)
+          new_code='\n'.join(x.get_payload(decode=True).decode('utf-8') for x in reparsed.iter_parts() if 'javascript' in x.get_content_type())
+          assert new in new_code and old not in new_code,'Deployed Worker verification failed'
+          assert 'ImageGenerationJob' in new_code and 'var STANDARD_MODEL = "xiaomi/mimo-v2.6-pro";' in new_code
+          print('PATCH DEPLOYED AND VERIFIED: no Venice-only filtering in chat for ANY model.')
+          PY
+      - name: Verify production Worker is serving requests
+        run: |
+          python3 - <<'PY'
+          import urllib.request,urllib.error
           base='https://character-chat-worker.robloxproxy.workers.dev'
-          for method,path in [('OPTIONS','/v1/conversations/test/messages/stream'),('GET','/v1/home/feed')]:
-            req=urllib.request.Request(base+path,method=method,headers={'User-Agent':'okhttp/4.12.0'})
-            try:
-              with urllib.request.urlopen(req,timeout=20) as response:
-                print(method,path,response.status,response.read(250).decode('utf-8','replace'))
-            except urllib.error.HTTPError as e:
-              print(method,path,e.code,e.read(250).decode('utf-8','replace'))
-            except Exception as e:
-              print(method,path,type(e).__name__,str(e)[:120])
-          body,_=get(root+'/deployments',True)
-          deploy=json.loads(body)['result']['deployments'][0]
-          print('Cloudflare active deployment:',deploy['created_on'],deploy['versions'])
+          for method,path,expected in [('OPTIONS','/v1/conversations/test/messages/stream',204),('GET','/v1/home/feed',401)]:
+              req=urllib.request.Request(base+path,method=method,headers={'User-Agent':'okhttp/4.12.0'})
+              try:
+                  with urllib.request.urlopen(req,timeout=25) as response: status=response.status
+              except urllib.error.HTTPError as e: status=e.code
+              print(method,path,'HTTP',status)
+              assert status==expected,(method,path,status)
           PY

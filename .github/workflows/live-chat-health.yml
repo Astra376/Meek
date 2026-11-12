@@ -1,8 +1,5 @@
 name: Recover Meek live chat provider routing
 on:
-  push:
-    paths:
-      - .github/workflows/live-chat-health.yml
   workflow_dispatch:
 permissions:
   contents: read

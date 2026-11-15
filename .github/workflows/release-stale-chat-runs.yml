@@ -1,8 +1,5 @@
 name: Release expired Meek chat runs
 on:
-  push:
-    paths:
-      - .github/workflows/release-stale-chat-runs.yml
   workflow_dispatch:
 permissions:
   contents: read

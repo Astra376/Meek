@@ -1,4 +1,4 @@
-name: Diagnose Meek worker recent invocations
+name: Inspect deployed Meek chat source
 on:
   push:
     paths:
@@ -10,37 +10,32 @@ jobs:
   inspect:
     runs-on: ubuntu-latest
     steps:
-      - name: Query production Worker invocation outcomes without user request data
+      - name: Identify live Worker authentication and chat execution paths
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: |
           python3 - <<'PY'
-          import datetime,os,json,urllib.request,urllib.error,collections
-          now=datetime.datetime.now(datetime.timezone.utc)
-          gql='''query($accountTag: string, $datetimeStart: string, $datetimeEnd: string, $scriptName: string) {
-            viewer { accounts(filter:{accountTag:$accountTag}) {
-              workersInvocationsAdaptive(limit:5000,filter:{scriptName:$scriptName,datetime_geq:$datetimeStart,datetime_leq:$datetimeEnd}) {
-                dimensions { datetime status scriptName }
-                sum { requests errors subrequests }
-              }
-            } }
-          }'''
-          vals={'accountTag':'6418d8b7a0996630c6eb574d93c85b54',
-            'datetimeStart':(now-datetime.timedelta(days=2)).isoformat().replace('+00:00','Z'),
-            'datetimeEnd':now.isoformat().replace('+00:00','Z'),'scriptName':'character-chat-worker'}
-          req=urllib.request.Request('https://api.cloudflare.com/client/v4/graphql',method='POST',headers={'Authorization':'Bearer '+os.environ['CLOUDFLARE_API_TOKEN'],'Content-Type':'application/json'},data=json.dumps({'query':gql,'variables':vals}).encode())
-          try:
-            with urllib.request.urlopen(req,timeout=30) as resp: payload=json.load(resp)
-            if payload.get('errors'):print('GRAPHQL ERRORS:',payload['errors'])
-            entries=payload.get('data',{}).get('viewer',{}).get('accounts',[])
-            if not entries:print('GRAPHQL DATA:',str(payload)[:1400])
-            for a in entries:
-              rows=a.get('workersInvocationsAdaptive',[])
-              c=collections.Counter()
-              for x in rows:
-                d=x['dimensions'];s=x['sum']
-                c[(d['datetime'][:13],d['status'])]+=s['requests']
-              print('WORKER REQUESTS BY HOUR AND STATUS',sorted(c.items())[-70:])
-              print('TOTAL ROWS',len(rows))
-          except urllib.error.HTTPError as e: print('GRAPHQL HTTP',e.code,e.read(500).decode('utf8','replace'))
+          import os,re,urllib.request
+          from email.parser import BytesParser
+          from email.policy import default
+          root='https://api.cloudflare.com/client/v4/accounts/6418d8b7a0996630c6eb574d93c85b54/workers/scripts/character-chat-worker'
+          req=urllib.request.Request(root+'/content/v2',headers={'Authorization':'Bearer '+os.environ['CLOUDFLARE_API_TOKEN']})
+          with urllib.request.urlopen(req,timeout=25) as r:raw=r.read();ct=r.headers['Content-Type']
+          parsed=BytesParser(policy=default).parsebytes(('Content-Type: '+ct+'\r\nMIME-Version: 1.0\r\n\r\n').encode()+raw)
+          code='\n'.join(p.get_payload(decode=True).decode('utf8') for p in parsed.iter_parts() if 'javascript' in p.get_content_type())
+          print('Live Worker JS length:',len(code))
+          for label,pattern in [
+            ('claim_run',r'(?:async )?function claimConversationRun\([^)]*\)\s*\{'),
+            ('chat_send',r'async function sendMessageAndStream\([^)]*\)\s*\{'),
+            ('session_refresh',r'async function refreshSession\([^)]*\)\s*\{'),
+            ('stream_generation',r'async function\*? streamChatText\([^)]*\)\s*\{'),
+            ('model_routing',r'function modelResolution\([^)]*\)\s*\{'),
+            ('handler',r'async fetch\(request, env, executionContext\)\s*\{'),
+          ]:
+            m=re.search(pattern,code)
+            print('===',label,'found?',bool(m))
+            if m:
+              snippet=code[m.start():m.start()+1800]
+              snippet=re.sub(r'(Authorization:|api[_-]?key|token)\s*:\s*[^,}\n]+',r'\1: [redacted]',snippet,flags=re.I)
+              print(snippet)
           PY

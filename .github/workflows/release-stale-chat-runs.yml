@@ -1,0 +1,32 @@
+name: Release expired Meek chat runs
+on:
+  push:
+    paths:
+      - .github/workflows/release-stale-chat-runs.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clear only expired D1 conversation run leases
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          python3 - <<'PY'
+          import json,os,urllib.request,urllib.error
+          root='https://api.cloudflare.com/client/v4/accounts/6418d8b7a0996630c6eb574d93c85b54/d1/database/ad611737-fc84-4002-bcfe-0f0ce257f2ae/query'
+          def query(sql):
+            req=urllib.request.Request(root,method='POST',headers={'Authorization':'Bearer '+os.environ['CLOUDFLARE_API_TOKEN'],'Content-Type':'application/json'},data=json.dumps({'sql':sql}).encode())
+            with urllib.request.urlopen(req,timeout=30) as r:p=json.load(r)
+            assert p.get('success'),p.get('errors')
+            return p['result'][0]
+          before=query("SELECT COUNT(*) AS expired FROM conversations WHERE active_run_id IS NOT NULL AND active_run_expires_at IS NOT NULL AND active_run_expires_at < unixepoch('now')*1000-120000")
+          print('Expired locks before repair:',before['results'][0]['expired'])
+          result=query("UPDATE conversations SET active_run_id=NULL, active_run_expires_at=NULL WHERE active_run_id IS NOT NULL AND active_run_expires_at IS NOT NULL AND active_run_expires_at < unixepoch('now')*1000-120000")
+          print('Expired locks released:',result.get('meta',{}).get('changes','unknown'))
+          after=query("SELECT COUNT(*) AS expired FROM conversations WHERE active_run_id IS NOT NULL AND active_run_expires_at IS NOT NULL AND active_run_expires_at < unixepoch('now')*1000-120000")
+          print('Expired locks after repair:',after['results'][0]['expired'])
+          assert after['results'][0]['expired']==0
+          PY

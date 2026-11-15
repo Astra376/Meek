@@ -1,4 +1,4 @@
-name: Diagnose Meek recent traffic and chat completion
+name: Diagnose Meek worker recent invocations
 on:
   push:
     paths:
@@ -10,26 +10,37 @@ jobs:
   inspect:
     runs-on: ubuntu-latest
     steps:
-      - name: Read aggregate database activity, never message content or identities
+      - name: Query production Worker invocation outcomes without user request data
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: |
           python3 - <<'PY'
-          import json,os,urllib.request,urllib.error
-          root='https://api.cloudflare.com/client/v4/accounts/6418d8b7a0996630c6eb574d93c85b54/d1/database/ad611737-fc84-4002-bcfe-0f0ce257f2ae/query'
-          def query(label,sql):
-            req=urllib.request.Request(root,method='POST',headers={'Authorization':'Bearer '+os.environ['CLOUDFLARE_API_TOKEN'],'Content-Type':'application/json'},data=json.dumps({'sql':sql}).encode())
-            try:
-              with urllib.request.urlopen(req,timeout=25) as resp:p=json.load(resp)
-              if not p.get('success'):print(label,'ERROR',p.get('errors'));return
-              print(label,p['result'][0].get('results',[]))
-            except urllib.error.HTTPError as e:print(label,'HTTP',e.code,e.read(250).decode('utf8','replace'))
-          query('CLOCK',"SELECT strftime('%Y-%m-%d %H:%M:%S','now') AS utc, unixepoch('now')*1000 AS now_ms")
-          query('RECENT_MESSAGE_ACTIVITY',"SELECT role, CASE WHEN created_at >= unixepoch('now')*1000-3600000 THEN '1h' WHEN created_at >= unixepoch('now')*1000-86400000 THEN '24h' ELSE 'older' END AS period, COUNT(*) AS n FROM messages GROUP BY role,period")
-          query('RECENT_GROUP_MESSAGE_ACTIVITY',"SELECT role, status, CASE WHEN created_at >= unixepoch('now')*1000-86400000 THEN '24h' ELSE 'older' END AS period, COUNT(*) AS n FROM group_messages GROUP BY role,status,period")
-          query('RECENT_CONVERSATIONS',"SELECT CASE WHEN updated_at >= unixepoch('now')*1000-3600000 THEN '1h' WHEN updated_at >= unixepoch('now')*1000-86400000 THEN '24h' ELSE 'older' END AS period, COUNT(*) AS n, SUM(CASE WHEN active_run_id IS NOT NULL THEN 1 ELSE 0 END) AS with_active_run FROM conversations GROUP BY period")
-          query('USER_SIGNUPS',"SELECT CASE WHEN created_at >= unixepoch('now')*1000-86400000 THEN '24h' ELSE 'older' END AS period, COUNT(*) AS n FROM users GROUP BY period")
-          query('LATEST_CHAT_ACTIVITY',"SELECT MAX(created_at) AS last_message_time_ms, MAX(CASE WHEN role='user' THEN created_at END) AS last_user_ms, MAX(CASE WHEN role='assistant' THEN created_at END) AS last_assistant_ms FROM messages")
-          query('RUN_LEASE_STATUS',"SELECT CASE WHEN active_run_id IS NULL THEN 'none' WHEN active_run_expires_at IS NULL THEN 'no_expiry' WHEN active_run_expires_at < unixepoch('now')*1000 THEN 'expired' ELSE 'active' END AS state, COUNT(*) AS n, MIN(active_run_expires_at) AS min_expires, MAX(active_run_expires_at) AS max_expires FROM conversations GROUP BY state")
-          query('RUN_LEASE_AGGREGATE',"SELECT COUNT(*) AS total, SUM(CASE WHEN active_run_id IS NOT NULL AND active_run_expires_at < unixepoch('now')*1000 THEN 1 ELSE 0 END) AS expired_count, SUM(CASE WHEN active_run_id IS NOT NULL AND active_run_expires_at > unixepoch('now')*1000 THEN 1 ELSE 0 END) AS active_count FROM conversations")
+          import datetime,os,json,urllib.request,urllib.error,collections
+          now=datetime.datetime.now(datetime.timezone.utc)
+          gql='''query($accountTag: string, $datetimeStart: string, $datetimeEnd: string, $scriptName: string) {
+            viewer { accounts(filter:{accountTag:$accountTag}) {
+              workersInvocationsAdaptive(limit:5000,filter:{scriptName:$scriptName,datetime_geq:$datetimeStart,datetime_leq:$datetimeEnd}) {
+                dimensions { datetime status scriptName }
+                sum { requests errors subrequests }
+              }
+            } }
+          }'''
+          vals={'accountTag':'6418d8b7a0996630c6eb574d93c85b54',
+            'datetimeStart':(now-datetime.timedelta(days=2)).isoformat().replace('+00:00','Z'),
+            'datetimeEnd':now.isoformat().replace('+00:00','Z'),'scriptName':'character-chat-worker'}
+          req=urllib.request.Request('https://api.cloudflare.com/client/v4/graphql',method='POST',headers={'Authorization':'Bearer '+os.environ['CLOUDFLARE_API_TOKEN'],'Content-Type':'application/json'},data=json.dumps({'query':gql,'variables':vals}).encode())
+          try:
+            with urllib.request.urlopen(req,timeout=30) as resp: payload=json.load(resp)
+            if payload.get('errors'):print('GRAPHQL ERRORS:',payload['errors'])
+            entries=payload.get('data',{}).get('viewer',{}).get('accounts',[])
+            if not entries:print('GRAPHQL DATA:',str(payload)[:1400])
+            for a in entries:
+              rows=a.get('workersInvocationsAdaptive',[])
+              c=collections.Counter()
+              for x in rows:
+                d=x['dimensions'];s=x['sum']
+                c[(d['datetime'][:13],d['status'])]+=s['requests']
+              print('WORKER REQUESTS BY HOUR AND STATUS',sorted(c.items())[-70:])
+              print('TOTAL ROWS',len(rows))
+          except urllib.error.HTTPError as e: print('GRAPHQL HTTP',e.code,e.read(500).decode('utf8','replace'))
           PY

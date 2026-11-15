@@ -1,8 +1,5 @@
 name: Inspect deployed Meek chat source
 on:
-  push:
-    paths:
-      - .github/workflows/inspect-chat-data-20261116.yml
   workflow_dispatch:
 permissions:
   contents: read

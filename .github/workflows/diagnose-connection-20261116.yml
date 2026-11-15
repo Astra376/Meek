@@ -1,8 +1,5 @@
 name: Diagnose Meek Android to Worker connection
 on:
-  push:
-    paths:
-      - .github/workflows/diagnose-connection-20261116.yml
   workflow_dispatch:
 permissions:
   contents: read

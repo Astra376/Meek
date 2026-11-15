@@ -102,6 +102,15 @@ export default {
     }
   },
   async scheduled(event: object, env: Env, ctx: { waitUntil(promise: Promise<any>): void }) {
+    // Expired run leases are not active generations. Clear them so older
+    // conversations do not appear to remain in a generating state.
+    ctx.waitUntil(
+      env.DB.prepare(
+        "UPDATE conversations SET active_run_id = NULL, active_run_expires_at = NULL " +
+        "WHERE active_run_id IS NOT NULL AND active_run_expires_at IS NOT NULL " +
+        "AND active_run_expires_at < ?"
+      ).bind(Date.now() - 120_000).run().then(() => undefined)
+    );
     ctx.waitUntil(processOfflineMessages(env));
   }
 };

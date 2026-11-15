@@ -1,0 +1,58 @@
+name: Diagnose Meek Android to Worker connection
+on:
+  push:
+    paths:
+      - .github/workflows/diagnose-connection-20261116.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Test live Worker DNS TLS routes and runtime status
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          python3 - <<'PY'
+          import datetime,json,os,socket,ssl,time,urllib.error,urllib.request
+          host='character-chat-worker.robloxproxy.workers.dev'
+          base='https://'+host
+          print('UTC time:',datetime.datetime.now(datetime.timezone.utc).isoformat())
+          print('DNS:',[(i[0].name,i[4][0]) for i in socket.getaddrinfo(host,443,type=socket.SOCK_STREAM)][:8])
+          try:
+            with socket.create_connection((host,443),timeout=10) as s:
+              with ssl.create_default_context().wrap_socket(s,server_hostname=host) as tls:
+                print('TLS:',tls.version(),'certificate expiry:',tls.getpeercert()['notAfter'])
+          except Exception as e: print('TLS ERROR:',type(e).__name__,str(e))
+          paths=[
+            ('GET','/v1/home/feed',None),
+            ('OPTIONS','/v1/conversations/01HZZZZZZZZZZZZZZZZZZZZZZZ/messages/stream',None),
+            ('POST','/v1/conversations/01HZZZZZZZZZZZZZZZZZZZZZZZ/messages/stream',b'{"userMessageId":"01HZZZZZZZZZZZZZZZZZZZZZZZ","content":"ping"}'),
+            ('POST','/v1/auth/refresh',b'{"refreshToken":"not-real"}'),
+            ('GET','/v1/home/feed',None),
+          ]
+          for user_agent in ('okhttp/4.12.0','Mozilla/5.0 (Linux; Android 15) AppleWebKit/537.36 Chrome/125.0 Mobile Safari/537.36'):
+            for method,path,body in paths[:4]:
+              req=urllib.request.Request(base+path,method=method,data=body,headers={'User-Agent':user_agent,'Content-Type':'application/json','Accept':'application/json'})
+              start=time.monotonic()
+              try:
+                with urllib.request.urlopen(req,timeout=15) as resp:
+                  print(user_agent[:18],method,path,'status',resp.status,'ms',round((time.monotonic()-start)*1000),'body',resp.read(250).decode('utf8','replace'))
+              except urllib.error.HTTPError as e:
+                print(user_agent[:18],method,path,'status',e.code,'ms',round((time.monotonic()-start)*1000),'body',e.read(250).decode('utf8','replace'))
+              except Exception as e: print(user_agent[:18],method,path,'NETWORK ERROR',type(e).__name__,str(e))
+          api='https://api.cloudflare.com/client/v4/accounts/6418d8b7a0996630c6eb574d93c85b54/workers/scripts/character-chat-worker'
+          auth={'Authorization':'Bearer '+os.environ['CLOUDFLARE_API_TOKEN']}
+          for route in ('/deployments','/settings'):
+            try:
+              req=urllib.request.Request(api+route,headers=auth)
+              with urllib.request.urlopen(req,timeout=20) as resp:
+                result=json.load(resp)['result']
+              if route=='/deployments':
+                d=result['deployments'][0]
+                print('LIVE DEPLOYMENT:',d['created_on'],d['versions'])
+              else:
+                print('BINDINGS:',[(x['name'],x['type']) for x in result['bindings']])
+            except Exception as e:print('CLOUDFLARE API ERROR:',route,type(e).__name__,str(e))
+          PY

@@ -1,0 +1,65 @@
+name: Keep Meek chat run cleanup active
+on:
+  push:
+    paths:
+      - .github/workflows/deploy-stale-run-reaper.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  recover:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Patch stale-run cleanup into existing live Worker with all bindings preserved
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          python3 - <<'PY'
+          import json,os,secrets,subprocess,tempfile,urllib.request,urllib.error
+          from email.parser import BytesParser
+          from email.policy import default
+          root='https://api.cloudflare.com/client/v4/accounts/6418d8b7a0996630c6eb574d93c85b54/workers/scripts/character-chat-worker'
+          auth={'Authorization':'Bearer '+os.environ['CLOUDFLARE_API_TOKEN']}
+          def get(path):
+            with urllib.request.urlopen(urllib.request.Request(root+path,headers=auth),timeout=30) as response:
+              return response.read(),response.headers
+          dep,_=get('/deployments')
+          active=json.loads(dep)['result']['deployments'][0]['versions']
+          assert len(active)==1 and active[0]['version_id']=='c2121840-18db-4f3f-a96c-800b161cab3f' and active[0]['percentage']==100,'Unexpected active Worker deployment; refusing overwrite'
+          original,ct=get('/content/v2')
+          parsed=BytesParser(policy=default).parsebytes(('Content-Type: '+ct['Content-Type']+'\r\nMIME-Version: 1.0\r\n\r\n').encode()+original)
+          parts=[p for p in parsed.iter_parts() if 'javascript' in p.get_content_type()]
+          assert len(parts)==1,'Unexpected Worker bundle shape'
+          module_name=parts[0].get_filename() or 'index.js'
+          code=parts[0].get_payload(decode=True).decode('utf8')
+          assert 'ImageGenerationJob' in code and 'var STANDARD_MODEL = "xiaomi/mimo-v2.6-pro";' in code
+          old='async scheduled(event, env, ctx) {\n    ctx.waitUntil(processOfflineMessages(env));'
+          new='async scheduled(event, env, ctx) {\n    ctx.waitUntil(env.DB.prepare("UPDATE conversations SET active_run_id = NULL, active_run_expires_at = NULL WHERE active_run_id IS NOT NULL AND active_run_expires_at IS NOT NULL AND active_run_expires_at < ?").bind(Date.now() - 120000).run());\n    ctx.waitUntil(processOfflineMessages(env));'
+          assert code.count(old)==1,'Worker maintenance handler changed; refusing unsafe patch'
+          modified=code.replace(old,new,1)
+          with tempfile.TemporaryDirectory() as directory:
+            js=os.path.join(directory,'worker.mjs')
+            with open(js,'w') as f:f.write(modified)
+            subprocess.run(['node','--check',js],check=True)
+          boundary='----meek-run-reaper-'+secrets.token_hex(12)
+          def part(name,data,mime):
+            disposition='form-data; name="'+name+'"'+('; filename="'+name+'"' if name!='metadata' else '')
+            return ('--'+boundary+'\r\nContent-Disposition: '+disposition+'\r\nContent-Type: '+mime+'\r\n\r\n').encode()+data+b'\r\n'
+          body=part('metadata',json.dumps({'main_module':module_name}).encode(),'application/json')+part(module_name,modified.encode(),'application/javascript+module')+('--'+boundary+'--\r\n').encode()
+          req=urllib.request.Request(root+'/content',data=body,method='PUT',headers={**auth,'Content-Type':'multipart/form-data; boundary='+boundary})
+          with urllib.request.urlopen(req,timeout=60) as response:result=json.load(response)
+          assert result.get('success'),result.get('errors')
+          current,ct=get('/content/v2')
+          parsed=BytesParser(policy=default).parsebytes(('Content-Type: '+ct['Content-Type']+'\r\nMIME-Version: 1.0\r\n\r\n').encode()+current)
+          saved='\n'.join(p.get_payload(decode=True).decode('utf8') for p in parsed.iter_parts() if 'javascript' in p.get_content_type())
+          assert saved==modified,'Live Worker content verification failed'
+          print('DEPLOYED AND VERIFIED: stale chat lease reaper, no other code changes')
+          base='https://character-chat-worker.robloxproxy.workers.dev'
+          for method,path,expected in [('GET','/v1/home/feed',401),('OPTIONS','/v1/conversations/test/messages/stream',204)]:
+            request=urllib.request.Request(base+path,method=method,headers={'User-Agent':'okhttp/4.12.0'})
+            try:
+              with urllib.request.urlopen(request,timeout=15) as response:status=response.status
+            except urllib.error.HTTPError as e:status=e.code
+            print(method,path,'HTTP',status)
+            assert status==expected
+          PY

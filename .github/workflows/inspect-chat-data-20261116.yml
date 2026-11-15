@@ -1,4 +1,4 @@
-name: Diagnose Meek backend data status
+name: Diagnose Meek recent traffic and chat completion
 on:
   push:
     paths:
@@ -10,27 +10,24 @@ jobs:
   inspect:
     runs-on: ubuntu-latest
     steps:
-      - name: Inspect D1 schema and aggregate chat run statuses
+      - name: Read aggregate database activity, never message content or identities
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: |
           python3 - <<'PY'
           import json,os,urllib.request,urllib.error
           root='https://api.cloudflare.com/client/v4/accounts/6418d8b7a0996630c6eb574d93c85b54/d1/database/ad611737-fc84-4002-bcfe-0f0ce257f2ae/query'
-          def query(sql):
-            request=urllib.request.Request(root,method='POST',headers={'Authorization':'Bearer '+os.environ['CLOUDFLARE_API_TOKEN'],'Content-Type':'application/json'},data=json.dumps({'sql':sql}).encode())
+          def query(label,sql):
+            req=urllib.request.Request(root,method='POST',headers={'Authorization':'Bearer '+os.environ['CLOUDFLARE_API_TOKEN'],'Content-Type':'application/json'},data=json.dumps({'sql':sql}).encode())
             try:
-              with urllib.request.urlopen(request,timeout=25) as response:
-                payload=json.load(response)
-              if not payload.get('success'):
-                print('QUERY FAILURE:',payload.get('errors'));return []
-              return payload['result'][0].get('results',[])
-            except urllib.error.HTTPError as e:
-              print('QUERY HTTP',e.code,e.read(300).decode('utf8','replace'));return []
-          tables=query("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name")
-          names=[x['name'] for x in tables]
-          print('TABLES:',names)
-          for n in names:
-            if any(s in n for s in ('conversation','chat','message','run','model','auth','session')):
-              print('SCHEMA',n,query("PRAGMA table_info('"+n+"')"))
+              with urllib.request.urlopen(req,timeout=25) as resp:p=json.load(resp)
+              if not p.get('success'):print(label,'ERROR',p.get('errors'));return
+              print(label,p['result'][0].get('results',[]))
+            except urllib.error.HTTPError as e:print(label,'HTTP',e.code,e.read(250).decode('utf8','replace'))
+          query('CLOCK',"SELECT strftime('%Y-%m-%d %H:%M:%S','now') AS utc, unixepoch('now')*1000 AS now_ms")
+          query('RECENT_MESSAGE_ACTIVITY',"SELECT role, CASE WHEN created_at >= unixepoch('now')*1000-3600000 THEN '1h' WHEN created_at >= unixepoch('now')*1000-86400000 THEN '24h' ELSE 'older' END AS period, COUNT(*) AS n FROM messages GROUP BY role,period")
+          query('RECENT_GROUP_MESSAGE_ACTIVITY',"SELECT role, status, CASE WHEN created_at >= unixepoch('now')*1000-86400000 THEN '24h' ELSE 'older' END AS period, COUNT(*) AS n FROM group_messages GROUP BY role,status,period")
+          query('RECENT_CONVERSATIONS',"SELECT CASE WHEN updated_at >= unixepoch('now')*1000-3600000 THEN '1h' WHEN updated_at >= unixepoch('now')*1000-86400000 THEN '24h' ELSE 'older' END AS period, COUNT(*) AS n, SUM(CASE WHEN active_run_id IS NOT NULL THEN 1 ELSE 0 END) AS with_active_run FROM conversations GROUP BY period")
+          query('USER_SIGNUPS',"SELECT CASE WHEN created_at >= unixepoch('now')*1000-86400000 THEN '24h' ELSE 'older' END AS period, COUNT(*) AS n FROM users GROUP BY period")
+          query('LATEST_CHAT_ACTIVITY',"SELECT MAX(created_at) AS last_message_time_ms, MAX(CASE WHEN role='user' THEN created_at END) AS last_user_ms, MAX(CASE WHEN role='assistant' THEN created_at END) AS last_assistant_ms FROM messages")
           PY

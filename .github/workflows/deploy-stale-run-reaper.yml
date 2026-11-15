@@ -1,8 +1,5 @@
 name: Keep Meek chat run cleanup active
 on:
-  push:
-    paths:
-      - .github/workflows/deploy-stale-run-reaper.yml
   workflow_dispatch:
 permissions:
   contents: read

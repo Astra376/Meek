@@ -19,8 +19,6 @@ jobs:
           sys.path.insert(0,'backend/scripts')
           import deploy_task_routing as routing
           import time,hashlib
-          fetch=routing.fetch
-          routing.fetch=lambda path: fetch(path+'?check='+str(time.time_ns()))
           print("Active deployment",routing.active()["versions"],flush=True)
           source=routing.download()[0][0][2].decode()
           print("Live digest",hashlib.sha256(source.encode()).hexdigest(),flush=True)

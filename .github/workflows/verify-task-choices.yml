@@ -17,8 +17,13 @@ jobs:
           python3 - <<'PY'
           import os,re,sys,subprocess
           sys.path.insert(0,'backend/scripts')
-          from deploy_task_routing import download
-          source=download()[0][0][2].decode()
+          import deploy_task_routing as routing
+          import time,hashlib
+          fetch=routing.fetch
+          routing.fetch=lambda path: fetch(path+'?check='+str(time.time_ns()))
+          print("Active deployment",routing.active()["versions"],flush=True)
+          source=routing.download()[0][0][2].decode()
+          print("Live digest",hashlib.sha256(source.encode()).hexdigest(),flush=True)
           def function(name):
               return re.search(r'^(?:async )?function '+name+r'\([^\n]*\) \{.*?^}',source,re.M|re.S)[0]
           # Exercise the deployed env selection before the first network call.

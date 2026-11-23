@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 import re
+import time
 import subprocess
 import urllib.request
 from email.policy import default
@@ -12,11 +13,11 @@ from hotfix_live_chat import encode_multipart
 ROOT = "https://api.cloudflare.com/client/v4/accounts/6418d8b7a0996630c6eb574d93c85b54/workers/scripts/character-chat-worker"
 HEADERS = {"Authorization": "Bearer " + os.environ["CLOUDFLARE_API_TOKEN"]}
 MODEL = "deepseek/deepseek-v4.1-flash-1017"
-DIGEST = "a8850bcf0f8f8ce7cc84f2805c35c4d7148d7e4424cd5b6409be6af71a68287b"
+DIGEST = "e0700689c01c6a27257eccffa6282cc920410550a11b864fe7bc581d951aa246"
 
 
 def fetch(path):
-    return urllib.request.urlopen(urllib.request.Request(ROOT + path, headers=HEADERS), timeout=30)
+    return urllib.request.urlopen(urllib.request.Request(ROOT + path + "?check=" + str(time.time_ns()), headers={**HEADERS, "Cache-Control": "no-cache"}), timeout=30)
 
 
 def download():
@@ -52,6 +53,8 @@ def main():
     source = code.decode()
     # The reviewed non-streaming callers are memory, offline generation, character
     # creation, greetings and scene descriptions. Interactive chat uses streamChatText.
+    assert MODEL not in source and "BACKGROUND_GENERATION_DISABLED" not in source
+    assert 'var STANDARD_MODEL = "xiaomi/mimo-v2.6-pro";' in source
     patched = insert_at_entry(source, "completeChatText", (
         '  env = { ...env, OPENROUTER_MODEL: "' + MODEL +
         '", OPENROUTER_FALLBACK_MODELS: "", OPENROUTER_PROVIDERS: "" };\n'
@@ -75,6 +78,9 @@ def main():
     current = active()
     assert current["id"] != original_deployment["id"]
     assert len(current["versions"]) == 1 and current["versions"][0]["percentage"] == 100
+    time.sleep(12)
+    assert download()[0][0][2] == patched.encode()
+    assert active()["id"] == current["id"]
     print("Verified exact Worker code and 100% production activation", current["versions"][0]["version_id"])
 
 

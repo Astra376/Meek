@@ -112,7 +112,7 @@ fun AppearanceRoute(onBack: ()->Unit, onUpgradeUltra: ()->Unit = {}, viewModel: 
                 item { PresetChoices("Profile banner", appearancePreset(draft.bannerId) ?: if (draft.bannerId.isEmpty()) "none" else "custom", !busy, includeNone = true) { viewModel.edit(draft.copy(bannerId = if (it == "none") "" else "preset:$it", bannerUrl = null)) } }
                 item { ImageActions("Profile banner",busy,onUpload={uploadTarget="banner";picker.launch("image/*")},onGenerate={generationTarget="banner"},onClear={viewModel.edit(draft.copy(bannerId="",bannerUrl=null))}) }
                 item { PresetChoices("Profile background", appearancePreset(draft.profileBackgroundId) ?: if (draft.profileBackgroundId.isEmpty()) "none" else "custom", !busy, includeNone = true, patterns = true) { viewModel.edit(draft.copy(profileBackgroundId = if (it == "none") "" else "preset:$it", profileBackgroundUrl = null)) } }
-                item { ImageActions("Profile background",busy,onUpload={uploadTarget="profile";picker.launch("image/*")},onGenerate={generationTarget="profile"},onClear={viewModel.edit(draft.copy(profileBackgroundId="",profileBackgroundUrl=null))}) }
+                item { ImageActions("Profile background",busy,onUpload={uploadTarget="profile";picker.launch("image/*")},onClear={viewModel.edit(draft.copy(profileBackgroundId="",profileBackgroundUrl=null))}) }
                 item { Text("Featured character",style=MaterialTheme.typography.titleMedium); Text("Choose a public character you created.",style=MaterialTheme.typography.bodySmall) }
                 item { LazyRow(horizontalArrangement=Arrangement.spacedBy(8.dp)) { item { FilterChip(selected=draft.featuredCharacterId.isEmpty(),onClick={viewModel.edit(draft.copy(featuredCharacterId=""))},label={Text("None")},enabled=!busy) }; items(characters,key={it.id}) { c -> FilterChip(selected=draft.featuredCharacterId==c.id,onClick={viewModel.edit(draft.copy(featuredCharacterId=c.id))},label={Text(c.name)},enabled=!busy) } } }
                 item { Text("Public profile widgets",style=MaterialTheme.typography.titleMedium); Text("Only the widgets you select are visible to other people.",style=MaterialTheme.typography.bodySmall) }
@@ -122,7 +122,7 @@ fun AppearanceRoute(onBack: ()->Unit, onUpgradeUltra: ()->Unit = {}, viewModel: 
                 item { HorizontalDivider(); Text("App background",style=MaterialTheme.typography.titleLarge) }
                 item { Box(Modifier.fillMaxWidth().height(150.dp)) { AppearanceBackdrop(draft,Modifier.fillMaxSize()); Surface(modifier=Modifier.align(Alignment.Center),shape=RoundedCornerShape(20.dp),color=MaterialTheme.colorScheme.surface.copy(alpha=.9f)) { Text("A little more you",Modifier.padding(16.dp)) } } }
                 item { PresetChoices("Choose a background", draft.background, !busy, patterns = true) { viewModel.edit(draft.copy(background = it)) } }
-                item { ImageActions("Custom background",busy,onUpload={uploadTarget="background";picker.launch("image/*")},onGenerate={generationTarget="background"},onClear={viewModel.edit(draft.copy(background="default",backgroundId="",backgroundUrl=null))}) }
+                item { ImageActions("Custom background",busy,onUpload={uploadTarget="background";picker.launch("image/*")},onClear={viewModel.edit(draft.copy(background="default",backgroundId="",backgroundUrl=null))}) }
                 item { HorizontalDivider(); Text("App icon",style=MaterialTheme.typography.titleLarge) }
                 item { IconChoices(draft.icon, !busy) { viewModel.edit(draft.copy(icon = it)) } }
                 item { Text("Preset icons replace your app icon. An uploaded or generated image creates a custom home screen shortcut, which Android lets you confirm.",style=MaterialTheme.typography.bodySmall) }
@@ -163,7 +163,7 @@ private fun ImageActions(
     title: String,
     busy: Boolean,
     onUpload: () -> Unit,
-    onGenerate: () -> Unit,
+    onGenerate: (() -> Unit)? = null,
     onClear: (() -> Unit)? = null
 ) {
     Column {
@@ -172,8 +172,10 @@ private fun ImageActions(
             OutlinedButton(onClick = onUpload, enabled = !busy) {
                 Text("Upload")
             }
-            OutlinedButton(onClick = onGenerate, enabled = !busy) {
-                Text("Generate")
+            onGenerate?.let { generate ->
+                OutlinedButton(onClick = generate, enabled = !busy) {
+                    Text("Generate")
+                }
             }
             onClear?.let { clear ->
                 TextButton(onClick = clear, enabled = !busy) {

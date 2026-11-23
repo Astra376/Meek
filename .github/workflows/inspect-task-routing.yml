@@ -1,0 +1,30 @@
+name: Inspect Meek task routing
+on:
+  push:
+    branches: [release/meek-1.1.73]
+    paths: ['.github/workflows/inspect-task-routing.yml']
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - name: List live model call sites
+        env:
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          python3 - <<'PY'
+          import urllib.request,os,email,email.policy,re,hashlib
+          url='https://api.cloudflare.com/client/v4/accounts/6418d8b7a0996630c6eb574d93c85b54/workers/scripts/character-chat-worker/content/v2'
+          with urllib.request.urlopen(urllib.request.Request(url,headers={'Authorization':'Bearer '+os.environ['CF_TOKEN']})) as r:
+              m=email.message_from_bytes(('Content-Type: '+r.headers['Content-Type']+'\r\n\r\n').encode()+r.read(),policy=email.policy.default)
+          for part in m.iter_parts():
+              if 'javascript' not in part.get_content_type(): continue
+              data=part.get_payload(decode=True)
+              print('MODULE_SHA',hashlib.sha256(data).hexdigest())
+              fn=''
+              for line in data.decode().splitlines():
+                  if re.match(r'^(async )?function',line): fn=line.split('{')[0]
+                  if re.search(r'completeChatText\(|modelEnvironmentForUser\(|generateChatBackground\(|OPENROUTER_BACKGROUND_MODEL|backgroundModelEnvironment|textModelEnvironment',line):
+                      print(fn[:140],line.strip()[:180])
+          PY

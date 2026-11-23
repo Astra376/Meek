@@ -23,7 +23,8 @@ jobs:
               return re.search(r'^(?:async )?function '+name+r'\([^\n]*\) \{.*?^}',source,re.M|re.S)[0]
           # Exercise the deployed env selection before the first network call.
           completion=function('completeChatText')
-          assignment=re.search(r'^  env = .*?;$',completion,re.M)[0]
+          print("Live completion entry",completion[:480],flush=True)
+          assignment=re.search(r'env\s*=\s*\{\s*\.\.\.env,\s*OPENROUTER_MODEL:\s*"deepseek/deepseek-v4\.1-flash-1017".*?\};',completion,re.S)[0]
           assert 'modelSelection(env)' in completion
           parts=[function('modelSelection')]
           if 'configuredModels(' in parts[0]: parts.append(function('configuredModels'))

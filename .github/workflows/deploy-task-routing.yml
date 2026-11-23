@@ -1,0 +1,16 @@
+name: Deploy Meek task routing
+on:
+  push:
+    branches: [release/meek-1.1.73]
+    paths: ['backend/scripts/deploy_task_routing.py']
+permissions:
+  contents: read
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply and verify production task routing
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: python3 backend/scripts/deploy_task_routing.py

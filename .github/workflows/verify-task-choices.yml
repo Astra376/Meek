@@ -28,7 +28,9 @@ jobs:
               return re.search(r'^(?:async )?function '+name+r'\([^\n]*\) \{.*?^}',source,re.M|re.S)[0]
           # Exercise the deployed env selection before the first network call.
           completion=function('completeChatText')
-          print("Live completion entry",completion[:480],flush=True)
+          print("Route markers",[(t,source.count(t)) for t in (routing.MODEL,"BACKGROUND_GENERATION_DISABLED","async function completeChatText")],flush=True)
+          for line in source.splitlines():
+              if routing.MODEL in line or "BACKGROUND_GENERATION_DISABLED" in line: print(line[:240],flush=True)
           assignment=re.search(r'env\s*=\s*\{\s*\.\.\.env,\s*OPENROUTER_MODEL:\s*"deepseek/deepseek-v4\.1-flash-1017".*?\};',completion,re.S)[0]
           assert 'modelSelection(env)' in completion
           parts=[function('modelSelection')]

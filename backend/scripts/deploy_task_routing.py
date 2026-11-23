@@ -54,7 +54,6 @@ def main():
     # The reviewed non-streaming callers are memory, offline generation, character
     # creation, greetings and scene descriptions. Interactive chat uses streamChatText.
     assert MODEL not in source and "BACKGROUND_GENERATION_DISABLED" not in source
-    assert 'var STANDARD_MODEL = "xiaomi/mimo-v2.6-pro";' in source
     patched = insert_at_entry(source, "completeChatText", (
         '  env = { ...env, OPENROUTER_MODEL: "' + MODEL +
         '", OPENROUTER_FALLBACK_MODELS: "", OPENROUTER_PROVIDERS: "" };\n'

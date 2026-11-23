@@ -1,0 +1,45 @@
+name: Verify live Meek model choices
+on:
+  push:
+    branches: [release/meek-1.1.73]
+    paths: ['.github/workflows/verify-task-choices.yml']
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Exercise live routing with synthetic inputs
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          python3 - <<'PY'
+          import os,re,sys,subprocess
+          sys.path.insert(0,'backend/scripts')
+          from deploy_task_routing import download
+          source=download()[0][0][2].decode()
+          def function(name):
+              return re.search(r'^(?:async )?function '+name+r'\([^\n]*\) \{.*?^}',source,re.M|re.S)[0]
+          # Exercise the deployed env selection before the first network call.
+          completion=function('completeChatText')
+          assignment=re.search(r'^  env = .*?;$',completion,re.M)[0]
+          assert 'modelSelection(env)' in completion
+          parts=[function('modelSelection')]
+          if 'configuredModels(' in parts[0]: parts.append(function('configuredModels'))
+          parts.append('function auxiliary(env) {\n'+assignment+'\nreturn modelSelection(env);\n}')
+          for name in ('conversationBackground','generateChatBackground','generateAppearance'):
+              parts.append(function(name))
+          parts.append("""
+          class AppError extends Error { constructor(status, code) { super(code); this.status = status; } }
+          const env = { OPENROUTER_MODEL:'xiaomi/mimo-v2.6-pro', OPENROUTER_FALLBACK_MODELS:'' };
+          const assert = (await import('node:assert/strict')).default;
+          assert.deepEqual(auxiliary(env), {model:'deepseek/deepseek-v4.1-flash-1017'});
+          assert.deepEqual(modelSelection(env), {model:'xiaomi/mimo-v2.6-pro'});
+          for (const call of [() => conversationBackground({}, 'synthetic'), () => generateChatBackground({}, 'synthetic'), () => generateAppearance({}, {kind:'background'})]) {
+              await assert.rejects(call, e => e.status === 410 && e.message === 'BACKGROUND_GENERATION_DISABLED');
+          }
+          console.log('Verified Flash auxiliary routing, MiMo request selection, and all three disabled background paths.');
+          """)
+          subprocess.run(['node','--input-type=module'],input='\n'.join(parts),text=True,check=True)
+          PY

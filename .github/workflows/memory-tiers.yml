@@ -1,0 +1,26 @@
+name: Meek memory tiers and character routing
+on:
+  push:
+    branches: [release/meek-1.1.73]
+    paths: ['.github/workflows/memory-tiers.yml', 'backend/scripts/apply_memory_tiers.py']
+permissions:
+  contents: read
+jobs:
+  worker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspect live handlers
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          cd backend/scripts
+          python3 - <<'PY'
+          import deploy_task_routing as api,re,hashlib
+          s=api.download()[0][0][2].decode()
+          print('DIGEST',hashlib.sha256(s.encode()).hexdigest())
+          for name in ('completeChatText','consolidateCharacterMemory','mergeLongTermMemory','autoCreateCharacter','generateCharacterGreeting','processOfflineMessages','hasGroundedEvidence','saveAutomaticConversationMemory'):
+              fn=re.search(r'^(?:async )?function '+name+r'\(.*?^}',s,re.M|re.S)[0]
+              for line in fn.splitlines():
+                  if name in ('mergeLongTermMemory','hasGroundedEvidence') or any(t in line for t in ('completeChatText(', 'env = {', 'Sources','midTerm','mid_term','sourcePosition','longTermAdditions','consolidatedPosition','CharacterMemory(','earlierArc','last_consolidated','maxTokens','OPENROUTER_','SELECT m.position','LIMIT 160','changedFromPosition','conversation.version','processOfflineMessages(')): print(line)
+          PY

@@ -9,7 +9,17 @@ INSERT INTO conversations VALUES ('test',1);
 INSERT INTO conversation_memories VALUES ('test','old short','','[]',8,1,0,'',NULL,NULL,NULL,NULL,NULL);`);
 for(let i=0;i<12;i++) db.prepare("INSERT INTO messages VALUES (?,?,?,?,?,NULL)").run("id"+i,i,i%2?"assistant":"user",i===2?"I'll meet you at the old station.":"Synthetic turn "+i,"test");
 const IMMEDIATE_CONTEXT_MESSAGES=8, SHORT_TERM_HORIZON_MESSAGES=48, CONSOLIDATION_INTERVAL_MESSAGES=4, LONG_TERM_MEMORY_LIMIT=32000;
-const env={DB:{prepare(sql){return {bind(...args){const st=db.prepare(sql);return {all:async()=>({results:st.all(...args)}),run:async()=>({meta:st.run(...args)})}}}}};
+const env = { DB: {
+  prepare(sql) {
+    return { bind(...args) {
+      const statement = db.prepare(sql);
+      return {
+        all: async () => ({results: statement.all(...args)}),
+        run: async () => ({meta: statement.run(...args)})
+      };
+    }};
+  }
+}};
 const ctx={env,user:{userId:"test"}};
 const run=statement=>statement.run();
 const requireOwnedConversation=async()=>({version:1,character_id:"character"});

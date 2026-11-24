@@ -21,6 +21,7 @@ const env = { DB: {
   }
 }};
 const ctx={env,user:{userId:"test"}};
+const __name = fn => fn;
 const run=statement=>statement.run();
 const requireOwnedConversation=async()=>({version:1,character_id:"character"});
 const getCharacterById=async()=>({name:"Character",system_prompt:"fictional roleplay"});

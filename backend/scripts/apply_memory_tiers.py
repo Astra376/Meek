@@ -85,7 +85,8 @@ def check(s):
     assert "processCandidate(" not in handler(s, "processOfflineMessages")
     assert not re.search(r'claimGroupContinuation\([^\n;]*["\']away["\']', s)
     assert not re.search(r'runGroup\([^\n;]*["\']away["\']', s)
-    assert s.count("BACKGROUND_GENERATION_DISABLED") == 3
+    for name in ("conversationBackground", "generateChatBackground", "generateAppearance"):
+        assert "BACKGROUND_GENERATION_DISABLED" in handler(s, name), name
     names = ["consolidateCharacterMemory", "mergeLongTermMemory", "normalizeMemoryQuote", "resolveMemorySource", "selectShortTermHorizon", "parseMemoryUpdate", "parseAutomaticEntries", "saveAutomaticConversationMemory"]
     code = "\n".join(handler(s, name) for name in names)
     subprocess.run(["node","--input-type=module"],input=code+"\n"+Path("scripts/check_memory_tiers.mjs").read_text(),text=True,check=True)
@@ -98,12 +99,21 @@ def main():
     name, mime, data = modules[0]
     source = data.decode()
     if "function resolveMemorySource(" in source and FLASH in handler(source, "consolidateCharacterMemory"):
-        check(source)
-        assert api.download()[0][0][2] == data and api.active()["id"] == old["id"]
-        assert len(old["versions"]) == 1 and old["versions"][0]["percentage"] == 100
-        print("Verified existing active production deployment", old["versions"])
-        return
-    updated = patch(source)
+        target = source
+        for fn in ("conversationBackground", "generateChatBackground", "generateAppearance"):
+            if "BACKGROUND_GENERATION_DISABLED" not in handler(target, fn):
+                condition = 'if (input.kind === "background") ' if fn == "generateAppearance" else ''
+                target = api.insert_at_entry(target, fn, '  ' + condition + 'throw new AppError(410, "BACKGROUND_GENERATION_DISABLED", "Background generation is disabled.");\n')
+        if target != source:
+            updated = target
+        else:
+            check(source)
+            assert api.download()[0][0][2] == data and api.active()["id"] == old["id"]
+            assert len(old["versions"]) == 1 and old["versions"][0]["percentage"] == 100
+            print("Verified existing active production deployment", old["versions"])
+            return
+    else:
+        updated = patch(source)
     check(updated)
     assert api.download() == (modules, etag) and api.active()["id"] == old["id"]
     body, mime = api.encode_multipart([(name, mime, updated.encode())], name)

@@ -83,7 +83,8 @@ def check(s):
     assert api.MODEL not in handler(s, "completeChatText")
     assert FLASH in handler(s, "consolidateCharacterMemory")
     assert "processCandidate(" not in handler(s, "processOfflineMessages")
-    assert '"away"' not in handler(s, "processGroupFollowups")
+    assert not re.search(r'claimGroupContinuation\([^\n;]*["\']away["\']', s)
+    assert not re.search(r'runGroup\([^\n;]*["\']away["\']', s)
     assert s.count("BACKGROUND_GENERATION_DISABLED") == 3
     names = ["consolidateCharacterMemory", "mergeLongTermMemory", "normalizeMemoryQuote", "resolveMemorySource", "selectShortTermHorizon", "parseMemoryUpdate", "parseAutomaticEntries", "saveAutomaticConversationMemory"]
     code = "\n".join(handler(s, name) for name in names)

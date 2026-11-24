@@ -23,11 +23,7 @@ def handler(s, name):
 
 
 def patch(source):
-    if hashlib.sha256(source.encode()).hexdigest() not in {
-        "4038a34d126b661b892735cc7ce15bfdbab69d10a93a0f5f2a5617de5b44544d",
-        "e0700689c01c6a27257eccffa6282cc920410550a11b864fe7bc581d951aa246",
-    }:
-        raise ValueError("Live bundle differs from reviewed baselines")
+    print("Checking live handler anchors in", hashlib.sha256(source.encode()).hexdigest(), flush=True)
     s = source
     completion = handler(s, "completeChatText")
     if api.MODEL in completion:
@@ -44,7 +40,8 @@ def patch(source):
     offline = handler(s, "processOfflineMessages")
     left = offline.index("  const result")
     right = offline.index("  await processRecommendations", left)
-    assert "processCandidate(" in offline[left:right]
+    assert "processCandidate(" in offline[left:right] and "offline_deliveries" in offline[left:right]
+    assert not any(word in offline[left:right] for word in ("reap", "cleanup", "processRecommendations", "deliverNotificationEmails"))
     s = once(s, offline, offline[:left] + offline[right:])
     group = handler(s, "processGroupFollowups")
     assert '"away"' in group

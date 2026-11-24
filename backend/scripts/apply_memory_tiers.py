@@ -25,6 +25,9 @@ def handler(s, name):
 def patch(source):
     print("Checking live handler anchors in", hashlib.sha256(source.encode()).hexdigest(), flush=True)
     s = source
+    for name in ("autoCreateCharacter", "generateCharacterGreeting", "consolidateCharacterMemory", "processOfflineMessages", "processGroupFollowups"):
+        body = handler(s, name)
+        print(name, [line.strip()[:340] for line in body.splitlines() if ("completeChatText(" in line or "const midSources" in line or "const durableSources" in line or "processCandidate(" in line)], flush=True)
     completion = handler(s, "completeChatText")
     if api.MODEL in completion:
         s = once(s, completion, re.sub(r'^  env = \{[^\n]*deepseek-v4\.1-flash-1017[^\n]*\};\n', '', completion, flags=re.M))

@@ -26,7 +26,7 @@ const run=statement=>statement.run();
 const requireOwnedConversation=async()=>({version:1,character_id:"character"});
 const getCharacterById=async()=>({name:"Character",system_prompt:"fictional roleplay"});
 const row=()=>db.prepare("SELECT * FROM conversation_memories").get();
-const memorySnapshot=async()=>({raw:row(),memory:row(),limits:{shortTerm:4000,midTerm:8000,longTerm:32000}});
+const memorySnapshot=async()=>({raw:row(),memory:row(),emotions:null,personality:null,psychology:null,scene:null,defaults:null,limits:{shortTerm:4000,midTerm:8000,longTerm:32000}});
 const formatAdvancedCharacterDefinition=()=>"", selectRelevantMemory=s=>s;
 const normalizeEmotionState=()=>null,evolveEmotionState=()=>null,normalizePersonalityState=()=>null,evolvePersonalityState=()=>null,normalizePsychologyState=()=>null,normalizeSceneState=()=>null,hasGroundedEvidence=()=>false;
 let pass=0;

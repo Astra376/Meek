@@ -80,6 +80,7 @@ def check(s):
     subprocess.run(["node", "--input-type=module", "--check"], input=s.encode(), check=True)
     for name in ("autoCreateCharacter", "generateCharacterGreeting"):
         assert MIMO in handler(s, name)
+    assert api.MODEL not in handler(s, "completeChatText")
     assert FLASH in handler(s, "consolidateCharacterMemory")
     assert "processCandidate(" not in handler(s, "processOfflineMessages")
     assert '"away"' not in handler(s, "processGroupFollowups")
@@ -94,7 +95,14 @@ def main():
     modules, etag = api.download()
     assert len(modules) == 1
     name, mime, data = modules[0]
-    updated = patch(data.decode())
+    source = data.decode()
+    if "function resolveMemorySource(" in source and FLASH in handler(source, "consolidateCharacterMemory"):
+        check(source)
+        assert api.download()[0][0][2] == data and api.active()["id"] == old["id"]
+        assert len(old["versions"]) == 1 and old["versions"][0]["percentage"] == 100
+        print("Verified existing active production deployment", old["versions"])
+        return
+    updated = patch(source)
     check(updated)
     assert api.download() == (modules, etag) and api.active()["id"] == old["id"]
     body, mime = api.encode_multipart([(name, mime, updated.encode())], name)

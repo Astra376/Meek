@@ -36,6 +36,12 @@ object DatabaseModule {
         }
     }
 
+    private val migration11To12 = object : Migration(11, 12) {
+        override fun migrate(database: SupportSQLiteDatabase) {
+            database.execSQL("ALTER TABLE conversation_memories ADD COLUMN midTerm TEXT NOT NULL DEFAULT ''")
+        }
+    }
+
     @Provides
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): AppDatabase {
@@ -44,7 +50,7 @@ object DatabaseModule {
             AppDatabase::class.java,
             "character-chat.db"
         )
-            .addMigrations(migration10To11)
+            .addMigrations(migration10To11, migration11To12)
             .fallbackToDestructiveMigration()
             .build()
     }

@@ -34,7 +34,7 @@ class CharacterMemoryRepository @Inject constructor(
         if (cached == null) null else {
             val remote = details[conversationId]
             CharacterMemorySnapshot(
-                memory = remote ?: CharacterMemoryDto(cached.conversationId, cached.shortTerm, cached.longTerm, cached.updatedAt),
+                memory = remote ?: CharacterMemoryDto(cached.conversationId, cached.shortTerm, cached.longTerm, cached.updatedAt, midTerm = cached.midTerm),
                 hasServerDetails = remote != null
             )
         }
@@ -78,7 +78,7 @@ class CharacterMemoryRepository @Inject constructor(
     }
 
     private suspend fun cache(memory: CharacterMemoryDto) {
-        memoryDao.upsert(ConversationMemoryEntity(memory.conversationId, memory.shortTerm, memory.longTerm, memory.updatedAt))
+        memoryDao.upsert(ConversationMemoryEntity(memory.conversationId, memory.shortTerm, memory.longTerm, memory.updatedAt, midTerm = memory.midTerm))
         remoteDetails.update { it + (memory.conversationId to memory) }
     }
 }

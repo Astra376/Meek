@@ -1,4 +1,4 @@
-name: Meek 1.1.74
+name: Meek 1.1.75
 on:
   push:
     branches: [release/meek-1.1.73]
@@ -25,7 +25,7 @@ jobs:
           gradle-version: '8.7'
           validate-wrappers: false
       - name: Build phone update
-        run: gradle --no-daemon --max-workers=2 :app:testDebugUnitTest --tests com.example.aichat.feature.chat.ChatBackgroundRepositoryTest :app:assembleRelease -PAI_CHAT_VERSION_CODE=1074 -PAI_CHAT_VERSION_NAME=1.1.74 -PAI_CHAT_BUILD_SHA=${GITHUB_SHA::7}
+        run: gradle --no-daemon --max-workers=2 :app:testDebugUnitTest --tests com.example.aichat.feature.chat.CharacterMemoryRepositoryTest :app:assembleRelease -PAI_CHAT_VERSION_CODE=1075 -PAI_CHAT_VERSION_NAME=1.1.75 -PAI_CHAT_BUILD_SHA=${GITHUB_SHA::7}
       - name: Verify Android package and signing certificate
         env:
           GH_TOKEN: ${{ github.token }}
@@ -38,25 +38,8 @@ jobs:
           previous=$(digest "$RUNNER_TEMP/Meek-1.1.72.apk")
           test -n "$previous" && test "$previous" = "$(digest "$apk")"
           "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$apk" | grep "^package:" > "$RUNNER_TEMP/package-info"
-          grep "name='com.example.aichat' versionCode='1074' versionName='1.1.74'" "$RUNNER_TEMP/package-info"
+          grep "name='com.example.aichat' versionCode='1075' versionName='1.1.75'" "$RUNNER_TEMP/package-info"
       - uses: actions/upload-artifact@v4
         with:
-          name: meek-1.1.74
+          name: meek-1.1.75
           path: android-app/app/build/outputs/apk/release/app-release.apk
-
-  publish:
-    needs: android
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: meek-1.1.74
-      - name: Publish signed APK
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-        run: |
-          mv app-release.apk Meek-1.1.74.apk
-          gh release create meek-1.1.74 Meek-1.1.74.apk --target "$GITHUB_SHA" --title 'Meek 1.1.74' --notes 'Disables automatic chat background generation.'

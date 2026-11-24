@@ -95,7 +95,8 @@ data class ConversationMemoryEntity(
     @PrimaryKey val conversationId: String,
     val shortTerm: String,
     val longTerm: String,
-    val updatedAt: Long
+    val updatedAt: Long,
+    @androidx.room.ColumnInfo(defaultValue = "''") val midTerm: String = ""
 )
 
 @Entity(

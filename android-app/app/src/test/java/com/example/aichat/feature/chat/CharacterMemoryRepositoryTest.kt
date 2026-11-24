@@ -23,6 +23,16 @@ import org.junit.Test
 
 class CharacterMemoryRepositoryTest {
     @Test
+    fun reopeningBeforeRefresh_restoresAllThreeCachedTiers() = runTest {
+        val dao = FakeMemoryDao()
+        val api = FakeMemoryApi()
+        CharacterMemoryRepository(dao, api).save(ID, "recent", "lasting", "pending").getOrThrow()
+        val restored = requireNotNull(CharacterMemoryRepository(dao, api).observeMemory(ID).first()).memory
+        assertThat(listOf(restored.shortTerm, restored.midTerm, restored.longTerm))
+            .containsExactly("recent", "pending", "lasting").inOrder()
+    }
+
+    @Test
     fun standardLimits_rejectOversizedSave_withoutTruncatingPreviouslySavedMemory() = runTest {
         val dao = FakeMemoryDao()
         val api = FakeMemoryApi().apply { detail = detail.copy(shortTerm = "a".repeat(6_000)) }

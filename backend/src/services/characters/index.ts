@@ -154,7 +154,7 @@ export async function generateCharacterGreeting(context: RequestContext, input: 
     }
   ];
 
-  const greeting = await completeChatText(context.env, messages, {
+  const greeting = await completeChatText({ ...context.env, OPENROUTER_MODEL: "xiaomi/mimo-v2.6-pro", OPENROUTER_FALLBACK_MODELS: "", OPENROUTER_PROVIDERS: "" }, messages, {
     maxTokens: 400,
     temperature: 0.8
   });

@@ -16,7 +16,6 @@ import { groupRoutes } from "./routes/groups";
 import { personaRoutes } from "./routes/personas";
 import { customizationRoutes } from "./routes/customization";
 import { characterPsychologyRoutes } from "./routes/characterPsychology";
-import { processGroupFollowups } from "./services/groups";
 import { resumeEmotionPortraits } from "./services/characterPsychology";
 import { homeRoutes } from "./routes/home";
 import { imageRoutes } from "./routes/images";
@@ -122,7 +121,6 @@ export default {
   },
   async scheduled(event: object, env: Env, ctx: { waitUntil(promise: Promise<any>): void }) {
     ctx.waitUntil(processOfflineMessages(env));
-    ctx.waitUntil(processGroupFollowups(env));
     ctx.waitUntil(resumeEmotionPortraits(env));
   }
 };

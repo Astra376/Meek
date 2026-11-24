@@ -133,37 +133,6 @@ async function processCandidate(env: Env, candidate: Candidate, now: number): Pr
 export async function processOfflineMessages(env: Env) {
   await ensureNotificationSchema(env);
   const now = Date.now();
-  const result = await env.DB.prepare(`WITH candidates AS (SELECT c.id, c.owner_user_id, c.character_id, c.version,
-      ch.name, ch.system_prompt, ch.avatar_url, latest.id AS anchor_id, latest.created_at AS anchor_at,
-      (SELECT COUNT(*) FROM messages WHERE conversation_id = c.id AND role = 'user') AS user_count,
-      COALESCE((SELECT MAX(stage) FROM offline_deliveries d WHERE d.conversation_id = c.id
-        AND d.anchor_message_id = latest.id AND d.state IN ('delivered', 'obsolete')), -1) AS delivered_stage
-    FROM conversations c JOIN characters ch ON ch.id = c.character_id
-    JOIN messages latest ON latest.id = (SELECT id FROM messages WHERE conversation_id = c.id AND role = 'user' ORDER BY position DESC LIMIT 1)
-    LEFT JOIN notification_settings s ON s.user_id = c.owner_user_id
-    LEFT JOIN user_presence p ON p.user_id = c.owner_user_id
-    WHERE latest.created_at < ? AND COALESCE(c.active_run_expires_at, 0) <= ?
-      AND COALESCE(p.last_seen_at, 0) < ? AND COALESCE(s.chat_messages_enabled, 1) = 1
-      AND (ch.visibility != 'private' OR ch.owner_user_id = c.owner_user_id)
-      AND (SELECT COUNT(*) FROM notifications n WHERE n.user_id = c.owner_user_id AND n.kind = 'chat' AND n.created_at > ?) < 3
-    ), due AS (
-      SELECT candidates.*, (SELECT MAX(CAST(key AS INTEGER)) FROM json_each(
-        CASE WHEN user_count >= 40 THEN '${JSON.stringify(offlineSchedule(40))}'
-          WHEN user_count >= 10 THEN '${JSON.stringify(offlineSchedule(10))}'
-          WHEN user_count >= 3 THEN '${JSON.stringify(offlineSchedule(3))}'
-          ELSE '${JSON.stringify(offlineSchedule(1))}' END) WHERE value <= ? - anchor_at) AS due_stage
-      FROM candidates
-    ) SELECT * FROM due WHERE due_stage > delivered_stage
-      AND NOT EXISTS (SELECT 1 FROM offline_deliveries d WHERE d.conversation_id = due.id
-        AND d.anchor_message_id = due.anchor_id AND d.stage = due.due_stage
-        AND (d.state IN ('delivered', 'obsolete') OR d.updated_at >= ? OR d.attempts >= 2))
-    ORDER BY COALESCE((SELECT MAX(updated_at) FROM offline_deliveries d WHERE d.conversation_id = due.id), 0) ASC,
-      anchor_at DESC LIMIT 6`)
-    .bind(now - 15 * MINUTE, now, now - 5 * MINUTE, now - DAY, now, now - 30 * MINUTE).all<Candidate>();
-  const eligible = (result.results ?? []).filter(c => dueOfflineStage(c.user_count, now - c.anchor_at, c.delivered_stage) !== null).slice(0, 6);
-  for (let offset = 0; offset < eligible.length; offset += 2) {
-    await Promise.allSettled(eligible.slice(offset, offset + 2).map(candidate => processCandidate(env, candidate, now)));
-  }
   await processRecommendations(env, now);
   await deliverNotificationEmails(env, now);
 }
